@@ -1,0 +1,29 @@
+﻿name: miku-image-generator
+services:
+  miku-image-generator:
+    build: .
+    container_name: miku-image-generator
+    restart: unless-stopped
+    ports:
+      - "3012:3012"
+    environment:
+      APP_USERNAME: ${APP_USERNAME:-root}
+      APP_PASSWORD: ${APP_PASSWORD:-root}
+      SECRET_KEY: ${SECRET_KEY:-change-this-secret}
+      NEW_API_BASE: ${NEW_API_BASE:-http://new-api:3000}
+      NEW_API_TOKEN: ${NEW_API_TOKEN:-}
+      DEFAULT_MODEL: ${DEFAULT_MODEL:-gpt-image-2}
+      AVAILABLE_MODELS: ${AVAILABLE_MODELS:-gpt-image-2,gpt-image-1.5,gpt-image-1,nano-banana-pro,nano-banana-2,qwen3.6-plus-image,imagen-4,qwen3.6-plus-image-edit}
+      MAX_HISTORY: "200"
+      REQUEST_TIMEOUT: "600"
+    volumes:
+      - ./data:/app/data
+    networks:
+      - default
+      - newapi
+
+networks:
+  newapi:
+    external: true
+    name: newapi_new-api-network
+

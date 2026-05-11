@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YANGYANGAPI 管理员登录</title>
+  <link rel="icon" href="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=202605120330">
+</head>
+<body class="login-page admin-auth-page">
+  <main class="admin-auth-shell">
+    <section class="admin-auth-hero">
+      <a class="admin-auth-brand" href="{{ url_for('index') }}">
+        <span class="brand-mark"><img src="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}" alt=""></span>
+        <strong>YANGYANGAPI</strong>
+      </a>
+      <div>
+        <span class="admin-kicker">Admin Console</span>
+        <h1>模型接入与号池管理中心</h1>
+        <p>管理本地 NAS、中转代理、浏览器直连和自动兜底线路；维护模型说明、账号号池、生成图片和同步来源。</p>
+      </div>
+      <div class="admin-auth-metrics">
+        <span><b>Pool</b>号池检测</span>
+        <span><b>Sync</b>接口同步</span>
+        <span><b>API</b>模型接入</span>
+      </div>
+    </section>
+    <section class="admin-login-card">
+      <span class="admin-kicker">Secure entrance</span>
+      <h2>管理员登录</h2>
+      <form method="post" class="login-form">
+        <label>
+          <span>账号</span>
+          <input name="username" autocomplete="username" required>
+        </label>
+        <label>
+          <span>密码</span>
+          <input name="password" type="password" autocomplete="current-password" required>
+        </label>
+        {% if error %}
+          <div class="error">{{ error }}</div>
+        {% endif %}
+        <button type="submit">进入后台</button>
+      </form>
+      <a class="admin-auth-link" href="{{ url_for('index') }}">返回工作台</a>
+    </section>
+  </main>
+</body>
+</html>

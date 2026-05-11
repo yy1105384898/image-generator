@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YANGYANGAPI 管理后台</title>
+  <link rel="icon" href="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=202605120420">
+</head>
+<body class="admin-page">
+  <header class="admin-topbar">
+    <a class="admin-auth-brand" href="{{ url_for('index') }}">
+      <span class="brand-mark"><img src="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}" alt=""></span>
+      <strong>YANGYANGAPI</strong>
+    </a>
+    <nav class="admin-section-nav">
+      <a href="{{ url_for('index') }}">工作台</a>
+      <form method="post" action="{{ url_for('logout') }}"><button type="submit">退出</button></form>
+    </nav>
+  </header>
+
+  <main class="admin-console">
+    <section class="admin-console-hero">
+      <span class="admin-kicker">Admin Console</span>
+      <h1>管理控制台</h1>
+      <p>集中管理模型接入、账号号池、远程账号同步、生成图片和运行日志。默认账号密码为 root/root，建议首次进入后立即修改。</p>
+      {% if message %}
+        <div class="admin-save-toast">{{ message }}</div>
+      {% endif %}
+    </section>
+
+    <nav class="admin-tabs" aria-label="管理模块">
+      <button type="button" class="admin-tab is-active" data-admin-tab="account-pool">
+        <span>Account Pool</span>
+        <b>号池管理</b>
+      </button>
+      <button type="button" class="admin-tab" data-admin-tab="images">
+        <span>Assets</span>
+        <b>图片管理</b>
+      </button>
+      <button type="button" class="admin-tab" data-admin-tab="logs">
+        <span>Runtime</span>
+        <b>日志管理</b>
+      </button>
+      <button type="button" class="admin-tab" data-admin-tab="settings">
+        <span>System</span>
+        <b>设置</b>
+      </button>
+    </nav>
+
+    <div class="admin-tab-stage">
+    <section class="admin-card admin-section admin-tab-panel is-active" id="account-pool" data-admin-panel="account-pool">
+      <div class="admin-card-head">
+        <div>
+          <span class="admin-kicker">Account Pool</span>
+          <h2>号池管理</h2>
+          <p>支持手动导入、JSON 导入、sub2api/CPA 同步，并可刷新账号邮箱、套餐、剩余生图额度和恢复时间。</p>
+        </div>
+        <form method="post" class="admin-form-actions">
+          <button class="admin-primary-button" type="submit" name="action" value="refresh_all_accounts">刷新全部额度</button>
+        </form>
+      </div>
+
+      <div class="admin-stat-grid">
+        <span><b>{{ account_stats.total }}</b>账户总数</span>
+        <span><b>{{ account_stats.ok }}</b>正常账户</span>
+        <span><b>{{ account_stats.limited }}</b>限流账户</span>
+        <span><b>{{ account_stats.error }}</b>异常账户</span>
+        <span><b>{{ account_stats.disabled }}</b>禁用账户</span>
+        <span><b>{{ account_stats.quota }}</b>剩余额度</span>
+      </div>
+
+      <div class="admin-management-grid">
+        <form method="post" class="admin-mini-form">
+          <h3>添加单个账号</h3>
+          <label>Access Token<input name="access_token" required placeholder="粘贴 OpenAI access_token"></label>
+          <div class="admin-inline-fields">
+            <label>邮箱<input name="email" placeholder="可留空，刷新后自动补全"></label>
+            <label>类型<input name="type" value="openai"></label>
+          </div>
+          <div class="admin-inline-fields">
+            <label>状态
+              <select name="status">
+                <option>正常</option><option>限流</option><option>异常</option><option>禁用</option>
+              </select>
+            </label>
+            <label>额度<input name="quota" type="number" min="0" value="0"></label>
+          </div>
+          <label>备注<input name="note" placeholder="来源、用途或分组"></label>
+          <button class="admin-primary-button" type="submit" name="action" value="add_account">添加账号</button>
+        </form>
+
+        <form method="post" class="admin-mini-form">
+          <h3>批量导入</h3>
+          <label>导入来源
+            <select name="import_source">
+              <option value="manual">Access Token 文本</option>
+              <option value="json">通用 JSON</option>
+              <option value="session">Session JSON</option>
+              <option value="sub2api-json">Sub2API JSON</option>
+              <option value="cpa-json">CPA JSON</option>
+            </select>
+          </label>
+          <label>账号内容<textarea name="account_import" rows="8" placeholder="一行一个 token，或粘贴包含 access_token/accessToken/token 的 JSON"></textarea></label>
+          <button class="admin-primary-button" type="submit" name="action" value="import_accounts">导入到号池</button>
+        </form>
+      </div>
+
+      <form id="bulkAccounts" method="post"></form>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th><input type="checkbox" data-check-all="account_token"></th>
+              <th>Token</th>
+              <th>类型/来源</th>
+              <th>状态</th>
+              <th>账号信息</th>
+              <th>额度</th>
+              <th>恢复时间</th>
+              <th>成功/失败</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for account in accounts %}
+              <tr>
+                <td><input form="bulkAccounts" type="checkbox" name="account_token" value="{{ account.access_token }}"></td>
+                <td class="admin-token-cell">
+                  <strong>{{ account.token_mask }}</strong>
+                  {% if account.last_error %}<small class="admin-error-text">{{ account.last_error }}</small>{% endif %}
+                </td>
+                <td><b>{{ account.type }}</b><small>{{ account.source }}</small></td>
+                <td><span class="admin-status admin-status-{{ account.status }}">{{ account.status }}</span></td>
+                <td><b>{{ account.email or "未刷新" }}</b><small>{{ account.user_id or account.default_model_slug or account.note }}</small></td>
+                <td>
+                  <b>{{ "未知" if account.image_quota_unknown else account.quota }}</b>
+                  {% if account.last_checked_at %}<small>{{ account.last_checked_at|ctime }}</small>{% endif %}
+                </td>
+                <td>{{ account.restore_at or "-" }}</td>
+                <td>{{ account.success }} / {{ account.fail }}</td>
+                <td>
+                  <form method="post" class="admin-row-actions">
+                    <input type="hidden" name="target_token" value="{{ account.access_token }}">
+                    <select name="status">
+                      {% for status in ["正常","限流","异常","禁用"] %}
+                        <option value="{{ status }}" {% if account.status == status %}selected{% endif %}>{{ status }}</option>
+                      {% endfor %}
+                    </select>
+                    <input name="type" value="{{ account.type }}">
+                    <input name="quota" type="number" min="0" value="{{ account.quota }}">
+                    <input name="note" value="{{ account.note }}" placeholder="备注">
+                    <button type="submit" name="action" value="update_account">保存</button>
+                    <button type="submit" name="action" value="refresh_selected_accounts">查额度</button>
+                  </form>
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="9" class="admin-empty">暂无账号。先导入 access_token，或在设置里同步 sub2api/CPA 账号。</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="admin-form-actions">
+        <button form="bulkAccounts" class="admin-primary-button" type="submit" name="action" value="refresh_selected_accounts">刷新选中账号</button>
+        <button form="bulkAccounts" class="admin-danger-button" type="submit" name="action" value="delete_accounts">删除选中账号</button>
+      </div>
+    </section>
+
+    <section class="admin-card admin-section admin-tab-panel" id="images" data-admin-panel="images">
+      <div class="admin-card-head">
+        <div>
+          <span class="admin-kicker">Images</span>
+          <h2>图片管理</h2>
+          <p>查看最近生成图片、任务来源和提示词，可批量删除本地文件记录。</p>
+        </div>
+      </div>
+      <form id="bulkMedia" method="post"></form>
+      <div class="admin-image-grid">
+        {% for item in media_items[:80] %}
+          <article class="admin-image-card">
+            <label><input form="bulkMedia" type="checkbox" name="media_id" value="{{ item.id }}"><span>选择</span></label>
+            <img src="{{ item.url }}" alt="">
+            <div>
+              <b>{{ item.created_at|ctime }}</b>
+              <p>{{ item.prompt }}</p>
+              <small>Job {{ item.job_id }} · #{{ item.index }}</small>
+            </div>
+          </article>
+        {% else %}
+          <div class="admin-empty">暂无图片记录。</div>
+        {% endfor %}
+      </div>
+      <div class="admin-form-actions">
+        <button form="bulkMedia" class="admin-danger-button" type="submit" name="action" value="delete_media">删除选中图片</button>
+      </div>
+    </section>
+
+    <section class="admin-card admin-section admin-tab-panel" id="logs" data-admin-panel="logs">
+      <div class="admin-card-head">
+        <div>
+          <span class="admin-kicker">Logs</span>
+          <h2>日志管理</h2>
+          <p>左侧为后台操作日志，右侧为最近生图任务状态。</p>
+        </div>
+      </div>
+      <div class="admin-log-grid">
+        <div class="admin-log-list">
+          {% for log in logs %}
+            <div><b>{{ log.action }}</b><span>{{ log.created_at|ctime }}</span><code>{{ log.detail }}</code></div>
+          {% else %}
+            <div class="admin-empty">暂无后台日志。</div>
+          {% endfor %}
+        </div>
+        <div class="admin-log-list">
+          {% for job in jobs %}
+            <div><b>{{ job.title }}</b><span>{{ job.status }} · {{ job.created_at|ctime }}</span><code>{{ job.error or job.resolved_api_url or job.model }}</code></div>
+          {% else %}
+            <div class="admin-empty">暂无任务日志。</div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="admin-card admin-section admin-tab-panel" id="settings" data-admin-panel="settings">
+      <div class="admin-card-head">
+        <div>
+          <span class="admin-kicker">Settings</span>
+          <h2>设置</h2>
+          <p>修改管理员账号、同步源接口、模型接入线路和模型描述。</p>
+        </div>
+      </div>
+
+      <div class="admin-management-grid">
+        <form method="post" class="admin-mini-form">
+          <h3>管理员账号</h3>
+          <label>账号<input name="admin_username" value="{{ admin_auth.username }}" autocomplete="username"></label>
+          <label>密码<input name="admin_password" type="password" value="{{ admin_auth.password }}" autocomplete="new-password"></label>
+          <button class="admin-primary-button" type="submit" name="action" value="save_admin_auth">保存管理员账号</button>
+        </form>
+
+        <form method="post" class="admin-mini-form">
+          <h3>账号同步接口</h3>
+          <div class="admin-inline-fields">
+            <label>Sub2API 名称<input name="sub2api_name" value="{{ integrations.sub2api.name }}"></label>
+            <label>Sub2API 地址<input name="sub2api_base_url" value="{{ integrations.sub2api.base_url }}" placeholder="http://host:port"></label>
+          </div>
+          <div class="admin-inline-fields">
+            <label>Sub2API 账号<input name="sub2api_username" value="{{ integrations.sub2api.username }}"></label>
+            <label>Sub2API 密码<input name="sub2api_password" type="password" value="{{ integrations.sub2api.password }}"></label>
+          </div>
+          <div class="admin-inline-fields">
+            <label>Admin API Key<input name="sub2api_api_key" value="{{ integrations.sub2api.api_key }}"></label>
+            <label>分组 ID<input name="sub2api_group_id" value="{{ integrations.sub2api.group_id }}"></label>
+          </div>
+          <div class="admin-inline-fields">
+            <label>CPA 名称<input name="cpa_name" value="{{ integrations.cpa.name }}"></label>
+            <label>CPA 地址<input name="cpa_base_url" value="{{ integrations.cpa.base_url }}"></label>
+          </div>
+          <label>CPA Secret Key<input name="cpa_secret_key" type="password" value="{{ integrations.cpa.secret_key }}"></label>
+          <div class="admin-form-actions">
+            <button class="admin-primary-button" type="submit" name="action" value="save_integrations">保存接口信息</button>
+            <button type="submit" name="action" value="sync_sub2api">同步 Sub2API</button>
+            <button type="submit" name="action" value="sync_cpa">同步 CPA</button>
+          </div>
+        </form>
+      </div>
+
+      <form method="post" class="admin-config-form">
+        <div class="admin-card-head">
+          <div>
+            <h3>模型 API 接入</h3>
+            <p>工作台会按这里配置的线路和模型说明展示，自动模式按顺序兜底连接。</p>
+          </div>
+          <div class="admin-inline-fields">
+            <label>默认线路
+              <select name="default_connection_mode">
+                {% for mode in ["local","proxy","direct","auto"] %}
+                  <option value="{{ mode }}" {% if config.default_connection_mode == mode %}selected{% endif %}>{{ mode }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label>自动顺序<input name="auto_order" value="{{ config.auto_order|join(',') }}"></label>
+          </div>
+        </div>
+        <div class="admin-route-grid">
+          {% for key in ["local","proxy","direct","auto"] %}
+            {% set conn = config["connections"][key] %}
+            <article class="admin-route-item">
+              <div class="admin-route-title">
+                <strong>{{ key }}</strong>
+                <label class="admin-switch">
+                  <input type="checkbox" name="{{ key }}_enabled" {% if conn.enabled %}checked{% endif %} {% if key == "auto" %}disabled{% endif %}>
+                  <span></span>
+                </label>
+              </div>
+              <div class="admin-route-fields">
+                <label>显示名称<input name="{{ key }}_label" value="{{ conn.label }}"></label>
+                <label>徽标<input name="{{ key }}_badge" value="{{ conn.badge }}"></label>
+                <label class="admin-wide-field">地址<input name="{{ key }}_url" value="{{ conn.url }}"></label>
+                <label class="admin-wide-field">描述<textarea name="{{ key }}_description" rows="3">{{ conn.description }}</textarea></label>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+        <label class="admin-wide-field">模型描述配置
+          <textarea class="admin-model-textarea" name="model_profiles" rows="8">{{ profile_lines }}</textarea>
+        </label>
+        <div class="admin-form-actions">
+          <button class="admin-primary-button" type="submit" name="action" value="save_model_config">保存模型配置</button>
+        </div>
+      </form>
+    </section>
+    </div>
+  </main>
+
+  <script>
+    document.querySelectorAll("[data-check-all]").forEach((box) => {
+      box.addEventListener("change", () => {
+        document.querySelectorAll(`input[name="${box.dataset.checkAll}"]`).forEach((input) => {
+          input.checked = box.checked;
+        });
+      });
+    });
+    const tabs = Array.from(document.querySelectorAll("[data-admin-tab]"));
+    const panels = Array.from(document.querySelectorAll("[data-admin-panel]"));
+    const activateAdminTab = (name, updateHash = true) => {
+      const target = panels.some((panel) => panel.dataset.adminPanel === name) ? name : "account-pool";
+      tabs.forEach((tab) => {
+        const active = tab.dataset.adminTab === target;
+        tab.classList.toggle("is-active", active);
+        tab.setAttribute("aria-selected", active ? "true" : "false");
+      });
+      panels.forEach((panel) => {
+        const active = panel.dataset.adminPanel === target;
+        panel.classList.toggle("is-active", active);
+        panel.hidden = !active;
+      });
+      localStorage.setItem("yy-admin-tab", target);
+      if (updateHash) {
+        history.replaceState(null, "", `#${target}`);
+      }
+    };
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => activateAdminTab(tab.dataset.adminTab || "account-pool"));
+    });
+    const initialTab = (location.hash || "").replace("#", "") || localStorage.getItem("yy-admin-tab") || "account-pool";
+    activateAdminTab(initialTab, Boolean(location.hash));
+  </script>
+</body>
+</html>

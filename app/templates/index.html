@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YANGYANGAPI 生图工作台</title>
+  <link rel="icon" href="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=202605120505">
+</head>
+<body>
+  <main id="home" class="home-page">
+    <section class="home-hero">
+      <header class="home-nav">
+        <a class="home-brand" href="#home">
+          <span class="brand-mark"><img src="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}" alt=""></span>
+          <strong>YANGYANGAPI 生图</strong>
+        </a>
+        <nav class="home-nav-links">
+          <a href="#home-product">工作台</a>
+          <a href="#home-analysis">智能分析</a>
+          <a href="#home-agents">行业 Agent</a>
+          <a href="#market">广场</a>
+          <a href="#home-local">本地接入</a>
+        </nav>
+        <div class="home-nav-actions">
+          <a class="home-nav-action" href="#studio">打开工作台</a>
+          <a class="home-nav-action" href="#market">进入广场</a>
+          <a class="home-admin-link" href="{{ url_for('admin') }}">管理后台</a>
+        </div>
+      </header>
+
+      <img class="home-hero-logo" src="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}" alt="" aria-hidden="true">
+
+      <div class="home-hero-copy">
+        <span class="home-kicker">AI image workspace  AI 图像工作空间</span>
+        <h1>YANGYANGAPI<br>生图<br>工作台</h1>
+        <p>从一句提示词，到一组可复用的视觉资产。把智能分析、批量生成、并行队列和本地图库，放进一个安静、清晰、反应迅速的创作空间。</p>
+        <div class="home-hero-actions">
+          <a class="home-primary" href="#studio">开始生成 <span>→</span></a>
+          <a class="home-secondary" href="#home-flow">了解流程</a>
+          <a class="home-secondary" href="#market">浏览广场</a>
+        </div>
+        <div class="home-metric-row">
+          <div class="home-metric">
+            <strong>20/页</strong>
+            <span>按需懒加载</span>
+          </div>
+          <div class="home-metric">
+            <strong>并行队列</strong>
+            <span>生成中继续提交</span>
+          </div>
+          <div class="home-metric">
+            <strong>本地接入</strong>
+            <span>NAS 优先</span>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="home-flow" id="home-flow">
+      <div class="home-section-copy">
+        <span class="home-kicker">Built for creation</span>
+        <h2>一个屏幕，完成从构思到归档。</h2>
+        <p>首页不再只是入口，而是产品能力的缩影：先让用户看到真实工作台，再用更少的文字说明它为什么值得信任。</p>
+      </div>
+      <div class="home-feature-grid">
+        <article class="home-feature">
+          <strong>统一记录流</strong>
+          <p>所有生成任务按时间自然归档，最新作品永远在最前。灵感、失败、重试和成片不再散落在不同页面。</p>
+        </article>
+        <article class="home-feature">
+          <strong>发送前智能分析</strong>
+          <p>在真正消耗生图额度前，先检查提示词风险、参数匹配度和可能失败的环节，再把建议交还给创作者决定。</p>
+        </article>
+        <article class="home-feature">
+          <strong>本地图库资产</strong>
+          <p>图片、参数、提示词和错误详情保存在当前浏览器本地。作品属于你的工作台，不被服务端额外留存。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="home-product-showcase" id="home-product">
+      <div class="home-showcase-copy">
+        <span class="home-kicker">Studio overview</span>
+        <h2>让生成记录，成为可以继续工作的画布。</h2>
+        <p>中间区域统一展示全部生成记录，左侧保留最近记录入口，右侧承载配置。用户可以在生成中继续提交新批次，让探索过程保持连续。</p>
+      </div>
+      <figure class="home-preview-frame home-preview-frame-wide">
+        <img src="{{ url_for('static', filename='v20260510151225993-home-studio-preview-DO5TrKVz.png') }}" alt="YANGYANGAPI 生图工作台截图">
+      </figure>
+    </section>
+
+    <section class="home-analysis-showcase" id="home-analysis">
+      <div class="home-analysis-media">
+        <img src="{{ url_for('static', filename='v20260510151225993-home-prompt-preview-S2HoWVwi.png') }}" alt="YANGYANGAPI 提示词输入和预设提示词截图">
+      </div>
+      <div class="home-showcase-copy">
+        <span class="home-kicker">Prompt intelligence</span>
+        <h2>发送之前，先把想法打磨到更接近成片。</h2>
+        <p>默认开启自动优化。系统会在提交前分析提示词、推荐参数、预判失败原因，并把风格增强建议收束成可执行的生成方案。</p>
+        <ul class="home-detail-list">
+          <li><span>✓</span>提示词优化、风格增强、失败预判和参数推荐被收进同一个发送流程。</li>
+          <li><span>✓</span>左右侧栏可收起，主画布为图片记录让出更多空间。</li>
+          <li><span>✓</span>多选、全选已显示、反选、批量下载和清除失败，让图库管理更接近专业素材库。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="home-agent-section" id="home-agents">
+      <div class="home-section-copy">
+        <span class="home-kicker">Industry agents</span>
+        <h2>不是模板，是为行业准备的生图流程。</h2>
+        <p>选择一个行业 Agent，填写业务目标，系统会自动补全 Brief、生成三套提示词、推荐比例和负面提示词，再进入发送前分析与批量生成。</p>
+      </div>
+      <div class="home-agent-grid">
+        <article class="home-agent-card">
+          <div><span>商</span><strong>电商商品图</strong></div>
+          <p>把商品卖点、材质和平合构图转成商业摄影方案。</p>
+          <small>商品主图 / 场景图 / 详情页配图</small>
+          <a href="#studio">进入工作台 →</a>
+        </article>
+        <article class="home-agent-card">
+          <div><span>封</span><strong>小红书封面</strong></div>
+          <p>自动补全视觉识别、标题留白和种草氛围。</p>
+          <small>笔记封面 / 种草图 / 干货图</small>
+          <a href="#studio">进入工作台 →</a>
+        </article>
+        <article class="home-agent-card">
+          <div><span>短</span><strong>短视频封面</strong></div>
+          <p>把视频主题提炼成一秒能看懂的竖屏首帧。</p>
+          <small>抖音 / TikTok / Reels / Shorts 封面</small>
+          <a href="#studio">进入工作台 →</a>
+        </article>
+        <article class="home-agent-card">
+          <div><span>品</span><strong>品牌海报</strong></div>
+          <p>建立主视觉、调性、色彩秩序和文案区域。</p>
+          <small>活动海报 / 发布会图 / 官网头图</small>
+          <a href="#studio">进入工作台 →</a>
+        </article>
+        <article class="home-agent-card">
+          <div><span>室</span><strong>室内空间</strong></div>
+          <p>补全空间层次、材质、镜头焦段和真实自然光。</p>
+          <small>空间效果图 / 软装方案 / 空间灵感</small>
+          <a href="#studio">进入工作台 →</a>
+        </article>
+        <article class="home-agent-card">
+          <div><span>人</span><strong>人像写真</strong></div>
+          <p>自动补全妆造、姿态、光线、背景和镜头语言。</p>
+          <small>头像 / 半身写真 / 商务形象照</small>
+          <a href="#studio">进入工作台 →</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="home-market-section" id="market">
+      <div class="square-topbar-inline">
+        <a class="home-brand square-brand" href="#home">
+          <span class="brand-mark"><img src="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}" alt=""></span>
+          <strong>YANGYANGAPI 广场</strong>
+        </a>
+        <div class="square-nav-actions">
+          <a class="home-nav-action" href="#studio">✣ 工作台</a>
+          <a class="home-nav-action" href="#home">首页</a>
+        </div>
+      </div>
+      <section class="square-hero-inline">
+        <div>
+          <span class="home-kicker">Square</span>
+          <h2>广场</h2>
+          <p>这里展示被推荐出来的 1K 创作缩略图。点赞、推荐和替换都由服务端记录配额与日志。</p>
+        </div>
+        <div class="square-quota-strip">
+          <span>未配置 API Key</span>
+          <strong>-/4</strong><small>展示位</small>
+          <strong>-</strong><small>今日推荐剩余</small>
+          <strong>-</strong><small>今日点赞剩余</small>
+        </div>
+        <button class="square-refresh-button" type="button">↻ 刷新</button>
+      </section>
+      <div class="square-tabs">
+        <button class="active" type="button">◷ 最新</button>
+        <button type="button">♨ 热门</button>
+        <button type="button">☆ 精选</button>
+        <button type="button">▥ 本周</button>
+        <button type="button">▥ 本月</button>
+      </div>
+      <div class="square-grid">
+        <article class="square-card"><div class="square-card-image"></div><div class="square-card-body"><strong>等待推荐作品</strong><p>配置 API Key 后可从工作台推荐作品到广场。</p></div></article>
+        <article class="square-card"><div class="square-card-image"></div><div class="square-card-body"><strong>创作缩略图</strong><p>广场会按最新、热门和推荐顺序展示公开作品。</p></div></article>
+        <article class="square-card"><div class="square-card-image"></div><div class="square-card-body"><strong>可复用提示词</strong><p>复制提示词后可以回到工作台继续生成。</p></div></article>
+      </div>
+    </section>
+
+    <section class="home-insight" id="home-local">
+      <div>
+        <span class="home-kicker">Private by design</span>
+        <h2>本地接入优先。外网自动兜底。</h2>
+      </div>
+      <p>工作台默认优先尝试 NAS 上的 New API 地址；本地不可达时，再按后台配置走中转代理或浏览器直连。图片、任务和历史记录保存在当前服务的数据目录里，方便继续查看和管理。</p>
+      <a class="home-primary dark" href="#studio">打开工作台 →</a>
+    </section>
+  </main>
+
+    <section id="studio" class="studio-view">
+    <div class="app-shell left-open settings-open">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-main">
+            <span class="brand-mark"><img src="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}" alt=""></span>
+            <div>
+              <strong>YANGYANGAPI</strong>
+              <span>本地批量生图</span>
+            </div>
+          </div>
+          <button class="icon-button" id="collapseLeft" type="button">◫</button>
+        </div>
+
+        <button id="newTask" class="new-task" type="button">⊞ 新任务</button>
+
+        <div class="history-title">
+          <span>最近记录</span>
+          <button id="clearMedia" class="icon-button" type="button">⌫</button>
+        </div>
+        <div id="historyList" class="history-list"></div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div class="topbar-cluster">
+            <button class="topbar-toggle" id="toggleLeft" type="button">◧</button>
+            <a class="topbar-home-button" href="#home">✣ 首页</a>
+            <a class="topbar-home-button" href="#market">↗ 广场</a>
+            <button class="status-pill connection-status" id="connectionStatus" type="button">☷ 填写 API Key 后自动验证</button>
+          </div>
+          <div class="current-model">
+            <span>兼容协议</span>
+            <strong id="compatLabel">未选择</strong>
+          </div>
+          <div class="topbar-cluster right">
+            <button class="status-pill" type="button">▤ <span id="mediaCount">0</span></button>
+            <button class="topbar-toggle active" id="toggleConfig" type="button">◨</button>
+          </div>
+        </header>
+
+        <section class="canvas">
+          <div id="emptyState" class="empty-state">
+            <span class="empty-mark">▧</span>
+            <div>
+              <strong>准备生成</strong>
+              <span>读取模型后输入提示词开始生成</span>
+            </div>
+          </div>
+          <div id="galleryHeader" class="gallery-header hidden"></div>
+          <div id="mediaGrid" class="gallery-grid"></div>
+        </section>
+
+        <section class="composer">
+          <div class="agent-mode-strip">
+            <div>
+              <strong>Agent 模式 A</strong>
+              <span id="agentModeSubtitle">自动编排单图、多图与宣传画册</span>
+            </div>
+            <button class="agent-mode-toggle" id="agentModeToggle" type="button" aria-label="Agent 模式"></button>
+          </div>
+          <div class="agent-mode-card hidden" id="agentModeCard">
+            <span>✓</span>
+            <div>
+              <strong>Agent 模式 A</strong>
+              <p>告诉我你想做一张图、一组不同图片，或者一本宣传画册。</p>
+            </div>
+            <button id="closeAgentMode" type="button" aria-label="关闭 Agent 模式 A">×</button>
+          </div>
+          <div class="agent-quickbar">
+            <button class="agent-chip agent-entry-button is-muted needs-attention" id="agentEntry" type="button">
+              <span>✣ 行业 Agent · 未启用</span>
+              <small>可开启</small>
+            </button>
+            <button class="agent-clear-button hidden" id="agentClearButton" type="button" aria-label="停用行业 Agent">×</button>
+            <span class="agent-applied-status hidden" id="agentAppliedStatus">
+              <span>行业 Agent</span>
+              <button type="button" aria-label="清除 Agent 标签">×</button>
+            </span>
+            <button class="subtle-button" id="expandAdvanced" type="button">展开 ›</button>
+            <span class="agent-status-bubble" id="agentStatusBubble">选择行业工作流，不填也能生成标准图</span>
+            <div class="agent-quick-list" id="agentQuickList" aria-label="行业 Agent 快捷入口"></div>
+          </div>
+          <section class="preset-panel hidden" id="presetPanel" aria-live="polite">
+            <button class="preset-panel-close" id="closePresetPanel" type="button" aria-label="关闭预设提示词">×</button>
+            <header>
+              <strong>预设提示词</strong>
+              <p>点击模板填入输入框，填入后仍可继续编辑。</p>
+            </header>
+            <div class="preset-grid" id="presetGrid"></div>
+          </section>
+          <section class="prompt-analysis-card hidden" id="promptAnalysisCard" aria-live="polite">
+            <button class="prompt-analysis-close" id="closePromptAnalysis" type="button" aria-label="关闭提示词优化结果">×</button>
+            <header>
+              <span class="analysis-icon">✣</span>
+              <div>
+                <strong id="analysisResultTitle">提示词优化完成</strong>
+                <p>本地预检 · 评分 <span id="promptScore">84</span></p>
+              </div>
+            </header>
+            <div class="analysis-ready-row">
+              <strong>可直接生成</strong>
+              <span>未检测到 GPT 分析模型，已先用本地规则完成预检。</span>
+            </div>
+            <div class="preflight-generate hidden" id="preflightGenerate">
+              <div class="preflight-copy">
+                <strong><span id="preflightSeconds">10</span>s</strong>
+                <span id="preflightText">10 秒后使用优化版自动生成</span>
+              </div>
+              <div class="preflight-track"><span id="preflightProgress"></span></div>
+              <button id="stopAutoGenerate" type="button">停止自动生成</button>
+            </div>
+            <div class="analysis-block">
+              <strong>失败预判</strong>
+              <div class="analysis-warning">
+                <b>文字渲染存在不确定性</b>
+                <span>图片模型对精准文字仍可能出错，建议减少文字数量并强调可读性。建议：把文字控制在 1-2 个短句，后期可用设计工具补字。</span>
+              </div>
+            </div>
+            <div class="analysis-block">
+              <strong>参数推荐</strong>
+              <div class="analysis-param-grid">
+                <div><span>比例</span><b id="analysisAspect">1:1</b></div>
+                <div><span>尺寸</span><b id="analysisSize">1024x1024</b></div>
+                <div><span>张数</span><b id="analysisCount">2</b></div>
+                <div><span>风格</span><b id="analysisStyle">medium</b></div>
+              </div>
+            </div>
+            <div class="analysis-block">
+              <strong>提示词优化</strong>
+              <textarea id="optimizedPrompt" readonly rows="4"></textarea>
+            </div>
+            <div class="analysis-block">
+              <strong>风格增强</strong>
+              <div class="analysis-style-tags">
+                <span>电影感</span>
+                <span>商业摄影</span>
+                <span>极简信息图</span>
+              </div>
+            </div>
+            <div class="analysis-actions">
+              <button id="applyOptimizedPrompt" class="primary-action compact" type="button">✣ 应用优化提示词</button>
+              <button id="applyOptimizedParams" class="subtle-button compact" type="button">☷ 应用推荐参数</button>
+              <button id="continueOriginalPrompt" class="subtle-button compact hidden" type="button">原样继续</button>
+              <button id="copyOptimizedPrompt" class="subtle-button compact" type="button">□ 复制优化版</button>
+            </div>
+          </section>
+          <div class="composer-main">
+            <button class="upload-button" id="referenceUploadButton" type="button">↥</button>
+            <input id="referenceUpload" class="hidden-input" type="file" accept="image/*">
+            <button class="preset-button" id="presetButton" type="button">✣ 预设</button>
+            <textarea id="prompt" rows="1" placeholder="描述你想生成的图片..."></textarea>
+            <button id="quickConfigButton" class="quick-config-button" type="button" title="打开生成配置：1张 · 1:1 · 1K · 1024x1024 · PNG · 并发 2">☷ 1张 1:1 1K</button>
+            <button id="submitJob" class="send-button" type="button">➤</button>
+          </div>
+          <section class="quick-config-panel hidden" id="quickConfigPanel" aria-live="polite">
+            <header>
+              <strong>生成配置</strong>
+              <button id="closeQuickConfig" type="button" aria-label="关闭生成配置">×</button>
+            </header>
+            <div class="quick-config-grid">
+              <label><span>张数</span><input id="quickCount" type="number" min="1" max="20"></label>
+              <label><span>比例</span><select id="quickAspect"></select></label>
+              <label><span>分辨率</span><select id="quickResolution"></select></label>
+              <label><span>并发</span><input id="quickConcurrency" type="number" min="1" max="6"></label>
+              <label><span>质量</span><select id="quickQuality"></select></label>
+              <label><span>格式</span><select id="quickFormat"></select></label>
+            </div>
+          </section>
+          <div id="composerReferenceList" class="composer-reference-list hidden"></div>
+          <div class="composer-tools" aria-label="智能创作工具">
+            <button id="optimizePrompt" type="button" disabled>✎ 优化提示词</button>
+            <button id="recommendParams" type="button" disabled>▦ 参数推荐</button>
+            <button id="predictFailure" type="button" disabled>⚠ 失败预判</button>
+            <button id="enhanceStyle" type="button" disabled>✣ 风格增强</button>
+          </div>
+          <div class="composer-meta">
+            <span id="protocolSummary">兼容协议 · 1024x1024</span>
+            <span id="countSummary">1张 · 1:1 · 1K</span>
+            <label class="composer-auto-toggle">
+              <input id="sendOptimize" type="checkbox" checked>
+              <span>发送前优化</span>
+            </label>
+            <span id="referenceSendSummary" class="reference-send-summary hidden">将发送参考图 0/0</span>
+            <span id="wordCount">0 字</span>
+          </div>
+        </section>
+      </main>
+
+      <aside class="settings-panel" id="configPanel">
+        <div class="panel-header">
+          <div>
+            <strong>配置</strong>
+            <span>API 与生成参数</span>
+          </div>
+          <button class="icon-button" id="collapseRight" type="button">◨</button>
+        </div>
+
+        <section class="settings-section protocol-card">
+          <label>
+            <span class="sr-only">生图协议</span>
+            <select id="protocol">
+              <option value="custom-openai">OpenAI 兼容</option>
+              <option value="openai-images">OpenAI Images</option>
+              <option value="openai-responses">OpenAI Responses</option>
+              <option value="gemini-native">Gemini Native</option>
+              <option value="gemini-openai">Gemini OpenAI 兼容</option>
+              <option value="google-imagen">Google Imagen</option>
+              <option value="stability-core">Stability Core</option>
+            </select>
+          </label>
+          <div class="protocol-note">
+            <strong id="protocolTitle">兼容协议</strong>
+            <span id="protocolDescription">适合第三方中转或自建 OpenAI 风格图片接口</span>
+            <small id="protocolSupport">支持参考图 · 支持质量 · 支持格式</small>
+          </div>
+          <div class="connection-mode-group">
+            <button class="selected" data-connection-mode="proxy" type="button"><strong>中转代理</strong><span>最稳</span></button>
+            <button data-connection-mode="local" type="button"><strong>本地接入</strong><span>NAS</span></button>
+            <button data-connection-mode="direct" type="button"><strong>浏览器直连</strong><span>少一跳</span></button>
+            <button data-connection-mode="auto" type="button"><strong>自动</strong><span>兜底</span></button>
+          </div>
+          <input id="connectionMode" value="proxy" hidden>
+          <div id="connectionNote" class="endpoint-note">请求先到本站 /api，再转发到上游，能避开浏览器跨域问题。</div>
+        </section>
+
+        <section class="settings-section api-card">
+          <label>
+            <span>API URL</span>
+            <input id="apiUrl" value="http://60.205.243.114:3004/v1">
+          </label>
+          <div class="endpoint-note">按上方接入模式自动切换，也可以手动改成其他 OpenAI 兼容地址。</div>
+          <label>
+            <span>API Key</span>
+            <input id="apiKey" type="password" placeholder="sk-... 或 New API Token" autocomplete="off">
+          </label>
+          <label class="check-row remember-key-row">
+            <input id="rememberApiKey" type="checkbox">
+            <span>记住 API Key</span>
+          </label>
+          <label class="hidden-model-select">
+            <span>模型</span>
+            <select id="model">
+              {% for model in models %}
+                <option value="{{ model }}" {% if model == default_model %}selected{% endif %}>{{ model }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <button id="refreshModels" class="primary-action" type="button">↻ 读取/刷新模型</button>
+          <div id="modelStatus" class="status-line">ⓘ 填写 API Key 后点击读取/刷新模型</div>
+          <section class="analysis-card">
+            <strong>智能分析 AI</strong>
+            <select id="analysisModel" disabled>
+              <option>未检测到 GPT 分析模型</option>
+            </select>
+            <div class="inline-note muted"><span>ⓘ</span><span>没有 GPT 文本模型时，会先使用本地规则预检</span></div>
+            <div class="local-save-note"><span>▣</span><span>生成图片和历史仅保存到当前浏览器本地，服务端只做无状态协议转发。</span></div>
+          </section>
+        </section>
+
+        <section class="settings-section model-catalog">
+          <div class="section-copy">
+            <strong>可用生图模型</strong>
+            <span>支持 GPT Image、Gemini / 香蕉、Imagen、Stability 等常见生图模型，也可以手动填写模型名</span>
+          </div>
+          <label class="model-filter">
+            <span>筛选模型</span>
+            <input id="modelFilter" placeholder="筛选模型">
+          </label>
+          <div id="availableModelList" class="available-model-list">
+            <div class="empty-model-list">暂无可用生图模型</div>
+          </div>
+        </section>
+
+        <section class="settings-section generation-settings">
+          <label class="title-field"><span>任务标题</span><input id="title" placeholder="可选"></label>
+          <label>
+            <span>宽高比</span>
+            <select id="aspectRatio">
+              <option value="1:1">1:1 方图 · 1024x1024</option>
+              <option value="4:5">4:5 竖版社媒 · 1024x1280</option>
+              <option value="5:4">5:4 横版产品 · 1280x1024</option>
+              <option value="3:4">3:4 竖版照片 · 1024x1365</option>
+              <option value="4:3">4:3 经典横图 · 1365x1024</option>
+              <option value="2:3">2:3 竖版海报 · 1024x1536</option>
+              <option value="3:2">3:2 相机横图 · 1536x1024</option>
+              <option value="9:16">9:16 手机竖屏 · 1024x1792</option>
+              <option value="16:9">16:9 宽屏 · 1792x1024</option>
+              <option value="21:9">21:9 超宽屏 · 1792x768</option>
+              <option value="9:21">9:21 长竖屏 · 768x1792</option>
+              <option value="4:1">4:1 横向长图 · 2048x512</option>
+              <option value="1:4">1:4 纵向长图 · 512x2048</option>
+              <option value="8:1">8:1 超长横幅 · 2048x256</option>
+              <option value="1:8">1:8 超长竖幅 · 256x2048</option>
+            </select>
+          </label>
+          <div class="setting-summary-card" id="aspectSummary">
+            <strong>1:1</strong>
+            <span>GPT Image 官方方图尺寸</span>
+            <small>1K · 请求尺寸 1024x1024</small>
+          </div>
+          <label>
+            <span>分辨率</span>
+            <select id="resolution">
+              <option value="1K">1K 标准</option>
+              <option value="2K">2K 高清</option>
+              <option value="4K">4K 超清</option>
+            </select>
+          </label>
+          <div class="setting-summary-card" id="resolutionSummary">
+            <strong>1K</strong>
+            <span>速度优先，适合批量预览</span>
+            <small>当前模型会优先使用上游合法 size，避免不合法尺寸报错</small>
+          </div>
+          <div class="settings-grid">
+            <label><span>质量</span><select id="quality"><option value="auto">auto</option><option value="standard">standard</option><option value="high">high</option><option value="hd">hd</option></select></label>
+            <label><span>格式</span><select id="outputFormat"><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="webp">WebP</option></select></label>
+              <label><span>张数</span><input id="count" type="number" min="1" max="20" value="1"></label>
+          </div>
+          <details class="advanced-generation-options">
+            <summary>高级参数</summary>
+            <div class="settings-grid">
+              <label><span>并发</span><input id="concurrency" type="number" min="1" max="6" value="2"></label>
+              <label><span>失败自动重试</span><input id="retryLimit" type="number" min="0" max="5" value="2"></label>
+              <label><span>Seed</span><input id="seed" placeholder="可选，留空随机"></label>
+            </div>
+          </details>
+        </section>
+
+        <section class="settings-section negative-section">
+          <label>
+            <span>负面提示词</span>
+            <textarea id="negative" rows="3">低清晰度，畸形结构，错误文字，重复肢体，低质量，过度锐化</textarea>
+          </label>
+        </section>
+
+        <input id="editMode" type="checkbox" hidden>
+        <div id="referenceList" class="reference-list hidden" aria-hidden="true"></div>
+
+      </aside>
+    </div>
+  </section>
+
+  <div id="agentModal" class="agent-modal hidden" role="dialog" aria-modal="true" aria-labelledby="agentPanelTitle">
+    <section class="agent-panel">
+      <header class="agent-panel-head">
+        <div>
+          <span>AI + Image workflow</span>
+          <strong id="agentPanelTitle">行业 Agent</strong>
+          <p>选择行业即可生成标准方案。下方信息可选填，不填写也会使用行业默认值。</p>
+        </div>
+        <button class="icon-button" id="closeAgentPanel" type="button">×</button>
+      </header>
+      <div class="agent-layout">
+        <div id="agentList" class="agent-list"></div>
+        <div id="agentWorkspace" class="agent-workspace">
+          <div class="agent-empty-select">
+            <span>✣</span>
+            <strong>先选择一个行业 Agent</strong>
+            <p>默认不启用行业工作流。选择左侧行业后，系统会自动填入行业默认目标、比例、张数和负面提示词。</p>
+          </div>
+        </div>
+      </div>
+      <div class="agent-panel-actions">
+        <button id="applyStableAgent" class="primary-action compact agent-variant-action hidden" type="button">✣ 应用稳定版到提示词</button>
+        <button id="applyCreativeAgent" class="subtle-button compact agent-variant-action hidden" type="button">✣ 应用创意版到提示词</button>
+        <button id="applyCommercialAgent" class="subtle-button compact agent-variant-action hidden" type="button">✣ 应用商业版到提示词</button>
+        <button id="regenerateAgent" class="subtle-button compact agent-generated-action hidden" type="button">↻ 重新生成方案</button>
+        <button id="applyAgent" class="primary-action compact" type="button" disabled>先选择行业 Agent</button>
+        <button id="disableAgent" class="danger-action compact" type="button">停用行业 Agent</button>
+        <button id="cancelAgent" class="subtle-button" type="button">取消</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="guideOverlay" class="onboarding-overlay hidden" aria-hidden="true">
+    <div class="onboarding-click-catcher"></div>
+    <div class="onboarding-spotlight"></div>
+    <div class="onboarding-panel">
+      <div class="onboarding-progress">
+        <button type="button"></button>
+        <button type="button"></button>
+        <button type="button"></button>
+      </div>
+      <div class="onboarding-copy">
+        <span id="guideStepLabel">首次使用 · 第 1 步 / 3</span>
+        <strong id="guideTitle">连接你的生图服务</strong>
+        <p id="guideBody">先在右侧配置里选择服务地址并填入 API Key。地址已被限制为固定入口，避免请求落到未知服务。</p>
+        <small id="guideHint">等待填写 API Key</small>
+      </div>
+      <div class="onboarding-actions">
+        <button id="skipGuide" class="subtle-button" type="button">跳过</button>
+        <button id="guideConfig" class="subtle-button" type="button">打开配置</button>
+        <button id="nextGuide" class="primary-action" type="button">下一步 →</button>
+      </div>
+    </div>
+    <div id="guideBubble" class="guide-bubble hidden">选择行业工作流，不填也能生成标准图</div>
+  </div>
+
+  <script>
+    window.YY_MODEL_CONFIG = {{ model_config|tojson }};
+  </script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=202605120205"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+data/
+output/
+.playwright-cli/
+__pycache__/
+app/__pycache__/
+*.py[cod]
+*.pid
+.env
+.venv/
+venv/
+node_modules/
+.DS_Store
+Thumbs.db
