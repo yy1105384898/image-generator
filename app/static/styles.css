@@ -51,8 +51,11 @@ a:focus-visible {
   background: linear-gradient(180deg, #f7f7f4 0%, #f2f2ef 100%);
   color: var(--text);
 }
-body.studio-active .home-page,
-body.research-active .home-page {
+body.studio-active .home-page {
+  display: none;
+}
+
+body.research-active .home-page > section:not(.research-workbench) {
   display: none;
 }
 
