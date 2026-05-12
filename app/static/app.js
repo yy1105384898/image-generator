@@ -181,6 +181,7 @@ function applyRoute() {
 }
 
 const CLIENT_ID_STORAGE_KEY = "yangyang_image_client_id";
+const CONNECTION_MODE_STORAGE_KEY = "yangyang_image_connection_mode";
 
 function ensureClientId() {
   const cached = localStorage.getItem(CLIENT_ID_STORAGE_KEY);
@@ -649,6 +650,15 @@ function applyModelConfigToUi() {
   });
 }
 
+function normalizeConnectionMode(mode) {
+  const requested = String(mode || "auto").trim() || "auto";
+  const button = Array.from(els.connectionButtons).find((item) => item.dataset.connectionMode === requested);
+  if (button && !button.hidden) return requested;
+  const autoButton = Array.from(els.connectionButtons).find((item) => item.dataset.connectionMode === "auto");
+  if (autoButton && !autoButton.hidden) return "auto";
+  return Array.from(els.connectionButtons).find((item) => !item.hidden)?.dataset.connectionMode || "auto";
+}
+
 function setQuickConfigPanel(open) {
   syncQuickConfigControls();
   els.quickConfigPanel?.classList.toggle("hidden", !open);
@@ -693,9 +703,13 @@ function syncSummary() {
   syncQuickConfigControls();
 }
 
-function setConnectionMode(mode) {
+function setConnectionMode(mode, options = {}) {
+  mode = normalizeConnectionMode(mode);
   els.connectionMode.value = mode;
   els.connectionMode.setAttribute("value", mode);
+  if (options.persist) {
+    localStorage.setItem(CONNECTION_MODE_STORAGE_KEY, mode);
+  }
   els.connectionButtons.forEach((button) => {
     button.classList.toggle("selected", button.dataset.connectionMode === mode);
   });
@@ -2476,7 +2490,7 @@ els.prompt.addEventListener("input", syncSummary);
   [els.protocol, els.model, els.apiUrl, els.apiKey, els.rememberApiKey, els.aspectRatio, els.resolution, els.count, els.concurrency, els.retryLimit, els.quality, els.outputFormat, els.seed, els.negative].forEach((el) => el.addEventListener(eventName, syncSummary));
 });
 els.connectionButtons.forEach((button) => button.addEventListener("click", () => {
-  setConnectionMode(button.dataset.connectionMode);
+  setConnectionMode(button.dataset.connectionMode, { persist: true });
   scheduleAutoRefreshModels();
 }));
 els.submitJob.addEventListener("click", submitJob);
@@ -2647,7 +2661,7 @@ window.addEventListener("resize", () => {
 });
 loadApiKeyPreference();
 applyModelConfigToUi();
-setConnectionMode(modelConfig.default_connection_mode || els.connectionMode.value || "proxy");
+setConnectionMode(localStorage.getItem(CONNECTION_MODE_STORAGE_KEY) || "auto");
 if (els.count && (!els.count.value || els.count.value === "4")) els.count.value = "1";
 syncShellToggles();
 syncAgentEntry();
