@@ -1,6 +1,6 @@
 # YANGYANGAPI Image Workspace
 
-YANGYANGAPI Image Workspace 是一个基于 Flask + Docker 的 AI 生图工作站，面向本地 NAS、自建 New API、中转代理和账号号池混合使用场景。它把首页展示、工作台生成、行业 Agent、模型线路配置、账号号池、图片管理和日志管理放在同一个项目里。
+YANGYANGAPI Image Workspace 是一个基于 Flask + Docker 的 AI 生图工作站，面向局域网接入、自建 New API、中转代理和账号号池混合使用场景。它把首页展示、工作台生成、行业 Agent、模型线路配置、账号号池、图片管理和日志管理放在同一个项目里。
 
 演示站点：[YANGYANGAPI 生图工作台](https://yyimage.iepose.cn/#home)
 

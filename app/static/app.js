@@ -2011,7 +2011,7 @@ async function refreshModels({ silent = false } = {}) {
     renderAvailableModels();
     setConnectionStatus("☷ 连接失败", "error");
     const mode = els.connectionMode.value;
-    const directHint = mode === "direct" ? "浏览器直连域名目前只有 IPv6，NAS 或当前网络不支持 IPv6 时会失败；建议切到“自动”或“中转代理”。" : "建议先用“自动”读取；Token 可在 New API 后台“令牌”里创建或复制。";
+    const directHint = mode === "direct" ? "浏览器直连域名目前只有 IPv6，局域网或当前网络不支持 IPv6 时会失败；建议切到“自动”或“中转代理”。" : "建议先用“自动”读取；Token 可在 New API 后台“令牌”里创建或复制。";
     setModelStatus(`✕ 读取失败：${err.message}`, "error");
     setModelFetchHelp(`${directHint} 如果仍失败，检查 New API Token 是否有效、是否有模型权限。`, "error");
     if (!silent) {

@@ -102,9 +102,9 @@ def default_model_config() -> dict:
         "connections": {
             "local": {
                 "label": "本地接入",
-                "badge": "NAS",
+                "badge": "局域网",
                 "url": CONNECTION_ENDPOINTS["local"],
-                "description": "优先访问家里 NAS 的 New API，内网可达时延迟最低。",
+                "description": "优先访问局域网内的 New API，内网可达时延迟最低。",
                 "enabled": True,
             },
             "proxy": {
