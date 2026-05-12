@@ -12,4 +12,4 @@ COPY app/ /app/
 
 EXPOSE 3012
 
-CMD ["gunicorn", "-b", "0.0.0.0:3012", "--timeout", "660", "server:app"]
+CMD ["gunicorn", "-b", "0.0.0.0:3012", "--workers", "2", "--worker-class", "gthread", "--threads", "4", "--timeout", "660", "--keep-alive", "5", "server:app"]

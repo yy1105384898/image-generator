@@ -17,6 +17,8 @@ services:
       REQUEST_TIMEOUT: "600"
     volumes:
       - ./data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - default
       - newapi

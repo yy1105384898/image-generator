@@ -150,6 +150,7 @@ let agentModeEnabled = false;
 let agentEnabled = false;
 let agentGenerated = false;
 let agentPlan = null;
+let agentPlanRevision = 0;
 let appliedAgentVariant = null;
 let agentComposerExpanded = false;
 let guideStep = 0;
@@ -179,10 +180,23 @@ function applyRoute() {
   maybeAutoShowGuide(anchor);
 }
 
+const CLIENT_ID_STORAGE_KEY = "yangyang_image_client_id";
+
+function ensureClientId() {
+  const cached = localStorage.getItem(CLIENT_ID_STORAGE_KEY);
+  if (cached) return cached;
+  const randomId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const value = `yy-${randomId}`.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80);
+  localStorage.setItem(CLIENT_ID_STORAGE_KEY, value);
+  return value;
+}
+
+const clientId = ensureClientId();
+
 async function api(path, options = {}) {
   const resp = await fetch(path, {
     ...options,
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    headers: { "Content-Type": "application/json", "X-YY-Client-ID": clientId, ...(options.headers || {}) },
   });
   const data = await resp.json();
   if (!resp.ok) throw new Error(data.error || data.detail || "请求失败");
@@ -1018,6 +1032,7 @@ function renderAgentQuickList() {
       selectedAgent = agent;
       agentGenerated = false;
       agentPlan = null;
+      agentPlanRevision = 0;
       agentEnabled = false;
       appliedAgentVariant = null;
       agentComposerExpanded = true;
@@ -1064,6 +1079,7 @@ function renderAgentList() {
       selectedAgent = agent;
       agentGenerated = false;
       agentPlan = null;
+      agentPlanRevision = 0;
       agentEnabled = false;
       appliedAgentVariant = null;
       syncAgentEntry();
@@ -1148,7 +1164,7 @@ function readAgentValues() {
   };
 }
 
-function buildAgentPrompt(variant = "stable", values = agentPlan?.values || readAgentValues()) {
+function buildAgentPrompt(variant = "stable", values = agentPlan?.values || readAgentValues(), revision = 1) {
   const fields = selectedAgent.fields || {};
   const delivery = (selectedAgent.goals || ["业务场景"]).join(" / ");
   const businessGoal = `生成可直接用于${delivery}的高质感${selectedAgent.name === "电商商品图" ? "商业摄影图" : selectedAgent.name}。`;
@@ -1176,14 +1192,15 @@ function buildAgentPrompt(variant = "stable", values = agentPlan?.values || read
     `背景：干净、有层次，不干扰主体。`,
     tags ? `镜头/材质/细节：${tags}。` : "",
     `提示词蓝图：主体 + 材质细节 + 平台用途 + 专业布光 + 干净背景 + 主体占比 + 可交付视觉。`,
+    revision > 1 ? `重新生成要求：第 ${revision} 版，保持业务信息不变，但更换构图节奏、光线重点和画面卖点表达，避免和上一版重复。` : "",
     `版本策略：${variantStrategies[variant]}`,
     `负面控制：${selectedAgent.negative}`,
     `交付标准：${checks}。高细节，真实光影，专业商业视觉，可交付成片。`,
   ].filter(Boolean).join("\n");
 }
 
-function makeAgentPlan() {
-  const values = readAgentValues();
+function makeAgentPlan(valuesOverride = null, revision = 1) {
+  const values = valuesOverride || readAgentValues();
   const delivery = (selectedAgent.goals || ["业务场景"]).join("、");
   const targetName = selectedAgent.id === "commerce" ? "商业摄影图" : selectedAgent.name;
   const tags = (selectedAgent.fields?.tags || selectedAgent.goals || []).slice(0, 8).join("，");
@@ -1192,6 +1209,7 @@ function makeAgentPlan() {
     .map((item) => item.replace("验收：", ""))
     .join("；") || "主体完整清晰；比例正确；材质真实；背景干净；适合投放平台";
   const brief = [
+    revision > 1 ? `方案刷新：第 ${revision} 版，已保留当前行业参数并重新组织构图、卖点和执行重点。` : "",
     `画面目标：生成可直接用于${delivery}的高质感${targetName}。`,
     `默认主体：${values.subject}。`,
     `默认场景：${values.scene}${selectedAgent.id === "commerce" ? "电商主图，干净浅灰背景，商品完整居中" : "，主体明确，画面干净，有明确视觉中心"}。`,
@@ -1202,11 +1220,12 @@ function makeAgentPlan() {
   ].join("\n");
   return {
     values,
+    revision,
     brief,
     variants: [
-      { id: "stable", title: "稳定版", prompt: buildAgentPrompt("stable", values) },
-      { id: "creative", title: "创意版", prompt: buildAgentPrompt("creative", values) },
-      { id: "commercial", title: "商业版", prompt: buildAgentPrompt("commercial", values) },
+      { id: "stable", title: revision > 1 ? `稳定版 R${revision}` : "稳定版", prompt: buildAgentPrompt("stable", values, revision) },
+      { id: "creative", title: revision > 1 ? `创意版 R${revision}` : "创意版", prompt: buildAgentPrompt("creative", values, revision) },
+      { id: "commercial", title: revision > 1 ? `商业版 R${revision}` : "商业版", prompt: buildAgentPrompt("commercial", values, revision) },
     ],
   };
 }
@@ -1278,7 +1297,9 @@ function setAgentPanel(open) {
 
 function generateAgentPlan() {
   if (!selectedAgent) return;
-  agentPlan = makeAgentPlan();
+  const values = agentPlan?.values || null;
+  agentPlanRevision += 1;
+  agentPlan = makeAgentPlan(values, agentPlanRevision);
   agentGenerated = true;
   renderAgentPanel();
 }
@@ -1308,6 +1329,7 @@ function disableSelectedAgent() {
   agentEnabled = false;
   agentGenerated = false;
   agentPlan = null;
+  agentPlanRevision = 0;
   appliedAgentVariant = null;
   syncAgentEntry();
   renderAgentPanel();
@@ -2055,7 +2077,11 @@ async function uploadReference() {
   const form = new FormData();
   form.append("file", file);
   form.append("name", file.name);
-  const resp = await fetch("/api/references", { method: "POST", body: form });
+  const resp = await fetch("/api/references", {
+    method: "POST",
+    headers: { "X-YY-Client-ID": clientId },
+    body: form,
+  });
   const data = await resp.json();
   if (!resp.ok) {
     alert(data.error || "上传失败");

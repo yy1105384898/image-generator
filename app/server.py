@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import ipaddress
 import json
 import mimetypes
 import os
@@ -13,7 +14,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import requests
 from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, session, url_for
@@ -330,6 +331,20 @@ def admin_log(action: str, detail: dict | None = None) -> None:
     write_json(ADMIN_LOGS_FILE, logs[-300:])
 
 
+def normalize_account_status(value) -> str:
+    raw = str(value or "").strip()
+    lowered = raw.lower()
+    if lowered in {"active", "enabled", "enable", "ok", "valid", "normal", "success", "true", "1", "正常"}:
+        return "正常"
+    if lowered in {"disabled", "disable", "inactive", "blocked", "banned", "false", "0", "禁用", "停用"}:
+        return "禁用"
+    if lowered in {"limited", "rate_limited", "quota_exceeded", "quota_empty", "限流"}:
+        return "限流"
+    if lowered in {"error", "invalid", "expired", "unauthorized", "异常", "失效"}:
+        return "异常"
+    return raw or "正常"
+
+
 def normalize_account(item: dict) -> dict | None:
     if not isinstance(item, dict):
         return None
@@ -350,7 +365,7 @@ def normalize_account(item: dict) -> dict | None:
         "user_id": str(item.get("user_id") or "").strip(),
         "type": str(item.get("type") or item.get("account_type") or item.get("source_type") or "openai").strip(),
         "source": str(item.get("source") or "manual").strip(),
-        "status": str(item.get("status") or "正常").strip(),
+        "status": normalize_account_status(item.get("status")),
         "quota": max(0, int(item.get("quota") or item.get("available_quota") or 0)),
         "image_quota_unknown": bool(item.get("image_quota_unknown")),
         "restore_at": str(item.get("restore_at") or "").strip(),
@@ -426,14 +441,19 @@ def parse_account_import(raw: str, source: str) -> list[dict]:
 
 def read_integration_config() -> dict:
     raw = read_json(INTEGRATION_CONFIG_FILE, {})
+    sub2api_raw = raw.get("sub2api", {})
+    sub2api_auth_method = str(sub2api_raw.get("auth_method") or "").strip()
+    if sub2api_auth_method not in {"password", "api_key"}:
+        sub2api_auth_method = "api_key" if str(sub2api_raw.get("api_key") or "").strip() else "password"
     return {
         "sub2api": {
-            "name": str(raw.get("sub2api", {}).get("name") or "本地 sub2api").strip(),
-            "base_url": str(raw.get("sub2api", {}).get("base_url") or "").strip(),
-            "username": str(raw.get("sub2api", {}).get("username") or "").strip(),
-            "password": str(raw.get("sub2api", {}).get("password") or "").strip(),
-            "api_key": str(raw.get("sub2api", {}).get("api_key") or "").strip(),
-            "group_id": str(raw.get("sub2api", {}).get("group_id") or "").strip(),
+            "name": str(sub2api_raw.get("name") or "本地 sub2api").strip(),
+            "base_url": str(sub2api_raw.get("base_url") or "").strip(),
+            "auth_method": sub2api_auth_method,
+            "username": str(sub2api_raw.get("username") or "").strip(),
+            "password": str(sub2api_raw.get("password") or "").strip(),
+            "api_key": str(sub2api_raw.get("api_key") or "").strip(),
+            "group_id": str(sub2api_raw.get("group_id") or "").strip(),
         },
         "cpa": {
             "name": str(raw.get("cpa", {}).get("name") or "CPA 账号池").strip(),
@@ -465,15 +485,50 @@ def paged_items(payload) -> tuple[list, int]:
     return [], 0
 
 
-def sub2api_headers(conf: dict) -> dict[str, str]:
+def url_with_host(base_url: str, host: str) -> str:
+    parts = urlsplit(base_url)
+    if not parts.scheme or not parts.hostname:
+        return base_url
+    netloc = host
+    if parts.port:
+        netloc = f"{netloc}:{parts.port}"
+    return urlunsplit((parts.scheme, netloc, parts.path.rstrip("/"), "", ""))
+
+
+def integration_base_candidates(base_url: str) -> list[str]:
+    base = str(base_url or "").strip().rstrip("/")
+    if not base:
+        return []
+    candidates = [base]
+    parts = urlsplit(base)
+    host = parts.hostname or ""
+    fallback_env = os.getenv("SUB2API_BASE_URL_FALLBACKS", "")
+    candidates.extend([item.strip().rstrip("/") for item in fallback_env.split(",") if item.strip()])
+    try:
+        host_is_private = bool(ipaddress.ip_address(host).is_private)
+    except ValueError:
+        host_is_private = False
+    if host in {"127.0.0.1", "localhost"} or host_is_private:
+        candidates.append(url_with_host(base, "host.docker.internal"))
+        candidates.append(url_with_host(base, "172.17.0.1"))
+    unique = []
+    for item in candidates:
+        if item and item not in unique:
+            unique.append(item)
+    return unique
+
+
+def sub2api_headers_for_base(conf: dict, base_url: str) -> dict[str, str]:
+    auth_method = str(conf.get("auth_method") or "password").strip()
     api_key = str(conf.get("api_key") or "").strip()
-    if api_key:
+    if auth_method == "api_key":
+        if not api_key:
+            raise RuntimeError("请先填写 Sub2API Admin API Key")
         return {"x-api-key": api_key, "Accept": "application/json"}
     email = str(conf.get("username") or "").strip()
     password = str(conf.get("password") or "").strip()
-    base_url = str(conf.get("base_url") or "").strip().rstrip("/")
     if not base_url or not email or not password:
-        raise RuntimeError("请先填写 Sub2API 地址和管理员账号密码，或填写 Admin API Key")
+        raise RuntimeError("请先填写 Sub2API 地址、管理员邮箱和管理员密码")
     resp = requests.post(
         f"{base_url}/api/v1/auth/login",
         json={"email": email, "password": password},
@@ -489,6 +544,29 @@ def sub2api_headers(conf: dict) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
 
+def sub2api_request(conf: dict, method: str, path: str, **kwargs) -> tuple[requests.Response, str]:
+    errors = []
+    extra_headers = kwargs.pop("headers", {}) or {}
+    for base_url in integration_base_candidates(conf.get("base_url")):
+        try:
+            headers = sub2api_headers_for_base(conf, base_url)
+            headers.update(extra_headers)
+            resp = requests.request(method, f"{base_url}{path}", headers=headers, timeout=30, **kwargs)
+            if resp.ok:
+                return resp, base_url
+            errors.append(f"{base_url}: HTTP {resp.status_code} {resp.text[:160]}")
+        except requests.RequestException as exc:
+            errors.append(f"{base_url}: 网络不可达 {exc}")
+        except Exception as exc:
+            errors.append(f"{base_url}: {exc}")
+    hint = "；".join(errors) if errors else "未配置可用地址"
+    raise RuntimeError(
+        "Sub2API 连接失败。Docker 部署在 NAS 上访问宿主机服务时，建议服务地址填 "
+        "http://host.docker.internal:8091，或把两个容器加入同一个 Docker 网络。"
+        f" 尝试结果：{hint}"
+    )
+
+
 def extract_access_token_from_remote(item: dict) -> str:
     if not isinstance(item, dict):
         return ""
@@ -502,10 +580,8 @@ def extract_access_token_from_remote(item: dict) -> str:
 
 
 def list_sub2api_remote_accounts(conf: dict) -> list[dict]:
-    base_url = str(conf.get("base_url") or "").strip().rstrip("/")
-    if not base_url:
+    if not str(conf.get("base_url") or "").strip():
         raise RuntimeError("请先填写 Sub2API 地址")
-    headers = sub2api_headers(conf)
     group_id = str(conf.get("group_id") or "").strip()
     accounts = []
     page = 1
@@ -513,9 +589,7 @@ def list_sub2api_remote_accounts(conf: dict) -> list[dict]:
         params = {"platform": "openai", "type": "oauth", "page": page, "page_size": 200}
         if group_id:
             params["group"] = group_id
-        resp = requests.get(f"{base_url}/api/v1/admin/accounts", headers=headers, params=params, timeout=30)
-        if not resp.ok:
-            raise RuntimeError(f"读取 Sub2API 账号失败：HTTP {resp.status_code} {resp.text[:160]}")
+        resp, _ = sub2api_request(conf, "GET", "/api/v1/admin/accounts", params=params)
         items, total = paged_items(resp.json())
         if not items:
             break
@@ -531,7 +605,7 @@ def list_sub2api_remote_accounts(conf: dict) -> list[dict]:
                 "name": str(item.get("name") or "").strip(),
                 "email": str(credentials.get("email") or item.get("email") or item.get("name") or "").strip(),
                 "plan_type": str(credentials.get("plan_type") or item.get("type") or "").strip(),
-                "status": str(item.get("status") or "").strip(),
+                "status": normalize_account_status(item.get("status")),
                 "expires_at": str(credentials.get("expires_at") or "").strip(),
                 "has_refresh_token": bool(str(credentials.get("refresh_token") or "").strip()),
             })
@@ -542,11 +616,7 @@ def list_sub2api_remote_accounts(conf: dict) -> list[dict]:
 
 
 def fetch_sub2api_account_token(conf: dict, account_id: str) -> dict:
-    base_url = str(conf.get("base_url") or "").strip().rstrip("/")
-    headers = sub2api_headers(conf)
-    resp = requests.get(f"{base_url}/api/v1/admin/accounts/{account_id}", headers=headers, timeout=30)
-    if not resp.ok:
-        raise RuntimeError(f"{account_id}: HTTP {resp.status_code} {resp.text[:160]}")
+    resp, base_url = sub2api_request(conf, "GET", f"/api/v1/admin/accounts/{account_id}")
     detail_body = unwrap_remote_payload(resp.json())
     detail = detail_body if isinstance(detail_body, dict) else {}
     token = extract_access_token_from_remote(detail)
@@ -557,7 +627,7 @@ def fetch_sub2api_account_token(conf: dict, account_id: str) -> dict:
         "access_token": token,
         "email": credentials.get("email") or detail.get("email") or detail.get("name"),
         "type": credentials.get("plan_type") or detail.get("type") or "openai-oauth",
-        "status": "正常" if str(detail.get("status") or "").lower() not in {"disabled", "error"} else "异常",
+        "status": normalize_account_status(detail.get("status")),
         "source": "sub2api",
         "note": f"Sub2API: {conf.get('name') or base_url}",
     })
@@ -1420,6 +1490,37 @@ def write_references(items):
     write_json(REFERENCES_FILE, items[-MAX_HISTORY * 2:])
 
 
+def current_client_id() -> str:
+    value = str(request.headers.get("X-YY-Client-ID") or "").strip()
+    value = re.sub(r"[^a-zA-Z0-9_-]", "", value)[:80]
+    return value
+
+
+def matches_client(item: dict, client_id: str) -> bool:
+    return bool(client_id) and str(item.get("client_id") or "") == client_id
+
+
+def client_jobs(client_id: str | None = None) -> list[dict]:
+    cid = client_id if client_id is not None else current_client_id()
+    return [job for job in read_jobs() if matches_client(job, cid)]
+
+
+def client_media(client_id: str | None = None) -> list[dict]:
+    cid = client_id if client_id is not None else current_client_id()
+    if not cid:
+        return []
+    job_ids = {str(job.get("id") or "") for job in client_jobs(cid)}
+    return [
+        item for item in read_media()
+        if str(item.get("client_id") or "") == cid or str(item.get("job_id") or "") in job_ids
+    ]
+
+
+def client_references(client_id: str | None = None) -> list[dict]:
+    cid = client_id if client_id is not None else current_client_id()
+    return [item for item in read_references() if matches_client(item, cid)]
+
+
 def image_dimensions(path: Path) -> tuple[int, int]:
     try:
         with path.open("rb") as fh:
@@ -1547,6 +1648,7 @@ def normalize_image(item):
 def save_image_payload(job_id: str, index: int, image_payload: dict, prompt: str) -> dict:
     ensure_data_dir()
     media_id = uuid.uuid4().hex
+    job = get_job(job_id) or {}
     mime = image_payload.get("mime") or "image/png"
     ext = mimetypes.guess_extension(mime) or ".png"
     filename = f"{media_id}{ext}"
@@ -1563,6 +1665,7 @@ def save_image_payload(job_id: str, index: int, image_payload: dict, prompt: str
     return {
         "id": media_id,
         "job_id": job_id,
+        "client_id": str(job.get("client_id") or ""),
         "index": index,
         "url": f"/media/{filename}",
         "source_url": source_url,
@@ -2036,6 +2139,7 @@ def admin():
                 "sub2api": {
                     "name": request.form.get("sub2api_name", ""),
                     "base_url": request.form.get("sub2api_base_url", ""),
+                    "auth_method": request.form.get("sub2api_auth_method", "password"),
                     "username": request.form.get("sub2api_username", ""),
                     "password": request.form.get("sub2api_password", ""),
                     "api_key": request.form.get("sub2api_api_key", ""),
@@ -2105,6 +2209,7 @@ def admin():
                 "sub2api": {
                     "name": request.form.get("sub2api_name", ""),
                     "base_url": request.form.get("sub2api_base_url", ""),
+                    "auth_method": request.form.get("sub2api_auth_method", "password"),
                     "username": request.form.get("sub2api_username", ""),
                     "password": request.form.get("sub2api_password", ""),
                     "api_key": request.form.get("sub2api_api_key", ""),
@@ -2245,11 +2350,12 @@ def state():
     auth = login_required_json()
     if auth:
         return auth
+    client_id = current_client_id()
     return jsonify({
-        "jobs": sorted(read_jobs(), key=lambda x: x.get("created_at", 0), reverse=True),
-        "media": sorted(read_media(), key=lambda x: x.get("created_at", 0), reverse=True),
+        "jobs": sorted(client_jobs(client_id), key=lambda x: x.get("created_at", 0), reverse=True),
+        "media": sorted(client_media(client_id), key=lambda x: x.get("created_at", 0), reverse=True),
         "subjects": sorted(read_subjects(), key=lambda x: x.get("updated_at", 0), reverse=True),
-        "references": sorted(read_references(), key=lambda x: x.get("created_at", 0), reverse=True),
+        "references": sorted(client_references(client_id), key=lambda x: x.get("created_at", 0), reverse=True),
         "presets": read_presets(),
         "models": available_model_ids(),
         "default_model": DEFAULT_MODEL,
@@ -2323,8 +2429,10 @@ def create_job():
         resolved_api_url, resolve_errors = "local-account-pool", []
     else:
         resolved_api_url, resolve_errors = resolve_api_url(connection_mode, api_url, api_key)
+    client_id = current_client_id()
     job = {
         "id": uuid.uuid4().hex,
+        "client_id": client_id,
         "mode": mode,
         "protocol": str(payload.get("protocol") or "custom-openai").strip(),
         "connection_mode": connection_mode,
@@ -2377,8 +2485,9 @@ def retry_job(job_id):
     auth = login_required_json()
     if auth:
         return auth
+    client_id = current_client_id()
     source = get_job(job_id)
-    if not source:
+    if not source or not matches_client(source, client_id):
         return jsonify({"error": "任务不存在"}), 404
     payload = request.get_json(silent=True) or {}
     api_key = str(payload.get("api_key") or source.get("api_key") or "").strip()
@@ -2402,6 +2511,7 @@ def retry_job(job_id):
     retry_count = int(source.get("retry_count") or 0) + 1
     job = {
         "id": uuid.uuid4().hex,
+        "client_id": client_id,
         "mode": str(source.get("mode") or "single"),
         "protocol": str(source.get("protocol") or "custom-openai").strip(),
         "connection_mode": connection_mode,
@@ -2512,6 +2622,7 @@ def upload_reference():
     width, height = image_dimensions(path)
     item = {
         "id": ref_id,
+        "client_id": current_client_id(),
         "name": request.form.get("name") or original,
         "url": f"/references/{filename}",
         "mime": file.mimetype or mimetypes.guess_type(filename)[0] or "image/png",
@@ -2536,8 +2647,15 @@ def clear_media():
     auth = login_required_json()
     if auth:
         return auth
-    write_media([])
-    write_jobs([])
+    client_id = current_client_id()
+    job_ids = {str(job.get("id") or "") for job in client_jobs(client_id)}
+    with state_lock:
+        write_media([
+            item for item in read_media()
+            if str(item.get("client_id") or "") != client_id and str(item.get("job_id") or "") not in job_ids
+        ])
+        write_jobs([job for job in read_jobs() if not matches_client(job, client_id)])
+        write_references([item for item in read_references() if not matches_client(item, client_id)])
     return jsonify({"ok": True})
 
 
@@ -2546,8 +2664,9 @@ def clear_failed_media():
     auth = login_required_json()
     if auth:
         return auth
+    client_id = current_client_id()
     with state_lock:
-        write_jobs([job for job in read_jobs() if job.get("status") != "error"])
+        write_jobs([job for job in read_jobs() if not (matches_client(job, client_id) and job.get("status") == "error")])
     return jsonify({"ok": True})
 
 
@@ -2559,6 +2678,11 @@ def delete_media_items():
     payload = request.get_json(silent=True) or {}
     media_ids = {str(item) for item in payload.get("media_ids", [])}
     job_ids = {str(item) for item in payload.get("job_ids", [])}
+    client_id = current_client_id()
+    allowed_job_ids = {str(job.get("id") or "") for job in client_jobs(client_id)}
+    allowed_media_ids = {str(item.get("id") or "") for item in client_media(client_id)}
+    job_ids = job_ids & allowed_job_ids
+    media_ids = media_ids & allowed_media_ids
     with state_lock:
         write_media([item for item in read_media() if item.get("id") not in media_ids and item.get("job_id") not in job_ids])
         write_jobs([job for job in read_jobs() if job.get("id") not in job_ids])

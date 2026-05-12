@@ -282,14 +282,20 @@
             <h3>连接信息</h3>
             <div class="admin-inline-fields">
               <label>连接名称<input name="sub2api_name" value="{{ integrations.sub2api.name }}" placeholder="本地 sub2api"></label>
-              <label>服务地址<input name="sub2api_base_url" value="{{ integrations.sub2api.base_url }}" placeholder="http://host:port"></label>
+              <label>服务地址<input name="sub2api_base_url" value="{{ integrations.sub2api.base_url }}" placeholder="Docker 同 NAS 建议 http://host.docker.internal:8091"></label>
             </div>
-            <div class="admin-inline-fields">
+            <label>认证方式
+              <select name="sub2api_auth_method" id="sub2apiAuthMethod">
+                <option value="password" {% if integrations.sub2api.auth_method != "api_key" %}selected{% endif %}>管理员邮箱/密码</option>
+                <option value="api_key" {% if integrations.sub2api.auth_method == "api_key" %}selected{% endif %}>Admin API Key</option>
+              </select>
+            </label>
+            <div class="admin-inline-fields" data-sub2api-auth="password">
               <label>管理员邮箱<input name="sub2api_username" value="{{ integrations.sub2api.username }}" placeholder="admin@example.com"></label>
               <label>管理员密码<input name="sub2api_password" type="password" value="{{ integrations.sub2api.password }}"></label>
             </div>
             <div class="admin-inline-fields">
-              <label>Admin API Key<input name="sub2api_api_key" value="{{ integrations.sub2api.api_key }}" placeholder="有 API Key 可不填邮箱密码"></label>
+              <label data-sub2api-auth="api_key">Admin API Key<input name="sub2api_api_key" value="{{ integrations.sub2api.api_key }}" placeholder="填写后使用 Key 鉴权"></label>
               <label>分组 ID<input name="sub2api_group_id" value="{{ integrations.sub2api.group_id }}" placeholder="可选"></label>
             </div>
             <div class="admin-form-actions">
@@ -301,6 +307,7 @@
             <h3>同步说明</h3>
             <p class="admin-help-text">读取列表时只展示账号摘要；点击导入后，后端才会逐个读取账号详情里的 access_token，并写入本地号池。</p>
             <p class="admin-help-text">支持两种认证：管理员邮箱密码登录，或直接使用 Sub2API Admin API Key。</p>
+            <p class="admin-help-text">如果 YANGYANGAPI 和 Sub2API 都在同一台 Docker 主机，服务地址可优先填 <code>http://host.docker.internal:8091</code>；填宿主机局域网 IP 时，容器可能因 macvlan 无法回连宿主机。</p>
             <p class="admin-help-text">导入后可回到“号池管理”刷新邮箱、套餐和生图额度。</p>
           </section>
         </div>
@@ -473,6 +480,15 @@
         });
       });
     });
+    const sub2apiAuthMethod = document.querySelector("#sub2apiAuthMethod");
+    const syncSub2apiAuth = () => {
+      const method = sub2apiAuthMethod?.value || "password";
+      document.querySelectorAll("[data-sub2api-auth]").forEach((node) => {
+        node.hidden = node.dataset.sub2apiAuth !== method;
+      });
+    };
+    sub2apiAuthMethod?.addEventListener("change", syncSub2apiAuth);
+    syncSub2apiAuth();
     const tabs = Array.from(document.querySelectorAll("[data-admin-tab]"));
     const panels = Array.from(document.querySelectorAll("[data-admin-panel]"));
     const activateAdminTab = (name, updateHash = true) => {
