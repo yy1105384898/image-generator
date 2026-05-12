@@ -2913,6 +2913,7 @@ function initResearchCanvasEngine() {
 
 function initResearchWorkbench() {
   if (!$("#research")) return;
+  const researchRoot = $("#research");
   const prompt = $("#researchPrompt");
   if (prompt && !prompt.value.trim()) prompt.value = buildResearchPrompt();
   renderResearchPromptRepo();
@@ -2937,6 +2938,14 @@ function initResearchWorkbench() {
     await navigator.clipboard?.writeText(text);
   });
   $("#researchApplyToStudio")?.addEventListener("click", applyResearchToStudio);
+  $("#researchToggleLeft")?.addEventListener("click", (event) => {
+    researchRoot.classList.toggle("left-collapsed");
+    event.currentTarget.classList.toggle("active", !researchRoot.classList.contains("left-collapsed"));
+  });
+  $("#researchToggleRight")?.addEventListener("click", (event) => {
+    researchRoot.classList.toggle("right-collapsed");
+    event.currentTarget.classList.toggle("active", !researchRoot.classList.contains("right-collapsed"));
+  });
   $("#researchLineInput")?.addEventListener("change", (event) => previewResearchFile(event.currentTarget, $("#researchLinePreview")));
   $("#researchColorInput")?.addEventListener("change", (event) => previewResearchFile(event.currentTarget, $("#researchColorPreview")));
   document.querySelectorAll("[data-research-mode]").forEach((button) => {

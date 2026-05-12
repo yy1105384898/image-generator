@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>YANGYANGAPI 生图工作台</title>
   <link rel="icon" href="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=202605122220">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=202605122240">
 </head>
 <body>
   <main id="home" class="home-page">
@@ -203,6 +203,22 @@
     </section>
 
     <section class="research-workbench" id="research">
+      <header class="research-topbar topbar">
+        <div class="topbar-cluster">
+          <button class="topbar-toggle active" id="researchToggleLeft" type="button">◫</button>
+          <a class="topbar-home-button" href="#home">✣ 首页</a>
+          <a class="topbar-home-button" href="#studio">↗ 商业生图台</a>
+          <button class="status-pill connection-status success" type="button">● 科研绘图就绪</button>
+        </div>
+        <div class="current-model">
+          <span>科研流程</span>
+          <strong>S-C-S-S Prompt</strong>
+        </div>
+        <div class="topbar-cluster right">
+          <button class="status-pill" type="button">节点 3</button>
+          <button class="topbar-toggle active" id="researchToggleRight" type="button">◫</button>
+        </div>
+      </header>
       <div class="research-layout">
         <aside class="research-panel">
           <div class="research-brand">
@@ -861,6 +877,6 @@
   <script>
     window.YY_MODEL_CONFIG = {{ model_config|tojson }};
   </script>
-  <script src="{{ url_for('static', filename='app.js') }}?v=202605122220"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=202605122240"></script>
 </body>
 </html>

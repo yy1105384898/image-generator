@@ -5134,7 +5134,13 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
 
 body.research-active .research-workbench {
   display: grid;
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.research-topbar {
+  margin: 0 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
 
 .research-head {
@@ -5203,6 +5209,23 @@ body.research-active .research-workbench {
   min-height: 0;
   height: 100%;
   width: 100%;
+}
+
+.research-workbench.left-collapsed .research-layout {
+  grid-template-columns: minmax(620px, 1fr) minmax(290px, 20fr);
+}
+
+.research-workbench.right-collapsed .research-layout {
+  grid-template-columns: minmax(310px, 22fr) minmax(620px, 1fr);
+}
+
+.research-workbench.left-collapsed.right-collapsed .research-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.research-workbench.left-collapsed .research-layout > .research-panel:first-child,
+.research-workbench.right-collapsed .research-layout > .research-tools {
+  display: none;
 }
 
 .research-panel,
