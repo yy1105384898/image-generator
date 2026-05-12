@@ -1493,11 +1493,24 @@ def write_references(items):
 def current_client_id() -> str:
     value = str(request.headers.get("X-YY-Client-ID") or "").strip()
     value = re.sub(r"[^a-zA-Z0-9_-]", "", value)[:80]
+    if value:
+        session["client_id"] = value
+        return value
+    value = str(session.get("client_id") or "").strip()
+    value = re.sub(r"[^a-zA-Z0-9_-]", "", value)[:80]
+    if not value:
+        value = f"sess-{uuid.uuid4().hex}"[:80]
+        session["client_id"] = value
     return value
 
 
 def matches_client(item: dict, client_id: str) -> bool:
-    return bool(client_id) and str(item.get("client_id") or "") == client_id
+    if not client_id:
+        return False
+    item_client_id = str(item.get("client_id") or "").strip()
+    # Keep pre-client-isolation records visible instead of hiding tasks that were
+    # created by a browser still running a cached older script.
+    return item_client_id == client_id or not item_client_id
 
 
 def client_jobs(client_id: str | None = None) -> list[dict]:
