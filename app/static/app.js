@@ -2433,11 +2433,18 @@ function continueOriginalPrompt() {
 async function copyOptimizedPrompt() {
   const text = els.optimizedPrompt?.value.trim();
   if (!text) return;
+  const originalText = els.copyOptimizedPrompt?.textContent || "复制优化版";
   try {
     await navigator.clipboard.writeText(text);
   } catch {
     els.optimizedPrompt.select();
     document.execCommand("copy");
+  }
+  if (els.copyOptimizedPrompt) {
+    els.copyOptimizedPrompt.textContent = "已复制";
+    window.setTimeout(() => {
+      els.copyOptimizedPrompt.textContent = originalText;
+    }, 1200);
   }
 }
 

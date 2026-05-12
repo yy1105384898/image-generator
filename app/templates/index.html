@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>YANGYANGAPI 生图工作台</title>
   <link rel="icon" href="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=202605121505">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=202605121540">
 </head>
 <body>
   <main id="home" class="home-page">
@@ -346,7 +346,7 @@
               <button id="applyOptimizedPrompt" class="primary-action compact" type="button">✣ 应用优化提示词</button>
               <button id="applyOptimizedParams" class="subtle-button compact" type="button">☷ 应用推荐参数</button>
               <button id="continueOriginalPrompt" class="subtle-button compact hidden" type="button">原样继续</button>
-              <button id="copyOptimizedPrompt" class="subtle-button compact" type="button">□ 复制优化版</button>
+              <button id="copyOptimizedPrompt" class="subtle-button compact copy-analysis-button" type="button">复制优化版</button>
             </div>
           </section>
           <div class="composer-main">
@@ -623,6 +623,6 @@
   <script>
     window.YY_MODEL_CONFIG = {{ model_config|tojson }};
   </script>
-  <script src="{{ url_for('static', filename='app.js') }}?v=202605121525"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=202605121540"></script>
 </body>
 </html>

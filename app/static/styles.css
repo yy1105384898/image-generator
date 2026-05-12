@@ -1966,6 +1966,11 @@ body.studio-active .studio-view {
   border-radius: 9px;
   font-size: 16px;
 }
+.analysis-actions .copy-analysis-button {
+  min-width: 126px;
+  border-color: var(--border-strong);
+  background: rgba(255,255,255,.82);
+}
 .composer-main {
   display: grid;
   grid-template-columns: 38px minmax(76px, auto) minmax(260px, 1fr) minmax(112px, max-content) 40px 40px;
