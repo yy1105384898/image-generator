@@ -1924,7 +1924,7 @@ async function performSubmitJob(promptOverride = "") {
         negative: els.negative.value.trim(),
         variants: buildVariants(),
         reference_ids: Array.from(selectedReferenceIds),
-        edit_mode: els.editMode.checked,
+        edit_mode: Boolean(els.editMode.checked || selectedReferenceIds.size),
       }),
     });
     els.prompt.value = prompt;

@@ -1700,6 +1700,53 @@ def reference_to_data_url(ref: dict) -> str:
     return f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
 
 
+def reference_paths(references: list[dict]) -> list[tuple[Path, str]]:
+    items: list[tuple[Path, str]] = []
+    for ref in references[:4]:
+        filename = str(ref.get("url") or "").split("/references/", 1)[-1]
+        path = REFERENCE_DIR / filename
+        if path.exists():
+            items.append((path, ref.get("mime") or mimetypes.guess_type(path.name)[0] or "image/png"))
+    return items
+
+
+def post_image_edit(api_base: str, headers: dict, job: dict, prompt: str, references: list[dict]):
+    ref_paths = reference_paths(references)
+    if not ref_paths:
+        raise RuntimeError("参考图文件不存在，请重新上传参考图")
+    data = {"model": job["model"], "prompt": prompt, "size": job["size"], "n": "1"}
+    if job.get("quality") and job["quality"] != "auto":
+        data["quality"] = job["quality"]
+    if job.get("output_format"):
+        data["output_format"] = job["output_format"]
+
+    last_resp = None
+    for field_name in ("image", "image[]"):
+        opened = []
+        try:
+            files = []
+            for path, mime in ref_paths:
+                fh = path.open("rb")
+                opened.append(fh)
+                files.append((field_name, (path.name, fh, mime)))
+            resp = requests.post(
+                urljoin(api_base + "/", "v1/images/edits"),
+                headers=headers,
+                data=data,
+                files=files,
+                timeout=REQUEST_TIMEOUT,
+            )
+            if resp.status_code < 400:
+                return resp
+            last_resp = resp
+            if resp.status_code not in {400, 404, 422}:
+                return resp
+        finally:
+            for fh in opened:
+                fh.close()
+    return last_resp
+
+
 def update_job(job_id: str, patch: dict) -> dict | None:
     with state_lock:
         jobs = read_jobs()
@@ -1787,30 +1834,7 @@ def generate_one(job: dict, prompt: str, index: int) -> list[dict]:
     references = [r for r in read_references() if r.get("id") in reference_ids]
     use_edit = job.get("edit_mode") and references
     if use_edit:
-        files = []
-        opened = []
-        try:
-            for ref in references[:4]:
-                filename = str(ref.get("url") or "").split("/references/", 1)[-1]
-                path = REFERENCE_DIR / filename
-                if not path.exists():
-                    continue
-                fh = path.open("rb")
-                opened.append(fh)
-                files.append(("image[]", (path.name, fh, ref.get("mime") or "image/png")))
-            data = {"model": job["model"], "prompt": prompt, "size": job["size"]}
-            if job.get("quality") and job["quality"] != "auto":
-                data["quality"] = job["quality"]
-            resp = requests.post(
-                urljoin(api_base + "/", "v1/images/edits"),
-                headers=headers,
-                data=data,
-                files=files,
-                timeout=REQUEST_TIMEOUT,
-            )
-        finally:
-            for fh in opened:
-                fh.close()
+        resp = post_image_edit(api_base, headers, job, prompt, references)
     else:
         upstream_payload = {
             "model": job["model"],
