@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>YANGYANGAPI 生图工作台</title>
   <link rel="icon" href="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=202605122045">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=202605122220">
 </head>
 <body>
   <main id="home" class="home-page">
@@ -203,33 +203,49 @@
     </section>
 
     <section class="research-workbench" id="research">
-      <header class="research-head">
-        <div class="research-head-nav">
-          <a class="topbar-home-button" href="#home">✣ 首页</a>
-          <a class="topbar-home-button" href="#studio">↗ 商业生图台</a>
-        </div>
-        <div class="research-head-main">
-          <span class="home-kicker">Research Flow Canvas</span>
-          <h2>科研流程图工作台</h2>
-          <p>把论文、项目说明或实验流程先拆成研究主线、模块关系和箭头走向，再生成可用于生图和后期 PPT / AI 重绘的流程图 Prompt。</p>
-        </div>
-        <div class="research-head-actions">
-          <span class="status-pill">S-C-S-S</span>
-          <span class="status-pill">科研流程图</span>
-        </div>
-      </header>
-
       <div class="research-layout">
         <aside class="research-panel">
-          <div class="research-section-title"><span>01</span><strong>科研流程图提示词</strong></div>
+          <div class="research-brand">
+            <span>RC</span>
+            <div>
+              <strong>Research Canvas</strong>
+              <small>论文到科研图的精准画板</small>
+            </div>
+            <button type="button">API</button>
+          </div>
+
+          <div class="research-block">
+            <div class="research-section-title"><span>00</span><strong>节点工厂</strong><em>NODE</em></div>
+            <div class="research-node-factory">
+              <button type="button">上传图片节点</button>
+              <button type="button">提示词节点</button>
+              <button type="button">文生图节点</button>
+              <button type="button">图生图节点</button>
+              <button type="button">反推提示词节点</button>
+            </div>
+          </div>
+
+          <div class="research-block">
+            <div class="research-section-title"><span>01</span><strong>论文读取</strong><em>未上传</em></div>
+            <label class="research-paper-drop">
+              <input id="researchPaperInput" type="file" accept=".pdf,.doc,.docx,.txt,.md">
+              <b>PAPER INTAKE</b>
+              <strong>上传论文</strong>
+              <span>PDF / DOCX / TXT / MD</span>
+            </label>
+          </div>
+
+          <div class="research-block">
+            <div class="research-section-title"><span>02</span><strong>提示词生成</strong><em>待生成</em></div>
           <label class="research-field">
-            <span>流程图主题 / 核心对象</span>
+              <span>绘图目标</span>
             <input id="researchSubject" value="200 L 不锈钢反应釜工艺流程" placeholder="例如：DSS 实验流程、细胞机制流程、反应釜工艺路线">
           </label>
           <label class="research-field">
-            <span>项目内容 / 论文草稿 / 实验步骤</span>
-            <textarea id="researchProjectContext" rows="5" placeholder="粘贴研究背景、实验步骤、模型结构、输入输出或结果逻辑。系统会先整理：主体是什么、步骤怎么走、模块怎么连、最后输出什么。"></textarea>
+              <span>论文摘要 / 项目内容</span>
+            <textarea id="researchProjectContext" rows="4" placeholder="粘贴研究背景、实验步骤、模型结构、输入输出或结果逻辑。系统会先整理：主体是什么、步骤怎么走、模块怎么连、最后输出什么。"></textarea>
           </label>
+            <div class="research-field-grid">
           <label class="research-field">
             <span>图类型</span>
             <select id="researchFigureType">
@@ -241,7 +257,7 @@
             </select>
           </label>
           <label class="research-field">
-            <span>视觉风格</span>
+                <span>视觉风格</span>
             <select id="researchStyle">
               <option value="nature">Nature 风格干净矢量科研插图</option>
               <option value="cell">Cell 图形摘要风格</option>
@@ -249,84 +265,175 @@
               <option value="lineart">极简白底线稿</option>
             </select>
           </label>
+            </div>
+            <label class="research-field">
+              <span>提示词模型</span>
+              <select>
+                <option>gpt-5.5</option>
+                <option>gpt-5.4</option>
+                <option>gpt-image-2</option>
+              </select>
+            </label>
+            <button id="researchBuildPrompt" class="research-primary-button" type="button">生成科研绘图提示词</button>
           <label class="research-field">
             <span>生成提示词</span>
             <textarea id="researchPrompt" rows="10"></textarea>
           </label>
           <div class="research-button-row">
-            <button id="researchBuildPrompt" type="button">按 S-C-S-S 生成</button>
-            <button id="researchCopyPrompt" type="button">复制</button>
+              <button type="button">优化提示词</button>
+              <button type="button">放到画布</button>
+              <button type="button">提示词预设</button>
+              <button id="researchCopyPrompt" type="button">复制</button>
+            </div>
+            <div id="researchScssCards" class="research-scss-cards"></div>
           </div>
-          <div id="researchScssCards" class="research-scss-cards"></div>
-          <div class="research-section-title"><span>SK</span><strong>相关技能</strong></div>
-          <div id="researchSkillList" class="research-skill-list"></div>
+
+          <div class="research-block">
+            <div class="research-section-title"><span>SK</span><strong>相关技能</strong><em>FLOW</em></div>
+            <div id="researchSkillList" class="research-skill-list"></div>
+          </div>
         </aside>
 
         <section class="research-canvas-card">
-          <div class="research-canvas-toolbar">
-            <button data-research-tool="select" class="active" type="button">选择</button>
-            <button data-research-tool="zoom-in" type="button">放大</button>
-            <button data-research-tool="crop" type="button">局部截图重绘</button>
-            <button data-research-tool="edit" type="button">局部编辑</button>
-            <span id="researchCanvasStatus">100%</span>
+          <div class="research-editor-toolbar">
+            <div class="research-toolbar-left">
+              <button data-research-tool="select" class="research-icon-button active" type="button">↖</button>
+              <button class="research-icon-button" type="button">+</button>
+              <button class="research-icon-button" type="button">T</button>
+              <button class="research-icon-button" type="button">I</button>
+              <button class="research-icon-button" type="button">U</button>
+              <button data-research-tool="zoom-out" class="research-icon-button" type="button">-</button>
+              <button data-research-tool="zoom-in" class="research-icon-button" type="button">+</button>
+              <button data-research-tool="reset-view" class="research-icon-button" type="button">0</button>
+            </div>
+            <div class="research-toolbar-right">
+              <select><option>Auto</option><option>局域网</option><option>中转</option></select>
+              <select><option>Standard</option><option>2K</option><option>4K</option></select>
+              <button type="button">Auto</button>
+              <button class="research-generate-button" type="button">生成科研图</button>
+              <button type="button">重排版</button>
+              <button type="button">工程</button>
+              <button class="research-save-button" type="button">保存工程</button>
+            </div>
           </div>
-          <div class="research-canvas" id="researchCanvas">
-            <div class="research-grid"></div>
-            <article class="research-node research-node-image">
-              <span>流程骨架</span>
-              <div class="research-flow-figure">
-                <div class="flow-step">
-                  <small>01</small>
-                  <strong>读项目</strong>
-                  <em>论文 / 实验 / 模块</em>
+          <div class="research-canvas" id="researchCanvas" tabindex="0" aria-label="科研绘图无限画布">
+            <div class="research-stage" id="researchStage">
+              <div class="research-grid"></div>
+              <svg class="research-links" viewBox="0 0 1180 820" aria-hidden="true">
+                <path d="M392 360 C 520 360, 520 190, 650 190" />
+                <path d="M392 360 C 522 360, 520 565, 650 565" />
+              </svg>
+              <article class="research-node research-node-prompt" data-node-id="prompt" data-x="105" data-y="210" data-w="340">
+                <div class="research-node-head">
+                  <div><strong>文生图节点</strong><small>TEXT-TO-IMAGE</small></div>
+                  <select><option>gpt-image-2</option><option>gpt-5.5</option></select>
+                  <button type="button">×</button>
                 </div>
-                <i></i>
-                <div class="flow-step">
-                  <small>02</small>
-                  <strong>拆主线</strong>
-                  <em>主体 / 变量 / 结果</em>
+                <textarea aria-label="节点提示词">生成科研流程图，展示实验流程、关键变量和主要结论</textarea>
+                <div class="research-node-grid">
+                  <label>比例<select><option>16:9</option><option>1:1</option></select></label>
+                  <label>尺寸<input value="2048 x 1152"></label>
+                  <label>质量<select><option>Medium</option><option>High</option></select></label>
+                  <label>格式<select><option>PNG</option><option>WEBP</option></select></label>
+                  <label>数量<select><option>2</option><option>1</option></select></label>
+                  <label>背景<select><option>Auto</option><option>透明</option></select></label>
                 </div>
-                <i></i>
-                <div class="flow-step">
-                  <small>03</small>
-                  <strong>出图稿</strong>
-                  <em>流程图 Prompt</em>
+                <button class="research-primary-button" type="button">启动文生图</button>
+                <span class="research-port in">IN</span>
+                <span class="research-port out">OUT</span>
+                <button class="research-resize-handle" type="button" aria-label="缩放节点"></button>
+              </article>
+              <article class="research-node research-node-output" data-node-id="output-a" data-x="650" data-y="82" data-w="390">
+                <div class="research-node-head">
+                  <div><strong>科研图 1</strong><small>GENERATED-IMAGE</small></div>
+                  <select><option>gpt-image-2</option></select>
+                  <button type="button">×</button>
                 </div>
-              </div>
-              <p>重点不是思维导图，而是把研究步骤、模块关系和因果箭头整理成可直接生图的科研流程图。</p>
-            </article>
-            <article class="research-node research-node-prompt">
-              <span>后期编辑</span>
-              <strong>线稿 + 色稿双控制</strong>
-              <p>流程图初稿不满意时，用线稿锁定结构，用色稿锁定配色和质感，再做局部截图重绘或高清重生成。</p>
-            </article>
+                <div class="research-generated-preview preview-a"></div>
+                <p>分辨率: 2048 x 1152</p>
+                <span class="research-port in">IN</span>
+                <span class="research-port out">OUT</span>
+                <button class="research-resize-handle" type="button" aria-label="缩放节点"></button>
+              </article>
+              <article class="research-node research-node-output" data-node-id="output-b" data-x="650" data-y="475" data-w="390">
+                <div class="research-node-head">
+                  <div><strong>科研图 2</strong><small>GENERATED-IMAGE</small></div>
+                  <select><option>gpt-image-2</option></select>
+                  <button type="button">×</button>
+                </div>
+                <div class="research-generated-preview preview-b"></div>
+                <p>分辨率: 2048 x 1152</p>
+                <span class="research-port in">IN</span>
+                <span class="research-port out">OUT</span>
+                <button class="research-resize-handle" type="button" aria-label="缩放节点"></button>
+              </article>
+            </div>
+            <div class="research-canvas-footer">
+              <span>已选中输出端口，请点击下游节点的 IN。</span>
+              <strong>API 已配置 · 新供应商</strong>
+              <span id="researchCanvasStatus">100%</span>
+            </div>
           </div>
         </section>
 
         <aside class="research-panel research-tools">
-          <div class="research-section-title"><span>02</span><strong>局部与高清</strong></div>
-          <div class="research-tool-grid">
-            <button data-research-mode="upscale" type="button"><strong>高清放大</strong><span>2x / 4x 清晰化</span></button>
-            <button data-research-mode="crop" type="button"><strong>局部截图重绘</strong><span>框选局部作为新参考</span></button>
-            <button data-research-mode="inpaint" type="button"><strong>局部编辑</strong><span>保留结构，只改目标区域</span></button>
-            <button data-research-mode="dual-control" type="button"><strong>双控制重生成</strong><span>线稿控结构，色稿控质感</span></button>
+          <div class="research-block">
+            <div class="research-section-title"><span>03</span><strong>对象检查器</strong><em>未选中</em></div>
+            <label class="research-field">
+              <span>标题</span>
+              <input value="对象标题">
+            </label>
+            <label class="research-field">
+              <span>节点模型</span>
+              <select>
+                <option>gpt-image-2</option>
+                <option>gpt-5.5</option>
+              </select>
+            </label>
+            <label class="research-field">
+              <span>编辑指令</span>
+              <textarea rows="4" placeholder="例如：把右侧改成三步流程，保留标签和配色。"></textarea>
+            </label>
+            <label class="research-field">
+              <span>放大倍数</span>
+              <select>
+                <option>2x</option>
+                <option>4x</option>
+              </select>
+            </label>
+            <div class="research-tool-grid compact">
+              <button data-research-mode="inpaint" type="button"><strong>科研图编辑</strong></button>
+              <button data-research-mode="crop" type="button"><strong>局部重绘</strong></button>
+              <button data-research-mode="upscale" type="button"><strong>高清放大</strong></button>
+              <button data-research-mode="dual-control" type="button"><strong>转矢量</strong></button>
+            </div>
           </div>
 
-          <div class="research-section-title"><span>03</span><strong>线稿 / 色稿</strong></div>
-          <div class="research-control-upload">
-            <label>线稿图<input id="researchLineInput" type="file" accept="image/*"></label>
-            <label>色稿图<input id="researchColorInput" type="file" accept="image/*"></label>
-          </div>
-          <div class="research-preview-row">
-            <div id="researchLinePreview">线稿预览</div>
-            <div id="researchColorPreview">色稿预览</div>
+          <div class="research-block">
+            <div class="research-section-title"><span>04</span><strong>论文摘要</strong><em>等待上传</em></div>
+            <textarea id="researchProjectContextMirror" class="research-empty-box" rows="5" placeholder="论文摘要会同步显示在这里。"></textarea>
           </div>
 
-          <div class="research-section-title"><span>04</span><strong>提示词仓库</strong></div>
-          <div id="researchPromptRepo" class="research-prompt-repo"></div>
-          <div class="research-skill-note">
-            <strong>科研流程图技能</strong>
-            <span>先读项目内容，拆研究主线、模块关系、箭头走向和图层，再生成流程图 Prompt，最后到 PPT / AI 重绘优化。</span>
+          <div class="research-block">
+            <div class="research-section-title"><span>05</span><strong>图注候选</strong><em>0</em></div>
+            <div class="research-empty-box">生成后在这里沉淀图注、标签和重绘备注。</div>
+          </div>
+
+          <div class="research-block">
+            <div class="research-section-title"><span>06</span><strong>线稿 / 色稿</strong><em>CONTROL</em></div>
+            <div class="research-control-upload">
+              <label>线稿图<input id="researchLineInput" type="file" accept="image/*"></label>
+              <label>色稿图<input id="researchColorInput" type="file" accept="image/*"></label>
+            </div>
+            <div class="research-preview-row">
+              <div id="researchLinePreview">线稿预览</div>
+              <div id="researchColorPreview">色稿预览</div>
+            </div>
+          </div>
+
+          <div class="research-block">
+            <div class="research-section-title"><span>07</span><strong>提示词仓库</strong><em>ASSET</em></div>
+            <div id="researchPromptRepo" class="research-prompt-repo"></div>
           </div>
         </aside>
       </div>
@@ -754,6 +861,6 @@
   <script>
     window.YY_MODEL_CONFIG = {{ model_config|tojson }};
   </script>
-  <script src="{{ url_for('static', filename='app.js') }}?v=202605122045"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=202605122220"></script>
 </body>
 </html>

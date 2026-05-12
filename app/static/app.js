@@ -2726,6 +2726,191 @@ async function applyResearchToStudio() {
   }
 }
 
+const researchCanvasState = {
+  scale: 1,
+  panX: 0,
+  panY: 0,
+  activeNode: null,
+  action: null,
+  spaceDown: false,
+  pointerId: null,
+  startClientX: 0,
+  startClientY: 0,
+  startWorldX: 0,
+  startWorldY: 0,
+  startPanX: 0,
+  startPanY: 0,
+  startNodeX: 0,
+  startNodeY: 0,
+  startNodeW: 0,
+};
+
+function researchClamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function researchCanvasPoint(canvas, event) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (event.clientX - rect.left - researchCanvasState.panX) / researchCanvasState.scale,
+    y: (event.clientY - rect.top - researchCanvasState.panY) / researchCanvasState.scale,
+  };
+}
+
+function setResearchNodeGeometry(node, geometry = {}) {
+  const x = Number.isFinite(geometry.x) ? geometry.x : Number(node.dataset.x || 0);
+  const y = Number.isFinite(geometry.y) ? geometry.y : Number(node.dataset.y || 0);
+  const w = Number.isFinite(geometry.w) ? researchClamp(geometry.w, 240, 720) : Number(node.dataset.w || 320);
+  node.dataset.x = String(Math.round(x));
+  node.dataset.y = String(Math.round(y));
+  node.dataset.w = String(Math.round(w));
+  node.style.width = `${Math.round(w)}px`;
+  node.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+}
+
+function updateResearchStage() {
+  const stage = $("#researchStage");
+  const label = $("#researchCanvasStatus");
+  if (!stage) return;
+  stage.style.transform = `translate(${Math.round(researchCanvasState.panX)}px, ${Math.round(researchCanvasState.panY)}px) scale(${researchCanvasState.scale})`;
+  if (label) label.textContent = `${Math.round(researchCanvasState.scale * 100)}%`;
+}
+
+function selectResearchNode(node) {
+  document.querySelectorAll(".research-node.selected").forEach((item) => item.classList.remove("selected"));
+  researchCanvasState.activeNode = node || null;
+  node?.classList.add("selected");
+}
+
+function zoomResearchCanvas(nextScale, origin) {
+  const canvas = $("#researchCanvas");
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const oldScale = researchCanvasState.scale;
+  const newScale = researchClamp(nextScale, 0.35, 2.8);
+  const localX = (origin?.x ?? rect.width / 2);
+  const localY = (origin?.y ?? rect.height / 2);
+  const worldX = (localX - researchCanvasState.panX) / oldScale;
+  const worldY = (localY - researchCanvasState.panY) / oldScale;
+  researchCanvasState.scale = newScale;
+  researchCanvasState.panX = localX - worldX * newScale;
+  researchCanvasState.panY = localY - worldY * newScale;
+  updateResearchStage();
+}
+
+function initResearchCanvasEngine() {
+  const canvas = $("#researchCanvas");
+  const stage = $("#researchStage");
+  if (!canvas || !stage || canvas.dataset.engineReady === "1") return;
+  canvas.dataset.engineReady = "1";
+  stage.querySelectorAll(".research-node").forEach((node) => setResearchNodeGeometry(node));
+  updateResearchStage();
+
+  canvas.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const factor = event.deltaY > 0 ? 0.9 : 1.1;
+    zoomResearchCanvas(researchCanvasState.scale * factor, {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    });
+  }, { passive: false });
+
+  canvas.addEventListener("pointerdown", (event) => {
+    const handle = event.target.closest(".research-resize-handle");
+    const node = event.target.closest(".research-node");
+    const interactive = event.target.closest("input, textarea, select, button");
+    canvas.focus({ preventScroll: true });
+    researchCanvasState.pointerId = event.pointerId;
+    researchCanvasState.startClientX = event.clientX;
+    researchCanvasState.startClientY = event.clientY;
+    researchCanvasState.startPanX = researchCanvasState.panX;
+    researchCanvasState.startPanY = researchCanvasState.panY;
+
+    if (node && interactive && !handle) {
+      selectResearchNode(node);
+      researchCanvasState.action = null;
+      return;
+    }
+
+    if (node) {
+      selectResearchNode(node);
+      const point = researchCanvasPoint(canvas, event);
+      researchCanvasState.startWorldX = point.x;
+      researchCanvasState.startWorldY = point.y;
+      researchCanvasState.startNodeX = Number(node.dataset.x || 0);
+      researchCanvasState.startNodeY = Number(node.dataset.y || 0);
+      researchCanvasState.startNodeW = Number(node.dataset.w || node.offsetWidth || 320);
+      researchCanvasState.action = handle ? "resize-node" : "drag-node";
+      node.classList.toggle("dragging", !handle);
+      event.preventDefault();
+    } else if (researchCanvasState.spaceDown || event.button === 1) {
+      researchCanvasState.action = "pan";
+      canvas.classList.add("dragging");
+      event.preventDefault();
+    } else {
+      researchCanvasState.action = null;
+      selectResearchNode(null);
+    }
+    canvas.setPointerCapture?.(event.pointerId);
+  });
+
+  canvas.addEventListener("pointermove", (event) => {
+    const action = researchCanvasState.action;
+    if (!action) return;
+    if (action === "pan") {
+      researchCanvasState.panX = researchCanvasState.startPanX + event.clientX - researchCanvasState.startClientX;
+      researchCanvasState.panY = researchCanvasState.startPanY + event.clientY - researchCanvasState.startClientY;
+      updateResearchStage();
+      return;
+    }
+    const node = researchCanvasState.activeNode;
+    if (!node) return;
+    const point = researchCanvasPoint(canvas, event);
+    const dx = point.x - researchCanvasState.startWorldX;
+    const dy = point.y - researchCanvasState.startWorldY;
+    if (action === "drag-node") {
+      setResearchNodeGeometry(node, {
+        x: researchCanvasState.startNodeX + dx,
+        y: researchCanvasState.startNodeY + dy,
+        w: researchCanvasState.startNodeW,
+      });
+    }
+    if (action === "resize-node") {
+      setResearchNodeGeometry(node, {
+        x: researchCanvasState.startNodeX,
+        y: researchCanvasState.startNodeY,
+        w: researchCanvasState.startNodeW + dx,
+      });
+    }
+  });
+
+  const finishPointerAction = (event) => {
+    if (researchCanvasState.pointerId !== null) {
+      canvas.releasePointerCapture?.(researchCanvasState.pointerId);
+    }
+    researchCanvasState.pointerId = null;
+    researchCanvasState.action = null;
+    canvas.classList.remove("dragging");
+    document.querySelectorAll(".research-node.dragging").forEach((node) => node.classList.remove("dragging"));
+    event?.preventDefault?.();
+  };
+  canvas.addEventListener("pointerup", finishPointerAction);
+  canvas.addEventListener("pointercancel", finishPointerAction);
+
+  document.addEventListener("keydown", (event) => {
+    if (event.code !== "Space" || document.activeElement?.matches("input, textarea, select")) return;
+    researchCanvasState.spaceDown = true;
+    canvas.classList.add("is-panning");
+    event.preventDefault();
+  });
+  document.addEventListener("keyup", (event) => {
+    if (event.code !== "Space") return;
+    researchCanvasState.spaceDown = false;
+    canvas.classList.remove("is-panning");
+  });
+}
+
 function initResearchWorkbench() {
   if (!$("#research")) return;
   const prompt = $("#researchPrompt");
@@ -2741,6 +2926,10 @@ function initResearchWorkbench() {
     const el = $(`#${id}`);
     el?.addEventListener("input", renderResearchScssCards);
     el?.addEventListener("change", renderResearchScssCards);
+  });
+  $("#researchProjectContext")?.addEventListener("input", (event) => {
+    const mirror = $("#researchProjectContextMirror");
+    if (mirror) mirror.value = event.currentTarget.value;
   });
   $("#researchCopyPrompt")?.addEventListener("click", async () => {
     const text = prompt?.value || "";
@@ -2761,11 +2950,28 @@ function initResearchWorkbench() {
   });
   document.querySelectorAll("[data-research-tool]").forEach((button) => {
     button.addEventListener("click", () => {
+      const tool = button.dataset.researchTool;
+      if (tool === "zoom-in") {
+        zoomResearchCanvas(researchCanvasState.scale * 1.15);
+        return;
+      }
+      if (tool === "zoom-out") {
+        zoomResearchCanvas(researchCanvasState.scale / 1.15);
+        return;
+      }
+      if (tool === "reset-view") {
+        researchCanvasState.scale = 1;
+        researchCanvasState.panX = 0;
+        researchCanvasState.panY = 0;
+        updateResearchStage();
+        return;
+      }
       document.querySelectorAll("[data-research-tool]").forEach((item) => item.classList.toggle("active", item === button));
       const label = $("#researchCanvasStatus");
       if (label) label.textContent = button.textContent.trim();
     });
   });
+  initResearchCanvasEngine();
 }
 
 els.prompt.addEventListener("input", syncSummary);
