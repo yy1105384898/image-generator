@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>YANGYANGAPI 生图工作台</title>
   <link rel="icon" href="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=202605121820">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=202605121850">
 </head>
 <body>
   <main id="home" class="home-page">
@@ -256,6 +256,8 @@
             <button id="researchCopyPrompt" type="button">复制</button>
           </div>
           <div id="researchScssCards" class="research-scss-cards"></div>
+          <div class="research-section-title"><span>SK</span><strong>相关技能</strong></div>
+          <div id="researchSkillList" class="research-skill-list"></div>
         </aside>
 
         <section class="research-canvas-card">
@@ -740,6 +742,6 @@
   <script>
     window.YY_MODEL_CONFIG = {{ model_config|tojson }};
   </script>
-  <script src="{{ url_for('static', filename='app.js') }}?v=202605121820"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=202605121850"></script>
 </body>
 </html>

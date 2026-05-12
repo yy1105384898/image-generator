@@ -5583,6 +5583,41 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
   line-height: 1.55;
 }
 
+.research-skill-list {
+  display: grid;
+  gap: 8px;
+}
+
+.research-skill-list button {
+  display: grid;
+  justify-items: start;
+  gap: 5px;
+  min-height: 58px;
+  padding: 10px;
+  border: 1px solid rgba(0, 123, 114, .18);
+  border-radius: 11px;
+  background: rgba(255,255,255,.6);
+  text-align: left;
+  white-space: normal;
+}
+
+.research-skill-list button.active {
+  border-color: #007b72;
+  background: rgba(0, 123, 114, .1);
+  box-shadow: inset 0 0 0 1px rgba(0, 123, 114, .12);
+}
+
+.research-skill-list strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.research-skill-list span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 @media (max-width: 1100px) {
   .research-head {
     align-items: start;

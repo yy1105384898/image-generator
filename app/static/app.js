@@ -2537,17 +2537,53 @@ const researchPromptPresets = [
     prompt: "先阅读项目内容，提取研究主线、核心模块、模块关系和最终结论，再按 S-C-S-S 框架输出绘图 Prompt：Subject 主体、Composition 构图、Structure 结构细节、Style 风格渲染。目标是生成科研流程图初稿，后续可在 PPT 或 Adobe Illustrator 中重绘优化。"
   }
 ];
+let selectedResearchSkillId = "project-reader";
+
+const researchSkills = [
+  {
+    id: "project-reader",
+    name: "项目读取",
+    desc: "先读论文草稿、项目说明、模块设计和流程逻辑，提取主线。",
+    instruction: "先阅读项目内容，提取研究主线、核心对象、关键模块、模块之间的因果关系和最终结论。不要急着画图，先把图要表达什么讲清楚。"
+  },
+  {
+    id: "scss-prompt",
+    name: "S-C-S-S 架构",
+    desc: "按 Subject / Composition / Structure / Style 输出绘图 Prompt。",
+    instruction: "严格按 S-C-S-S 组织绘图 Prompt：Subject 写主体，Composition 写构图，Structure 写模块细节和箭头关系，Style 写配色、边框、图标和整体质感。"
+  },
+  {
+    id: "flow-draft",
+    name: "流程图初稿",
+    desc: "把项目逻辑转成可直接给生图工具使用的科研流程图初稿。",
+    instruction: "目标是生成科研流程图初稿，优先表达逻辑框架和模块关系，允许后续在 PPT 或 Adobe Illustrator 中重绘优化。"
+  },
+  {
+    id: "dual-control",
+    name: "双控制重绘",
+    desc: "线稿控结构，色稿控材质、配色和光影，用于局部高清重生成。",
+    instruction: "如果有线稿图和色稿图，线稿用于约束结构、边界、管路和模块位置，色稿用于约束材质、配色和光影。局部重绘只能增强目标区域，不改变科学含义。"
+  },
+  {
+    id: "handoff",
+    name: "后期重绘交接",
+    desc: "输出便于 PPT / AI 重绘的模块、标签、箭头和分层建议。",
+    instruction: "输出时要考虑后期重绘：明确每个模块名称、标签位置、箭头方向、颜色分组和可拆分图层，让用户能在 PPT 或 AI 中快速描图和精修。"
+  }
+];
 
 function buildResearchPrompt() {
   const subject = ($("#researchSubject")?.value || "科研对象").trim();
   const context = ($("#researchProjectContext")?.value || "").trim();
   const figureType = $("#researchFigureType")?.selectedOptions?.[0]?.textContent || "科研图";
   const style = $("#researchStyle")?.selectedOptions?.[0]?.textContent || "干净科研插图";
+  const skill = researchSkills.find((item) => item.id === selectedResearchSkillId) || researchSkills[0];
   const extracted = context
     ? context.replace(/\s+/g, " ").slice(0, 520)
     : "未提供项目正文时，基于研究主题自行拆解核心对象、流程模块、关键变量和结论关系。";
   const base = [
     "请先读懂下面的项目内容，再生成科研绘图 Prompt，不要直接泛泛描述。",
+    `当前技能：${skill.name}。${skill.instruction}`,
     `项目内容：${extracted}`,
     "",
     `S - Subject（主体）：${subject}。明确图里要呈现的核心对象、研究系统、实验对象或流程主线。`,
@@ -2601,6 +2637,29 @@ function renderResearchPromptRepo() {
       $("#researchSubject")?.focus();
     });
     repo.append(button);
+  });
+}
+
+function renderResearchSkills() {
+  const list = $("#researchSkillList");
+  if (!list) return;
+  list.innerHTML = "";
+  researchSkills.forEach((skill) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = skill.id === selectedResearchSkillId ? "active" : "";
+    button.innerHTML = `
+      <strong>${escapeHtml(skill.name)}</strong>
+      <span>${escapeHtml(skill.desc)}</span>
+    `;
+    button.addEventListener("click", () => {
+      selectedResearchSkillId = skill.id;
+      renderResearchSkills();
+      renderResearchScssCards();
+      const prompt = $("#researchPrompt");
+      if (prompt) prompt.value = buildResearchPrompt();
+    });
+    list.append(button);
   });
 }
 
@@ -2671,6 +2730,7 @@ function initResearchWorkbench() {
   const prompt = $("#researchPrompt");
   if (prompt && !prompt.value.trim()) prompt.value = buildResearchPrompt();
   renderResearchPromptRepo();
+  renderResearchSkills();
   renderResearchScssCards();
   $("#researchBuildPrompt")?.addEventListener("click", () => {
     if (prompt) prompt.value = buildResearchPrompt();
