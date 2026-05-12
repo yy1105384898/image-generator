@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>YANGYANGAPI 生图工作台</title>
   <link rel="icon" href="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=202605121950">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=202605122020">
 </head>
 <body>
   <main id="home" class="home-page">
@@ -204,14 +204,18 @@
 
     <section class="research-workbench" id="research">
       <header class="research-head">
-        <div>
+        <div class="research-head-nav">
+          <a class="topbar-home-button" href="#home">✣ 首页</a>
+          <a class="topbar-home-button" href="#studio">↗ 商业生图台</a>
+        </div>
+        <div class="research-head-main">
           <span class="home-kicker">Research Canvas</span>
           <h2>科研工作台</h2>
           <p>参考 ResearchCanvasAI 的画布流程，把科研图提示词、提示词仓库、局部编辑、局部截图重绘、高清放大和线稿/色稿双控制集中到一个入口。</p>
         </div>
         <div class="research-head-actions">
-          <a class="home-secondary" href="#studio">商业生图台</a>
-          <button id="researchApplyToStudio" class="home-primary dark" type="button">发送到生图台 →</button>
+          <span class="status-pill">S-C-S-S</span>
+          <span class="status-pill">科研流程图</span>
         </div>
       </header>
 
