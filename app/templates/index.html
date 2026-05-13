@@ -19,7 +19,7 @@
           <a href="#home-analysis">智能分析</a>
           <a href="#home-agents">行业 Agent</a>
           <a href="#market">广场</a>
-          <a href="#home-local">本地接入</a>
+          <a href="#home-api">API 接入</a>
         </nav>
         <div class="home-nav-actions">
           <a class="home-nav-action" href="#studio">商业生图台</a>
@@ -51,8 +51,8 @@
             <span>生成中继续提交</span>
           </div>
           <div class="home-metric">
-            <strong>本地接入</strong>
-            <span>局域网优先</span>
+            <strong>云端 API</strong>
+            <span>自定义优先</span>
           </div>
         </div>
       </div>
@@ -193,12 +193,12 @@
       </div>
     </section>
 
-    <section class="home-insight" id="home-local">
+    <section class="home-insight" id="home-api">
       <div>
         <span class="home-kicker">Private by design</span>
-        <h2>本地接入优先。外网自动兜底。</h2>
+        <h2>自定义 API 优先。本地号池备用。</h2>
       </div>
-      <p>工作台默认优先尝试局域网内的 New API 地址；本地不可达时，再按后台配置走中转代理。图片、任务和历史记录保存在当前服务的数据目录里，方便继续查看和管理。</p>
+      <p>工作台默认走后台配置的云端 OpenAI 兼容 API；需要账号池时再切换到本地号池。图片、任务和历史记录保存在当前服务的数据目录里，方便继续查看和管理。</p>
       <a class="home-primary dark" href="#studio">进入商业生图台 →</a>
     </section>
 
@@ -671,26 +671,23 @@
           </label>
           <div class="protocol-note">
             <strong id="protocolTitle">兼容协议</strong>
-            <span id="protocolDescription">适合第三方中转或自建 OpenAI 风格图片接口</span>
+            <span id="protocolDescription">适合云端 OpenAI 兼容图片接口</span>
             <small id="protocolSupport">支持参考图 · 支持质量 · 支持格式</small>
           </div>
           <div class="connection-mode-group">
-            <button class="selected" data-connection-mode="auto" type="button"><strong>自动</strong><span>兜底</span></button>
-            <button data-connection-mode="proxy" type="button"><strong>中转代理</strong><span>最稳</span></button>
-            <button data-connection-mode="local" type="button"><strong>本地接入</strong><span>局域网</span></button>
+            <button class="selected" data-connection-mode="custom" type="button"><strong>自定义 API</strong><span>云端</span></button>
             <button data-connection-mode="pool" type="button"><strong>本地号池</strong><span>OAuth</span></button>
-            <button data-connection-mode="custom" type="button"><strong>自定义 API</strong><span>第三方</span></button>
           </div>
-          <input id="connectionMode" value="auto" hidden>
-          <div id="connectionNote" class="endpoint-note">请求先到本站 /api，再转发到上游，能避开浏览器跨域问题。</div>
+          <input id="connectionMode" value="custom" hidden>
+          <div id="connectionNote" class="endpoint-note">请求先到本站 /api，再转发到你配置的云端 OpenAI 兼容接口。</div>
         </section>
 
         <section class="settings-section api-card">
           <label>
             <span>API URL</span>
-            <input id="apiUrl" value="{{ model_config.connections.proxy.url }}">
+            <input id="apiUrl" value="{{ model_config.connections.custom.url }}">
           </label>
-          <div class="endpoint-note">按上方接入模式自动切换，也可以手动改成其他 OpenAI 兼容地址。</div>
+          <div class="endpoint-note">自定义 API 通常填写云端服务器的 OpenAI 兼容地址，通常以 /v1 结尾。</div>
           <label>
             <span>API Key</span>
             <input id="apiKey" type="password" placeholder="sk-... 或 New API Token" autocomplete="off">
@@ -723,7 +720,7 @@
           <button id="refreshModels" class="primary-action" type="button">↻ 读取/刷新模型</button>
           <div id="modelStatus" class="status-line">ⓘ 填写 API Key 后点击读取/刷新模型</div>
           <div id="modelFetchHelp" class="endpoint-note model-fetch-help">
-            API Key 可在 New API 后台的“令牌”里创建或复制；如果读取失败，优先切到“自动”或“中转代理”。
+            API Key 可在云端 New API 后台的“令牌”里创建或复制；如果读取失败，检查 API URL、Token 和模型权限。
           </div>
           <section class="analysis-card">
             <strong>智能分析 AI</strong>

@@ -428,29 +428,24 @@
         <div class="admin-card-head">
           <div>
             <h3>模型 API 接入</h3>
-            <p>工作台会按这里配置的线路和模型说明展示，自动模式按顺序兜底连接。</p>
+            <p>工作台只展示自定义 API 和本地号池；自定义 API 适合接入云端服务器里的 Token。</p>
           </div>
           <div class="admin-inline-fields">
             <label>默认线路
               <select name="default_connection_mode">
-                {% for mode in ["local","proxy","auto"] %}
+                {% for mode in ["custom","pool"] %}
                   <option value="{{ mode }}" {% if config.default_connection_mode == mode %}selected{% endif %}>{{ mode }}</option>
                 {% endfor %}
               </select>
             </label>
-            <label>自动顺序<input name="auto_order" value="{{ config.auto_order|join(',') }}"></label>
           </div>
         </div>
         <div class="admin-route-grid">
-          {% for key in ["local","proxy","auto"] %}
+          {% for key in ["custom","pool"] %}
             {% set conn = config["connections"][key] %}
             <article class="admin-route-item">
               <div class="admin-route-title">
                 <strong>{{ key }}</strong>
-                <label class="admin-switch">
-                  <input type="checkbox" name="{{ key }}_enabled" {% if conn.enabled %}checked{% endif %} {% if key == "auto" %}disabled{% endif %}>
-                  <span></span>
-                </label>
               </div>
               <div class="admin-route-fields">
                 <label>显示名称<input name="{{ key }}_label" value="{{ conn.label }}"></label>

@@ -245,7 +245,7 @@ const protocols = {
   "custom-openai": {
     label: "OpenAI 兼容",
     shortLabel: "兼容协议",
-    description: "适合第三方中转或自建 OpenAI 风格图片接口",
+    description: "适合云端 OpenAI 兼容图片接口",
     support: "支持参考图 · 支持质量 · 支持格式",
   },
   "openai-images": {
@@ -289,33 +289,25 @@ const protocols = {
 const modelConfig = window.YY_MODEL_CONFIG || {};
 const modelConnections = modelConfig.connections || {};
 const CUSTOM_API_URL_KEY = "yangyang_image_custom_api_url";
+const ALLOWED_CONNECTION_MODES = new Set(["custom", "pool"]);
 
 const connectionNotes = {
-  proxy: modelConnections.proxy?.description || "中转代理线路，可在后台或环境变量 CONNECTION_PROXY_URL 中配置。",
-  local: modelConnections.local?.description || "本地接入线路，可在后台或环境变量 CONNECTION_LOCAL_URL 中配置。",
-  auto: modelConnections.auto?.description || "自动模式会按后台配置顺序尝试可用线路。",
+  custom: modelConnections.custom?.description || "自定义 API 模式用于接入云端 OpenAI 兼容地址，Token 可在 New API 后台管理。",
   pool: modelConnections.pool?.description || "本地号池模式不需要填写 API Key，会从管理员号池中挑选可用账号生成图片。",
-  custom: modelConnections.custom?.description || "自定义 API 模式用于临时接入第三方中转站或其他 OpenAI 兼容地址。",
 };
 
 const connectionEndpoints = {
-  proxy: modelConnections.proxy?.url || "http://your-server.example.com:3004/v1",
-  local: modelConnections.local?.url || "http://127.0.0.1:3004/v1",
-  auto: modelConnections.auto?.label || "自动选择",
-  pool: modelConnections.pool?.label || "使用本地号池，无需 API URL",
   custom: modelConnections.custom?.url || "",
+  pool: modelConnections.pool?.label || "使用本地号池，无需 API URL",
 };
 const modelProfiles = Array.isArray(modelConfig.model_profiles) ? modelConfig.model_profiles : [];
 const modelProfileMap = new Map(modelProfiles.map((item) => [item.id, item]));
 if (modelConfig.connections) {
   Object.entries(modelConfig.connections).forEach(([key, item]) => {
+    if (!ALLOWED_CONNECTION_MODES.has(key)) return;
     const label = item.label || key;
     const badge = item.badge ? ` ${item.badge}` : "";
-    if (key !== "auto" && item.url) connectionEndpoints[key] = item.url;
-    if (key === "auto") {
-      const order = Array.isArray(modelConfig.auto_order) ? modelConfig.auto_order : ["local", "proxy"];
-      connectionEndpoints.auto = `自动选择：${order.map((mode) => modelConfig.connections?.[mode]?.label || mode).join(" → ")}`;
-    }
+    if (item.url) connectionEndpoints[key] = item.url;
     connectionNotes[key] = `${label}${badge ? `（${item.badge}）` : ""}：${item.description || item.url || "后台可维护线路说明。"}`;
   });
 }
@@ -664,12 +656,12 @@ function applyModelConfigToUi() {
 }
 
 function normalizeConnectionMode(mode) {
-  const requested = String(mode || "auto").trim() || "auto";
+  const requested = String(mode || "custom").trim() || "custom";
   const button = Array.from(els.connectionButtons).find((item) => item.dataset.connectionMode === requested);
   if (button && !button.hidden) return requested;
-  const autoButton = Array.from(els.connectionButtons).find((item) => item.dataset.connectionMode === "auto");
-  if (autoButton && !autoButton.hidden) return "auto";
-  return Array.from(els.connectionButtons).find((item) => !item.hidden)?.dataset.connectionMode || "auto";
+  const customButton = Array.from(els.connectionButtons).find((item) => item.dataset.connectionMode === "custom");
+  if (customButton && !customButton.hidden) return "custom";
+  return Array.from(els.connectionButtons).find((item) => !item.hidden)?.dataset.connectionMode || "custom";
 }
 
 function setQuickConfigPanel(open) {
@@ -687,7 +679,7 @@ function syncSummary() {
   els.protocolTitle.textContent = protocol.shortLabel;
   els.protocolDescription.textContent = protocol.description;
   els.protocolSupport.textContent = protocol.support;
-  els.connectionNote.textContent = connectionNotes[els.connectionMode.value] || connectionNotes.proxy;
+  els.connectionNote.textContent = connectionNotes[els.connectionMode.value] || connectionNotes.custom;
   els.protocolSummary.textContent = `${protocol.shortLabel} · ${requestSize()}`;
   els.countSummary.textContent = `${els.count.value}张 · ${els.aspectRatio.value} · ${els.resolution.value} · ${els.outputFormat.value.toUpperCase()}`;
   if (els.quickConfigButton) {
@@ -732,13 +724,13 @@ function setConnectionMode(mode, options = {}) {
   } else if (connectionEndpoints[mode]) {
     els.apiUrl.value = connectionEndpoints[mode];
   }
-  els.apiUrl.readOnly = mode === "auto" || mode === "pool";
+  els.apiUrl.readOnly = mode === "pool";
   if (els.apiKey) {
     els.apiKey.disabled = mode === "pool";
     els.apiKey.placeholder = mode === "pool" ? "本地号池无需 API Key" : "sk-... 或 New API Token";
   }
   if (els.apiUrl) {
-    els.apiUrl.placeholder = mode === "custom" ? "填写第三方中转站或 OpenAI 兼容 API 地址" : "OpenAI 兼容 API 地址";
+    els.apiUrl.placeholder = mode === "custom" ? "填写云端 OpenAI 兼容 API 地址" : "OpenAI 兼容 API 地址";
   }
   if (els.rememberApiKey) {
     els.rememberApiKey.disabled = mode === "pool";
@@ -748,7 +740,7 @@ function setConnectionMode(mode, options = {}) {
 }
 
 function selectedApiUrl() {
-  return els.connectionMode.value === "auto" || els.connectionMode.value === "pool" ? "" : els.apiUrl.value.trim();
+  return els.connectionMode.value === "pool" ? "" : els.apiUrl.value.trim();
 }
 
 function selectedApiKey() {
@@ -785,7 +777,7 @@ function setModelStatus(message, tone = "idle") {
 
 function setModelFetchHelp(message = "", tone = "idle") {
   if (!els.modelFetchHelp) return;
-  els.modelFetchHelp.textContent = message || "API Key 可在 New API 后台的“令牌”里创建或复制；如果读取失败，优先切到“自动”或“中转代理”。";
+  els.modelFetchHelp.textContent = message || "API Key 可在云端 New API 后台的“令牌”里创建或复制；如读取失败，请检查自定义 API 地址、Token 和模型权限。";
   els.modelFetchHelp.classList.toggle("error", tone === "error");
   els.modelFetchHelp.classList.toggle("success", tone === "success");
 }
@@ -2026,7 +2018,7 @@ async function refreshModels({ silent = false } = {}) {
     const okCount = Number(pool.ok || 0);
     setConnectionStatus(okCount > 0 ? `本地号池可用 ${okCount} 个账号` : "本地号池暂无可用账号", okCount > 0 ? "success" : "error");
     setModelStatus(`本地号池模式已启用 · ${verifiedImageModels.length} 个生图模型`, okCount > 0 ? "success" : "idle");
-    setModelFetchHelp("本地号池不需要 New API Token；如果要走 New API 线路，可在 New API 后台“令牌”页面创建或复制 API Key。", okCount > 0 ? "success" : "idle");
+    setModelFetchHelp("本地号池不需要 New API Token；如需走云端 New API，请切换到自定义 API 并填写 Token。", okCount > 0 ? "success" : "idle");
     return;
   }
   if (els.connectionMode.value === "custom" && !selectedApiUrl()) {
@@ -2035,7 +2027,7 @@ async function refreshModels({ silent = false } = {}) {
     renderAvailableModels();
     setModelStatus("ⓘ 填写自定义 API URL 和 API Key 后自动验证", "idle");
     setConnectionStatus("填写自定义 API URL", "idle");
-    setModelFetchHelp("自定义 API 适合临时接入第三方中转站或 OpenAI 兼容接口；地址通常以 /v1 结尾。", "idle");
+    setModelFetchHelp("自定义 API 适合接入云端 New API 或 OpenAI 兼容接口；地址通常以 /v1 结尾。", "idle");
     if (!silent) els.apiUrl.focus();
     return;
   }
@@ -2046,7 +2038,7 @@ async function refreshModels({ silent = false } = {}) {
     renderAvailableModels();
     setModelStatus("ⓘ 填写 API Key 后自动验证", "idle");
     setConnectionStatus("填写 API Key 后自动验证", "idle");
-    setModelFetchHelp("API Key 可在 New API 后台的“令牌”里创建或复制；填入后会自动读取模型。", "idle");
+    setModelFetchHelp("API Key 可在云端 New API 后台的“令牌”里创建或复制；填入后会自动读取模型。", "idle");
     return;
   }
   const requestId = ++modelRequestId;
@@ -2070,12 +2062,9 @@ async function refreshModels({ silent = false } = {}) {
     replaceModelOptions(imageModels);
     renderAvailableModels();
     state.models = imageModels;
-    if (data.api_url && els.connectionMode.value === "auto") {
-      els.apiUrl.value = data.api_url;
-    }
     setConnectionStatus("已连接", "success");
     setModelStatus(`✓ API Key 有效 · ${imageModels.length} 个生图模型 · ${formatModelTime()}`, "success");
-    setModelFetchHelp(`已连接：${data.api_url || selectedApiUrl() || "自动线路"}。模型 Token 可在 New API 后台“令牌”页面管理。`, "success");
+    setModelFetchHelp(`已连接：${data.api_url || selectedApiUrl() || "自定义 API"}。模型 Token 可在云端 New API 后台“令牌”页面管理。`, "success");
   } catch (err) {
     if (requestId !== modelRequestId) return;
     verifiedImageModels = [];
@@ -2085,7 +2074,7 @@ async function refreshModels({ silent = false } = {}) {
     const mode = els.connectionMode.value;
     const connectionHint = mode === "custom"
         ? "自定义 API 要确认地址、Token、模型权限和 OpenAI 兼容路径都正确。"
-        : "建议先用“自动”读取；Token 可在 New API 后台“令牌”里创建或复制。";
+        : "本地号池请确认号池用户已登录且后台有可用账号。";
     setModelStatus(`✕ 读取失败：${err.message}`, "error");
     setModelFetchHelp(`${connectionHint} 如果仍失败，检查 New API Token 是否有效、是否有模型权限。`, "error");
     if (!silent) {
@@ -3466,7 +3455,7 @@ window.addEventListener("resize", () => {
 });
 loadApiKeyPreference();
 applyModelConfigToUi();
-setConnectionMode(localStorage.getItem(CONNECTION_MODE_STORAGE_KEY) || "auto");
+setConnectionMode(localStorage.getItem(CONNECTION_MODE_STORAGE_KEY) || "custom");
 if (els.count && (!els.count.value || els.count.value === "4")) els.count.value = "1";
 syncShellToggles();
 syncAgentEntry();

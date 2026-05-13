@@ -33,15 +33,6 @@ NEW_API_BASE = os.getenv("NEW_API_BASE", "http://127.0.0.1:3004").rstrip("/")
 NEW_API_TOKEN = os.getenv("NEW_API_TOKEN", "")
 
 
-def env_endpoint(name: str, default: str) -> str:
-    return os.getenv(f"CONNECTION_{name.upper()}_URL", default).strip().rstrip("/")
-
-
-CONNECTION_ENDPOINTS = {
-    "local": env_endpoint("local", "http://127.0.0.1:3004/v1"),
-    "proxy": env_endpoint("proxy", "http://your-server.example.com:3004/v1"),
-}
-AUTO_CONNECTION_ORDER = ("local", "proxy")
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gpt-image-2")
 AVAILABLE_MODELS = [m.strip() for m in os.getenv("AVAILABLE_MODELS", DEFAULT_MODEL).split(",") if m.strip()]
 MAX_HISTORY = int(os.getenv("MAX_HISTORY", "200"))
@@ -97,28 +88,14 @@ def write_json(path: Path, value) -> None:
 def default_model_config() -> dict:
     model_ids = AVAILABLE_MODELS or [DEFAULT_MODEL]
     return {
-        "default_connection_mode": "auto",
-        "auto_order": ["local", "proxy"],
+        "default_connection_mode": "custom",
+        "auto_order": [],
         "connections": {
-            "local": {
-                "label": "本地接入",
-                "badge": "局域网",
-                "url": CONNECTION_ENDPOINTS["local"],
-                "description": "优先访问局域网内的 New API，内网可达时延迟最低。",
-                "enabled": True,
-            },
-            "proxy": {
-                "label": "中转代理",
-                "badge": "最稳",
-                "url": CONNECTION_ENDPOINTS["proxy"],
-                "description": "经阿里云固定入口转发到上游，适合外网和移动网络使用。",
-                "enabled": True,
-            },
-            "auto": {
-                "label": "自动",
-                "badge": "兜底",
+            "custom": {
+                "label": "自定义 API",
+                "badge": "云端",
                 "url": "",
-                "description": "按本地接入、中转代理依次尝试，哪个能连上就用哪个。",
+                "description": "使用云端服务器的 OpenAI 兼容 API，需要填写 API URL 和 API Key。",
                 "enabled": True,
             },
             "pool": {
@@ -126,13 +103,6 @@ def default_model_config() -> dict:
                 "badge": "OAuth",
                 "url": "",
                 "description": "不填写 API Key，直接使用管理员号池里已导入并可用的 OpenAI OAuth 账号生成图片。",
-                "enabled": True,
-            },
-            "custom": {
-                "label": "自定义 API",
-                "badge": "第三方",
-                "url": "",
-                "description": "临时接入第三方中转站或其他 OpenAI 兼容 API，需要填写 API URL 和 API Key。",
                 "enabled": True,
             },
         },
@@ -175,12 +145,12 @@ def normalize_model_config(raw: dict | None = None) -> dict:
             })
         if cleaned:
             base["model_profiles"] = cleaned
-    auto_order = raw.get("auto_order")
-    if isinstance(auto_order, list):
-        base["auto_order"] = [item for item in auto_order if item in ("local", "proxy")] or base["auto_order"]
+    base["auto_order"] = []
     default_mode = str(raw.get("default_connection_mode") or base["default_connection_mode"]).strip()
     if default_mode in base["connections"]:
         base["default_connection_mode"] = default_mode
+    else:
+        base["default_connection_mode"] = "custom"
     return base
 
 
@@ -298,9 +268,9 @@ def require_pool_user_json():
 def connection_endpoints() -> dict[str, str]:
     config = read_model_config()
     return {
-        key: str(value.get("url") or CONNECTION_ENDPOINTS.get(key, "")).strip()
+        key: str(value.get("url") or "").strip()
         for key, value in config["connections"].items()
-        if key != "auto" and value.get("enabled", True)
+        if key == "custom" and value.get("enabled", True)
     }
 
 
@@ -1775,16 +1745,11 @@ def job_api_base(job: dict) -> str:
 
 
 def candidate_api_urls(connection_mode: str, api_url: str) -> list[str]:
-    mode = (connection_mode or "proxy").strip()
-    endpoints = connection_endpoints()
-    if mode == "auto":
-        order = read_model_config().get("auto_order") or list(AUTO_CONNECTION_ORDER)
-        return [endpoints[item] for item in order if endpoints.get(item)]
+    mode = (connection_mode or "custom").strip()
     if mode == "custom":
-        return [api_url.strip()] if api_url.strip() else []
-    if mode not in endpoints:
-        mode = "proxy"
-    return [api_url.strip() or endpoints.get(mode, NEW_API_BASE)]
+        custom_url = api_url.strip() or connection_endpoints().get("custom", "")
+        return [custom_url] if custom_url else []
+    return []
 
 
 def fetch_models(api_url: str, api_key: str) -> list[str]:
@@ -1815,7 +1780,7 @@ def resolve_api_url(connection_mode: str, api_url: str, api_key: str) -> tuple[s
             return candidate.rstrip("/"), errors
         except Exception as exc:
             errors.append(f"{candidate}: {exc}")
-    fallback = (api_url.strip() or connection_endpoints().get(connection_mode, NEW_API_BASE)).rstrip("/")
+    fallback = (api_url.strip() or connection_endpoints().get("custom", NEW_API_BASE)).rstrip("/")
     return fallback, errors
 
 
@@ -2073,14 +2038,14 @@ def admin():
         elif action == "save_model_config":
             current = read_model_config()
             connections = {}
-            for key in ("local", "proxy", "auto"):
+            for key in ("custom", "pool"):
                 existing = current["connections"].get(key, {})
                 connections[key] = {
                     "label": request.form.get(f"{key}_label", existing.get("label", key)).strip(),
                     "badge": request.form.get(f"{key}_badge", existing.get("badge", "")).strip(),
                     "url": request.form.get(f"{key}_url", existing.get("url", "")).strip(),
                     "description": request.form.get(f"{key}_description", existing.get("description", "")).strip(),
-                    "enabled": request.form.get(f"{key}_enabled") == "on" or key == "auto",
+                    "enabled": True,
                 }
             profiles = []
             for line in request.form.get("model_profiles", "").splitlines():
@@ -2094,8 +2059,8 @@ def admin():
                     "tag": parts[3] if len(parts) > 3 and parts[3] else "生图",
                 })
             config = {
-                "default_connection_mode": request.form.get("default_connection_mode", "proxy"),
-                "auto_order": [item.strip() for item in request.form.get("auto_order", "local,proxy").split(",")],
+                "default_connection_mode": request.form.get("default_connection_mode", "custom"),
+                "auto_order": [],
                 "connections": connections,
                 "model_profiles": profiles,
             }
@@ -2404,7 +2369,7 @@ def models():
         return auth
     payload = request.get_json(silent=True) or {}
     api_key = str(payload.get("api_key") or "").strip()
-    connection_mode = str(payload.get("connection_mode") or "proxy").strip()
+    connection_mode = str(payload.get("connection_mode") or "custom").strip()
     pool_user = None
     api_url = str(payload.get("api_url") or "").strip()
     if connection_mode == "custom" and not api_url:
@@ -2443,7 +2408,7 @@ def create_job():
     api_key = str(payload.get("api_key") or "").strip()
     mode = str(payload.get("mode") or "single")
     count = max(1, min(int(payload.get("count") or 1), 20))
-    connection_mode = str(payload.get("connection_mode") or "proxy").strip()
+    connection_mode = str(payload.get("connection_mode") or "custom").strip()
     pool_user = None
     if connection_mode != "pool" and not (api_key or NEW_API_TOKEN):
         return jsonify({"error": "请先填写 API Key"}), 400
@@ -2522,7 +2487,7 @@ def retry_job(job_id):
         return jsonify({"error": "任务不存在"}), 404
     payload = request.get_json(silent=True) or {}
     api_key = str(payload.get("api_key") or source.get("api_key") or "").strip()
-    connection_mode = str(payload.get("connection_mode") or source.get("connection_mode") or "proxy").strip()
+    connection_mode = str(payload.get("connection_mode") or source.get("connection_mode") or "custom").strip()
     pool_user = None
     if connection_mode != "pool" and not (api_key or NEW_API_TOKEN):
         return jsonify({"error": "请先填写 API Key"}), 400
