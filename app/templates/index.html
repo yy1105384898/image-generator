@@ -683,6 +683,10 @@
         </section>
 
         <section class="settings-section api-card">
+          <div id="debugApiBanner" class="debug-api-banner hidden">
+            <strong>调试模式</strong>
+            <span>自定义 API 使用管理后台保存的 Key，工作台无需填写。</span>
+          </div>
           <label>
             <span>API URL</span>
             <input id="apiUrl" value="{{ model_config.connections.custom.url }}">

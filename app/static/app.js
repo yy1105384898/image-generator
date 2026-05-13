@@ -42,6 +42,7 @@ const els = {
   connectionButtons: document.querySelectorAll("[data-connection-mode]"),
   connectionNote: $("#connectionNote"),
   connectionStatus: $("#connectionStatus"),
+  debugApiBanner: $("#debugApiBanner"),
   apiUrl: $("#apiUrl"),
   apiKey: $("#apiKey"),
   rememberApiKey: $("#rememberApiKey"),
@@ -304,7 +305,13 @@ const CUSTOM_API_URL_KEY = "yangyang_image_custom_api_url";
 const SELECTED_IMAGE_MODEL_KEY = "yangyang_image_selected_model";
 const SELECTED_TEXT_MODEL_KEY = "yangyang_image_selected_text_model";
 const MANUAL_TEXT_MODEL_KEY = "yangyang_image_manual_text_model";
+const DEBUG_CUSTOM_API_KEY = "yangyang_image_debug_custom_api";
 const ALLOWED_CONNECTION_MODES = new Set(["custom", "pool"]);
+let debugCustomApi = {
+  enabled: Boolean(modelConfig.debug?.workbench_custom_api),
+  apiUrl: "",
+  hasApiKey: Boolean(modelConnections.custom?.api_key_configured),
+};
 
 const connectionNotes = {
   custom: modelConnections.custom?.description || "自定义 API 模式用于接入云端 OpenAI 兼容地址，Token 可在 New API 后台管理。",
@@ -847,8 +854,30 @@ function setConnectionMode(mode, options = {}) {
   if (els.rememberApiKey) {
     els.rememberApiKey.disabled = mode === "pool";
   }
+  renderDebugApiState();
   renderPoolUser();
   syncSummary();
+}
+
+function renderDebugApiState() {
+  const isCustom = els.connectionMode?.value === "custom";
+  const active = Boolean(isCustom && debugCustomApi.enabled);
+  els.debugApiBanner?.classList.toggle("hidden", !active);
+  if (active && els.apiUrl) {
+    els.apiUrl.value = debugCustomApi.apiUrl || connectionEndpoints.custom || els.apiUrl.value;
+  }
+  if (els.apiKey) {
+    const useBackendKey = active && debugCustomApi.hasApiKey;
+    els.apiKey.disabled = els.connectionMode?.value === "pool" || useBackendKey;
+    if (useBackendKey) els.apiKey.value = "";
+    if (useBackendKey) {
+      els.apiKey.placeholder = "调试中无需填写，后端使用管理后台 Key";
+    }
+  }
+  if (els.rememberApiKey && active) {
+    els.rememberApiKey.checked = false;
+    els.rememberApiKey.disabled = true;
+  }
 }
 
 function selectedApiUrl() {
@@ -856,7 +885,9 @@ function selectedApiUrl() {
 }
 
 function selectedApiKey() {
-  return els.connectionMode.value === "pool" ? "" : els.apiKey.value.trim();
+  if (els.connectionMode.value === "pool") return "";
+  if (debugCustomApi.enabled && debugCustomApi.hasApiKey) return "";
+  return els.apiKey.value.trim();
 }
 
 function loadApiKeyPreference() {
@@ -869,6 +900,7 @@ function loadApiKeyPreference() {
 
 function saveApiKeyPreference() {
   if (els.connectionMode.value === "pool") return;
+  if (debugCustomApi.enabled) return;
   if (els.connectionMode.value === "custom" && els.apiUrl.value.trim()) {
     localStorage.setItem(CUSTOM_API_URL_KEY, els.apiUrl.value.trim());
   }
@@ -1199,8 +1231,11 @@ function replaceModelOptions(models) {
 
 function syncTextModelFields() {
   const manual = !verifiedTextModels.length;
+  const poolMode = els.connectionMode?.value === "pool";
   els.manualTextModelPanel?.classList.toggle("hidden", !manual);
   els.analysisModel?.classList.toggle("manual", manual);
+  if (poolMode && els.reuseTextApiUrl) els.reuseTextApiUrl.checked = false;
+  if (poolMode && els.reuseTextApiKey) els.reuseTextApiKey.checked = false;
   if (els.textApiUrlField) {
     els.textApiUrlField.classList.toggle("hidden", Boolean(els.reuseTextApiUrl?.checked));
   }
@@ -1667,9 +1702,6 @@ function makeAgentPlan(valuesOverride = null, revision = 1) {
 }
 
 async function requestAgentPlan(values, revision) {
-  if (els.connectionMode.value === "pool") {
-    throw new Error("本地号池模式暂不支持 GPT 文本方案，已改用本地模板。");
-  }
   const textModel = selectedTextModel();
   if (!textModel) {
     throw new Error("未配置 Agent 文本模型，已改用本地模板。");
@@ -1683,6 +1715,7 @@ async function requestAgentPlan(values, revision) {
       text_model: textModel,
       text_api_url: selectedTextApiUrl(),
       text_api_key: selectedTextApiKey(),
+      text_custom_fallback: Boolean(els.connectionMode.value === "pool" && !verifiedTextModels.length),
       revision,
       agent: {
         id: selectedAgent.id,
@@ -2377,6 +2410,12 @@ function renderState() {
 
 async function loadState() {
   state = await api("/api/state");
+  const debug = state.model_config?.debug || {};
+  const custom = state.model_config?.connections?.custom || {};
+  debugCustomApi.enabled = Boolean(debug.workbench_custom_api);
+  debugCustomApi.apiUrl = debugCustomApi.enabled ? (custom.url || "") : "";
+  debugCustomApi.hasApiKey = Boolean(debugCustomApi.enabled && custom.api_key_configured);
+  renderDebugApiState();
   renderState();
 }
 
@@ -2520,17 +2559,19 @@ async function refreshModels({ silent = false } = {}) {
       if (!silent) els.poolUsername?.focus();
       return;
     }
-    const imageModels = Array.isArray(state.models) ? state.models.filter(isImageModel) : modelProfiles.map((item) => item.id).filter(isImageModel);
+    const profileModels = modelProfiles.map((item) => item.id).filter(Boolean);
+    const imageModels = (Array.isArray(state.models) ? state.models : profileModels).filter(isImageModel);
+    const textModels = profileModels.filter(isTextModel);
     verifiedImageModels = imageModels.length ? imageModels : ["gpt-image-2"];
-    verifiedTextModels = [];
+    verifiedTextModels = textModels;
     replaceModelOptions(verifiedImageModels);
-    replaceTextModelOptions([]);
+    replaceTextModelOptions(verifiedTextModels);
     renderAvailableModels();
     const pool = state.account_pool || {};
     const okCount = Number(pool.ok || 0);
     setConnectionStatus(okCount > 0 ? `本地号池可用 ${okCount} 个账号` : "本地号池暂无可用账号", okCount > 0 ? "success" : "error");
-    setModelStatus(`本地号池模式已启用 · ${verifiedImageModels.length} 个生图模型`, okCount > 0 ? "success" : "idle");
-    setModelFetchHelp("本地号池不需要 New API Token；如需走云端 New API，请切换到自定义 API 并填写 Token。", okCount > 0 ? "success" : "idle");
+    setModelStatus(`Pool enabled · ${verifiedImageModels.length} image models · ${verifiedTextModels.length} text models`, okCount > 0 ? "success" : "idle");
+    setModelFetchHelp(verifiedTextModels.length ? "Pool mode reuses local account-pool accounts for image generation and Agent text plans; no custom API key is required." : "No text model is configured for pool mode; Agent will show the manual text-model fallback panel.", okCount > 0 ? "success" : "idle");
     return;
   }
   if (els.connectionMode.value === "custom" && !selectedApiUrl()) {
@@ -2546,7 +2587,7 @@ async function refreshModels({ silent = false } = {}) {
     return;
   }
   const apiKey = selectedApiKey();
-  if (!apiKey) {
+  if (!apiKey && !(debugCustomApi.enabled && debugCustomApi.hasApiKey)) {
     verifiedImageModels = [];
     verifiedTextModels = [];
     replaceModelOptions([]);
@@ -4033,13 +4074,16 @@ syncAgentComposer();
 initResearchWorkbench();
 if (!location.hash) location.hash = "#home";
 applyRoute();
-loadState();
+loadState().then(() => {
+  if (selectedApiKey() || (debugCustomApi.enabled && debugCustomApi.hasApiKey)) {
+    scheduleAutoRefreshModels();
+  } else {
+    renderAvailableModels();
+    replaceModelOptions([]);
+  }
+}).catch((err) => {
+  setModelStatus(`加载状态失败：${err.message}`, "error");
+});
 syncSummary();
 window.setTimeout(() => maybeAutoShowGuide(location.hash || "#home"), 650);
-if (selectedApiKey()) {
-  scheduleAutoRefreshModels();
-} else {
-  renderAvailableModels();
-  replaceModelOptions([]);
-}
 setInterval(loadState, 5000);

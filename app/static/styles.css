@@ -2825,6 +2825,21 @@ body.research-active .studio-view {
   background: var(--green-soft);
   color: var(--green);
 }
+.debug-api-banner {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #b8ded2;
+  border-radius: 8px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.debug-api-banner strong {
+  color: var(--green);
+  font-size: 13px;
+}
 .pool-login-panel {
   display: grid;
   gap: 10px;

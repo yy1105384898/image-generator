@@ -123,6 +123,9 @@ def default_model_config() -> dict:
             "reuse_custom_api": True,
             "reuse_custom_key": True,
         },
+        "debug": {
+            "workbench_custom_api": False,
+        },
     }
 
 
@@ -135,6 +138,8 @@ def normalize_model_config(raw: dict | None = None) -> dict:
             continue
         merged = {**connections[key], **value}
         merged["enabled"] = bool(merged.get("enabled", True))
+        if key == "custom":
+            merged["api_key"] = str(merged.get("api_key") or "").strip()
         connections[key] = merged
     profiles = raw.get("model_profiles")
     if isinstance(profiles, list) and profiles:
@@ -160,6 +165,11 @@ def normalize_model_config(raw: dict | None = None) -> dict:
         "default_model": str(agent_text.get("default_model") or base["agent_text"]["default_model"]).strip(),
         "reuse_custom_api": bool(agent_text.get("reuse_custom_api", True)),
         "reuse_custom_key": bool(agent_text.get("reuse_custom_key", True)),
+    }
+    debug = raw.get("debug") if isinstance(raw.get("debug"), dict) else {}
+    base["debug"] = {
+        **base["debug"],
+        "workbench_custom_api": bool(debug.get("workbench_custom_api", False)),
     }
     default_mode = str(raw.get("default_connection_mode") or base["default_connection_mode"]).strip()
     if default_mode in base["connections"]:
@@ -242,6 +252,11 @@ def public_pool_user(user: dict | None) -> dict | None:
     }
 
 
+def account_ids_to_tokens(accounts: list[dict], ids: list[str]) -> list[str]:
+    wanted = {str(item or "").strip() for item in ids if str(item or "").strip()}
+    return [str(item.get("access_token") or "") for item in accounts if str(item.get("id") or "") in wanted and item.get("access_token")]
+
+
 def pool_user_stats(users: list[dict]) -> dict:
     return {
         "total": len(users),
@@ -289,6 +304,57 @@ def connection_endpoints() -> dict[str, str]:
     }
 
 
+def custom_api_debug_enabled(config: dict | None = None) -> bool:
+    config = config or read_model_config()
+    return bool((config.get("debug") or {}).get("workbench_custom_api"))
+
+
+def admin_custom_api_credentials(config: dict | None = None) -> tuple[str, str]:
+    config = config or read_model_config()
+    custom = (config.get("connections") or {}).get("custom") or {}
+    return str(custom.get("url") or "").strip(), str(custom.get("api_key") or "").strip()
+
+
+def public_model_config(config: dict | None = None) -> dict:
+    public = json.loads(json.dumps(config or read_model_config(), ensure_ascii=False))
+    custom = ((public.get("connections") or {}).get("custom") or {})
+    raw_key = str(custom.pop("api_key", "") or "").strip()
+    custom["api_key_configured"] = bool(raw_key)
+    return public
+
+
+def public_admin_auth(auth: dict | None = None) -> dict:
+    auth = auth or read_admin_auth()
+    return {"username": auth.get("username", ""), "password_mask": mask_secret(str(auth.get("password") or ""))}
+
+
+def integration_secret_masks(integrations: dict | None = None) -> dict:
+    integrations = integrations or read_integration_config()
+    return {
+        "sub2api_password": mask_secret(((integrations.get("sub2api") or {}).get("password") or "")),
+        "sub2api_api_key": mask_secret(((integrations.get("sub2api") or {}).get("api_key") or "")),
+        "cpa_secret_key": mask_secret(((integrations.get("cpa") or {}).get("secret_key") or "")),
+    }
+
+
+def merge_secret_field(current: str, posted: str) -> str:
+    posted = str(posted or "").strip()
+    return posted if posted else str(current or "").strip()
+
+
+def resolve_custom_api_credentials(api_url: str, api_key: str) -> tuple[str, str, bool]:
+    config = read_model_config()
+    admin_url, admin_key = admin_custom_api_credentials(config)
+    debug_enabled = custom_api_debug_enabled(config)
+    resolved_url = str(api_url or "").strip() or admin_url
+    resolved_key = str(api_key or "").strip()
+    used_debug_key = False
+    if debug_enabled and not resolved_key and admin_key:
+        resolved_key = admin_key
+        used_debug_key = True
+    return resolved_url, resolved_key, used_debug_key
+
+
 def available_model_ids() -> list[str]:
     ids = [str(item.get("id") or "").strip() for item in read_model_config().get("model_profiles", [])]
     ids = [item for item in ids if item]
@@ -302,9 +368,35 @@ def mask_secret(value: str, left: int = 8, right: int = 4) -> str:
     return f"{value[:left]}...{value[-right:]}"
 
 
+SECRET_PATTERNS = [
+    re.compile(r"Bearer\s+[A-Za-z0-9._\-+/=]+", re.IGNORECASE),
+    re.compile(r"sk-[A-Za-z0-9._\-]{8,}"),
+    re.compile(r"(access[_-]?token[\"'\s:=]+)[A-Za-z0-9._\-+/=]{8,}", re.IGNORECASE),
+    re.compile(r"(refresh[_-]?token[\"'\s:=]+)[A-Za-z0-9._\-+/=]{8,}", re.IGNORECASE),
+    re.compile(r"(api[_-]?key[\"'\s:=]+)[A-Za-z0-9._\-]{8,}", re.IGNORECASE),
+]
+
+
+def redact_secrets(value):
+    if isinstance(value, dict):
+        redacted = {}
+        for key, item in value.items():
+            if str(key).lower() in {"api_key", "access_token", "refresh_token", "token", "secret_key", "password"}:
+                redacted[key] = mask_secret(str(item))
+            else:
+                redacted[key] = redact_secrets(item)
+        return redacted
+    if isinstance(value, list):
+        return [redact_secrets(item) for item in value]
+    text = str(value)
+    for pattern in SECRET_PATTERNS:
+        text = pattern.sub(lambda m: (m.group(1) if m.lastindex else "") + "[redacted]", text)
+    return text
+
+
 def admin_log(action: str, detail: dict | None = None) -> None:
     logs = read_json(ADMIN_LOGS_FILE, [])
-    logs.append({"id": uuid.uuid4().hex, "action": action, "detail": detail or {}, "created_at": now_ts()})
+    logs.append({"id": uuid.uuid4().hex, "action": action, "detail": redact_secrets(detail or {}), "created_at": now_ts()})
     write_json(ADMIN_LOGS_FILE, logs[-300:])
 
 
@@ -887,7 +979,7 @@ def mark_pool_account_result(access_token: str, success: bool, error: str = "") 
                     item["status"] = "正常"
             else:
                 item["fail"] = int(item.get("fail") or 0) + 1
-                item["last_error"] = str(error or "生成失败")[:500]
+                item["last_error"] = redact_secrets(str(error or "生成失败"))[:500]
                 lowered = item["last_error"].lower()
                 if "401" in lowered or "invalid access token" in lowered or "access_token" in lowered:
                     item["status"] = "异常"
@@ -992,7 +1084,7 @@ def ensure_response_ok(resp, context: str) -> None:
         body = resp.json()
     except Exception:
         pass
-    raise RuntimeError(f"{context} failed: HTTP {resp.status_code} {str(body)[:500]}")
+    raise RuntimeError(redact_secrets(f"{context} failed: HTTP {resp.status_code} {str(body)[:500]}"))
 
 
 def iter_sse_payloads(resp):
@@ -1279,6 +1371,50 @@ class ChatGptImageClient:
         ensure_response_ok(resp, "image conversation")
         return resp
 
+    @staticmethod
+    def text_model_slug(model: str) -> str:
+        model = str(model or "").strip()
+        if not model or model == DEFAULT_TEXT_MODEL:
+            return "auto"
+        return model
+
+    def start_text_generation(self, model: str, messages: list[dict], requirements: dict):
+        parts = []
+        for message in messages:
+            role = str(message.get("role") or "user").strip()
+            content = str(message.get("content") or "")
+            parts.append(f"{role}: {content}")
+        prompt = "\n\n".join(parts)
+        payload = {
+            "action": "next",
+            "messages": [{
+                "id": str(uuid.uuid4()),
+                "author": {"role": "user"},
+                "create_time": time.time(),
+                "content": {"content_type": "text", "parts": [prompt]},
+                "metadata": {},
+            }],
+            "parent_message_id": str(uuid.uuid4()),
+            "model": self.text_model_slug(model),
+            "timezone_offset_min": -480,
+            "timezone": "Asia/Shanghai",
+            "conversation_mode": {"kind": "primary_assistant"},
+            "enable_message_followups": False,
+            "supports_buffering": True,
+            "supported_encodings": ["v1"],
+            "client_contextual_info": {"app_name": "chatgpt.com"},
+        }
+        path = "/backend-api/f/conversation"
+        resp = self.session.post(
+            self.base_url + path,
+            headers=self.image_headers(path, requirements, "", "text/event-stream"),
+            json=payload,
+            timeout=AGENT_TEXT_TIMEOUT,
+            stream=True,
+        )
+        ensure_response_ok(resp, "text conversation")
+        return resp
+
     def get_conversation(self, conversation_id: str) -> dict:
         path = f"/backend-api/conversation/{conversation_id}"
         resp = self.session.get(self.base_url + path, headers=self.headers(path, {"Accept": "application/json"}), timeout=60)
@@ -1353,6 +1489,39 @@ class ChatGptImageClient:
             ensure_response_ok(resp, "image download")
             images.append(resp.content)
         return images
+
+    def generate_agent_plan(self, model: str, payload: dict) -> dict:
+        self.bootstrap()
+        requirements = self.chat_requirements()
+        resp = self.start_text_generation(model, build_agent_plan_messages(payload), requirements)
+        content = ""
+        try:
+            for raw in iter_sse_payloads(resp):
+                if raw == "[DONE]":
+                    break
+                try:
+                    event = json.loads(raw)
+                except Exception:
+                    continue
+                value = event.get("v") if isinstance(event, dict) else None
+                candidates = [value, event]
+                for candidate in candidates:
+                    if not isinstance(candidate, dict):
+                        continue
+                    message = candidate.get("message")
+                    if not isinstance(message, dict):
+                        continue
+                    if (message.get("author") or {}).get("role") != "assistant":
+                        continue
+                    parts = (message.get("content") or {}).get("parts") or []
+                    text = "".join(str(part) for part in parts if isinstance(part, str)).strip()
+                    if text:
+                        content = text
+        finally:
+            resp.close()
+        if not content:
+            raise RuntimeError("号池文本模型没有返回内容")
+        return normalize_agent_plan(extract_json_object(content), payload.get("values") if isinstance(payload.get("values"), dict) else {})
 
     def generate(self, prompt: str, model: str, ratio: str, references: list[dict]) -> list[dict]:
         final_prompt = build_pool_image_prompt(prompt, ratio)
@@ -1431,7 +1600,7 @@ def generate_one_with_pool(job: dict, prompt: str, index: int) -> list[dict]:
         update_job(job["id"], {"usage": {"source": "local_account_pool"}, "revised_prompt": prompt})
         return [save_image_payload(job["id"], index + i, normalize_image(item), prompt) for i, item in enumerate(data)]
     except Exception as exc:
-        mark_pool_account_result(token, False, str(exc))
+        mark_pool_account_result(token, False, redact_secrets(str(exc)))
         raise
 
 
@@ -1492,7 +1661,19 @@ def matches_client(item: dict, client_id: str) -> bool:
 
 def client_jobs(client_id: str | None = None) -> list[dict]:
     cid = client_id if client_id is not None else current_client_id()
-    return [job for job in read_jobs() if matches_client(job, cid)]
+    return [public_job(job) for job in read_jobs() if matches_client(job, cid)]
+
+
+def public_job(job: dict) -> dict:
+    item = dict(job or {})
+    if item.get("api_key"):
+        item["api_key"] = ""
+        item["api_key_configured"] = True
+    return item
+
+
+def public_jobs(items: list[dict]) -> list[dict]:
+    return [public_job(item) for item in items]
 
 
 def client_media(client_id: str | None = None) -> list[dict]:
@@ -1970,18 +2151,18 @@ def call_agent_text_model(api_url: str, api_key: str, model: str, payload: dict)
             resp = requests.post(endpoint, headers=headers, json=body, timeout=AGENT_TEXT_TIMEOUT)
             if resp.status_code not in {429, 502, 503, 504}:
                 break
-            last_error = f"New API {resp.status_code}: {resp.text[:500]}"
+            last_error = redact_secrets(f"New API {resp.status_code}: {resp.text[:500]}")
         except requests.Timeout:
             last_error = f"文本模型请求超过 {AGENT_TEXT_TIMEOUT} 秒"
         except requests.RequestException as exc:
-            last_error = str(exc)
+            last_error = redact_secrets(str(exc))
         if attempt < attempts - 1:
             time.sleep(1.5 * (attempt + 1))
     if resp is None:
         raise RuntimeError(last_error or "文本模型请求失败")
     if resp.status_code >= 400:
-        detail = resp.text[:800].strip()
-        raise RuntimeError(f"New API {resp.status_code}: {detail or last_error}")
+        detail = redact_secrets(resp.text[:800].strip())
+        raise RuntimeError(redact_secrets(f"New API {resp.status_code}: {detail or last_error}"))
     data = resp.json()
     choices = data.get("choices") or []
     if not choices:
@@ -1989,6 +2170,19 @@ def call_agent_text_model(api_url: str, api_key: str, model: str, payload: dict)
     message = choices[0].get("message") if isinstance(choices[0], dict) else {}
     content = message.get("content") if isinstance(message, dict) else ""
     return normalize_agent_plan(extract_json_object(content), payload.get("values") if isinstance(payload.get("values"), dict) else {})
+
+
+def call_agent_text_model_with_pool(model: str, payload: dict) -> dict:
+    account = pick_pool_account()
+    token = account["access_token"]
+    try:
+        client = ChatGptImageClient(token)
+        plan = client.generate_agent_plan(model, payload)
+        mark_pool_account_result(token, True)
+        return plan
+    except Exception as exc:
+        mark_pool_account_result(token, False, redact_secrets(str(exc)))
+        raise
 
 
 def generate_one(job: dict, prompt: str, index: int) -> list[dict]:
@@ -2022,7 +2216,7 @@ def generate_one(job: dict, prompt: str, index: int) -> list[dict]:
             timeout=REQUEST_TIMEOUT,
         )
     if resp.status_code >= 400:
-        raise RuntimeError(f"New API {resp.status_code}: {resp.text[:1000]}")
+        raise RuntimeError(redact_secrets(f"New API {resp.status_code}: {resp.text[:1000]}"))
     data = resp.json()
     update_job(job["id"], {"usage": data.get("usage"), "revised_prompt": data.get("revised_prompt")})
     images = [normalize_image(item) for item in data.get("data", [])]
@@ -2139,7 +2333,7 @@ def index():
         username=read_admin_auth()["username"],
         models=models,
         default_model=default_model,
-        model_config=model_config,
+        model_config=public_model_config(model_config),
     )
 
 
@@ -2187,6 +2381,8 @@ def admin():
         if action == "save_admin_auth":
             username = request.form.get("admin_username", "").strip()
             password = request.form.get("admin_password", "").strip()
+            if not password:
+                password = read_admin_auth().get("password", "")
             write_admin_auth(username, password)
             session["user"] = username or "root"
             admin_log("修改管理员账号")
@@ -2270,6 +2466,10 @@ def admin():
                     "description": request.form.get(f"{key}_description", existing.get("description", "")).strip(),
                     "enabled": True,
                 }
+                if key == "custom":
+                    posted_key = request.form.get("custom_api_key", "").strip()
+                    keep_existing = request.form.get("keep_custom_api_key") == "on"
+                    connections[key]["api_key"] = existing.get("api_key", "") if keep_existing and not posted_key else posted_key
             profiles = []
             for line in request.form.get("model_profiles", "").splitlines():
                 parts = [part.strip() for part in line.split("|")]
@@ -2286,6 +2486,9 @@ def admin():
                 "auto_order": [],
                 "connections": connections,
                 "model_profiles": profiles,
+                "debug": {
+                    "workbench_custom_api": request.form.get("workbench_custom_api_debug") == "on",
+                },
             }
             write_model_config(config)
             admin_log("保存模型接入配置")
@@ -2315,13 +2518,15 @@ def admin():
                 message = f"已导入 {len(imported)} 个账号，重复 Token 会自动覆盖。"
             except Exception as exc:
                 admin_log("导入账号失败", {"source": source, "error": str(exc)})
-                message = f"导入失败：{exc}"
+                message = f"导入失败：{redact_secrets(str(exc))}"
             saved = True
         elif action == "update_account":
-            target = request.form.get("target_token", "")
+            target_id = request.form.get("target_account_id", "")
             updated = []
+            target_mask = ""
             for item in accounts:
-                if item.get("access_token") == target:
+                if item.get("id") == target_id:
+                    target_mask = item.get("token_mask", "")
                     item = {
                         **item,
                         "status": request.form.get("status", item.get("status", "正常")),
@@ -2331,17 +2536,18 @@ def admin():
                     }
                 updated.append(item)
             write_account_pool(updated)
-            admin_log("更新账号状态", {"token": mask_secret(target)})
+            admin_log("更新账号状态", {"account": target_mask or target_id})
             message = "账号状态已更新。"
             saved = True
         elif action == "delete_accounts":
-            targets = set(request.form.getlist("account_token"))
-            write_account_pool([item for item in accounts if item.get("access_token") not in targets])
+            targets = set(request.form.getlist("account_id"))
+            write_account_pool([item for item in accounts if item.get("id") not in targets])
             admin_log("删除账号", {"count": len(targets)})
             message = f"已删除 {len(targets)} 个账号。"
             saved = True
         elif action == "refresh_selected_accounts":
-            targets = request.form.getlist("account_token") or [request.form.get("target_token", "")]
+            target_ids = request.form.getlist("account_id") or [request.form.get("target_account_id", "")]
+            targets = account_ids_to_tokens(accounts, target_ids)
             result = refresh_account_pool(targets)
             admin_log("刷新账号信息和额度", {"count": len(targets), "errors": len(result["errors"])})
             message = f"已刷新 {result['refreshed']} 个账号，失败 {len(result['errors'])} 个。"
@@ -2353,6 +2559,7 @@ def admin():
             saved = True
         elif action in {"save_sub2api_config", "browse_sub2api_accounts", "import_sub2api_selected"}:
             current = read_integration_config()
+            current_sub2api = current.get("sub2api") or {}
             next_integrations = {
                 **current,
                 "sub2api": {
@@ -2360,8 +2567,8 @@ def admin():
                     "base_url": request.form.get("sub2api_base_url", ""),
                     "auth_method": request.form.get("sub2api_auth_method", "password"),
                     "username": request.form.get("sub2api_username", ""),
-                    "password": request.form.get("sub2api_password", ""),
-                    "api_key": request.form.get("sub2api_api_key", ""),
+                    "password": merge_secret_field(current_sub2api.get("password", ""), request.form.get("sub2api_password", "")),
+                    "api_key": merge_secret_field(current_sub2api.get("api_key", ""), request.form.get("sub2api_api_key", "")),
                     "group_id": request.form.get("sub2api_group_id", ""),
                 },
             }
@@ -2377,7 +2584,7 @@ def admin():
                     message = f"已读取 Sub2API 远端账号 {len(sub2api_remote_accounts)} 个，请勾选后导入。"
                 except Exception as exc:
                     admin_log("读取 Sub2API 远端账号失败", {"error": str(exc)})
-                    message = f"读取 Sub2API 失败：{exc}"
+                    message = f"读取 Sub2API 失败：{redact_secrets(str(exc))}"
             elif action == "import_sub2api_selected":
                 selected_ids = request.form.getlist("sub2api_account_id")
                 imported, sync_errors = import_sub2api_accounts(conf, selected_ids)
@@ -2391,12 +2598,13 @@ def admin():
             saved = True
         elif action in {"save_cpa_config", "browse_cpa_files", "import_cpa_selected"}:
             current = read_integration_config()
+            current_cpa = current.get("cpa") or {}
             next_integrations = {
                 **current,
                 "cpa": {
                     "name": request.form.get("cpa_name", ""),
                     "base_url": request.form.get("cpa_base_url", ""),
-                    "secret_key": request.form.get("cpa_secret_key", ""),
+                    "secret_key": merge_secret_field(current_cpa.get("secret_key", ""), request.form.get("cpa_secret_key", "")),
                 },
             }
             write_integration_config(next_integrations)
@@ -2411,7 +2619,7 @@ def admin():
                     message = f"已读取 CPA 远端文件 {len(cpa_remote_files)} 个，请勾选后导入。"
                 except Exception as exc:
                     admin_log("读取 CPA 远端文件失败", {"error": str(exc)})
-                    message = f"读取 CPA 失败：{exc}"
+                    message = f"读取 CPA 失败：{redact_secrets(str(exc))}"
             elif action == "import_cpa_selected":
                 selected_files = request.form.getlist("cpa_file_name")
                 imported, sync_errors = import_cpa_files(conf, selected_files)
@@ -2424,20 +2632,23 @@ def admin():
                     cpa_remote_files = []
             saved = True
         elif action == "save_integrations":
+            current = read_integration_config()
+            current_sub2api = current.get("sub2api") or {}
+            current_cpa = current.get("cpa") or {}
             next_integrations = {
                 "sub2api": {
                     "name": request.form.get("sub2api_name", ""),
                     "base_url": request.form.get("sub2api_base_url", ""),
                     "auth_method": request.form.get("sub2api_auth_method", "password"),
                     "username": request.form.get("sub2api_username", ""),
-                    "password": request.form.get("sub2api_password", ""),
-                    "api_key": request.form.get("sub2api_api_key", ""),
+                    "password": merge_secret_field(current_sub2api.get("password", ""), request.form.get("sub2api_password", "")),
+                    "api_key": merge_secret_field(current_sub2api.get("api_key", ""), request.form.get("sub2api_api_key", "")),
                     "group_id": request.form.get("sub2api_group_id", ""),
                 },
                 "cpa": {
                     "name": request.form.get("cpa_name", ""),
                     "base_url": request.form.get("cpa_base_url", ""),
-                    "secret_key": request.form.get("cpa_secret_key", ""),
+                    "secret_key": merge_secret_field(current_cpa.get("secret_key", ""), request.form.get("cpa_secret_key", "")),
                 },
             }
             write_integration_config(next_integrations)
@@ -2453,7 +2664,7 @@ def admin():
                 message = f"已从 Sub2API 同步 {len(synced)} 个账号到号池。"
             except Exception as exc:
                 admin_log("同步 Sub2API 失败", {"error": str(exc)})
-                message = f"Sub2API 同步失败：{exc}"
+                message = f"Sub2API 同步失败：{redact_secrets(str(exc))}"
             saved = True
         elif action == "sync_cpa":
             integrations = read_integration_config()
@@ -2464,7 +2675,7 @@ def admin():
                 message = f"已从 CPA 同步 {len(synced)} 个账号到号池。"
             except Exception as exc:
                 admin_log("同步 CPA 失败", {"error": str(exc)})
-                message = f"CPA 同步失败：{exc}"
+                message = f"CPA 同步失败：{redact_secrets(str(exc))}"
             saved = True
         elif action == "delete_media":
             media_ids = set(request.form.getlist("media_id"))
@@ -2490,20 +2701,23 @@ def admin():
     accounts = read_account_pool()
     pool_users = read_pool_users()
     media_items = sorted(read_media(), key=lambda x: x.get("created_at", 0), reverse=True)
-    jobs = sorted(read_jobs(), key=lambda x: x.get("created_at", 0), reverse=True)
-    logs = sorted(read_json(ADMIN_LOGS_FILE, []), key=lambda x: x.get("created_at", 0), reverse=True)
+    jobs = sorted(public_jobs(read_jobs()), key=lambda x: x.get("created_at", 0), reverse=True)
+    logs = sorted(redact_secrets(read_json(ADMIN_LOGS_FILE, [])), key=lambda x: x.get("created_at", 0), reverse=True)
+    integrations = read_integration_config()
     return render_template(
         "admin.html",
         config=config,
+        custom_api_key_mask=mask_secret(admin_custom_api_credentials(config)[1]),
         profile_lines=profile_lines,
         saved=saved,
         message=message,
-        admin_auth=read_admin_auth(),
+        admin_auth=public_admin_auth(),
         accounts=accounts,
         account_stats=account_stats(accounts),
         pool_users=pool_users,
         pool_user_stats=pool_user_stats(pool_users),
-        integrations=read_integration_config(),
+        integrations=integrations,
+        integration_masks=integration_secret_masks(integrations),
         media_items=media_items,
         jobs=jobs[:80],
         logs=logs[:120],
@@ -2520,7 +2734,7 @@ def media_file(filename):
 
 @app.get("/api/health")
 def health():
-    return jsonify({"ok": True, "models": available_model_ids(), "new_api_base": NEW_API_BASE, "model_config": read_model_config()})
+    return jsonify({"ok": True, "models": available_model_ids(), "new_api_base": NEW_API_BASE, "model_config": public_model_config(read_model_config())})
 
 
 @app.get("/api/pool/session")
@@ -2578,7 +2792,7 @@ def state():
         "presets": read_presets(),
         "models": available_model_ids(),
         "default_model": DEFAULT_MODEL,
-        "model_config": read_model_config(),
+        "model_config": public_model_config(read_model_config()),
         "account_pool": account_stats(read_account_pool()),
         "pool_user": public_pool_user(current_pool_user()),
         "pool_users": pool_user_stats(read_pool_users()),
@@ -2595,8 +2809,12 @@ def models():
     connection_mode = str(payload.get("connection_mode") or "custom").strip()
     pool_user = None
     api_url = str(payload.get("api_url") or "").strip()
-    if connection_mode == "custom" and not api_url:
-        return jsonify({"error": "请先填写自定义 API URL"}), 400
+    if connection_mode == "custom":
+        api_url, api_key, _used_debug_key = resolve_custom_api_credentials(api_url, api_key)
+        if not api_url:
+            return jsonify({"error": "请先填写自定义 API URL"}), 400
+        if not (api_key or NEW_API_TOKEN):
+            return jsonify({"error": "请先填写 API Key"}), 400
     if connection_mode == "pool":
         pool_user, pool_error = require_pool_user_json()
         if pool_error:
@@ -2622,8 +2840,24 @@ def models():
                 "api_url": candidate.rstrip("/"),
             })
         except Exception as exc:
-            errors.append(f"{candidate}: {exc}")
-    return jsonify({"error": "模型读取失败", "detail": " | ".join(errors)}), 502
+            errors.append(redact_secrets(f"{candidate}: {exc}"))
+    return jsonify({"error": "模型读取失败", "detail": redact_secrets(" | ".join(errors))}), 502
+
+
+@app.get("/api/debug/custom-api")
+def debug_custom_api():
+    auth = login_required_json()
+    if auth:
+        return auth
+    config = read_model_config()
+    debug_enabled = custom_api_debug_enabled(config)
+    api_url, api_key = admin_custom_api_credentials(config)
+    return jsonify({
+        "ok": True,
+        "enabled": debug_enabled,
+        "api_url": api_url if debug_enabled else "",
+        "has_api_key": bool(api_key) if debug_enabled else False,
+    })
 
 
 @app.post("/api/agent-plan")
@@ -2633,19 +2867,30 @@ def agent_plan():
         return auth
     payload = request.get_json(silent=True) or {}
     model = str(payload.get("text_model") or DEFAULT_TEXT_MODEL).strip()
+    connection_mode = str(payload.get("connection_mode") or "custom").strip()
+    text_custom_fallback = bool(payload.get("text_custom_fallback"))
     api_url = str(payload.get("text_api_url") or payload.get("api_url") or "").strip()
     api_key = str(payload.get("text_api_key") or payload.get("api_key") or "").strip()
     if not model:
         return jsonify({"error": "请先选择或填写 Agent 文本模型"}), 400
-    if not api_url:
-        return jsonify({"error": "请先填写文本模型 API URL"}), 400
-    if not api_key:
-        return jsonify({"error": "请先填写文本模型 API Key"}), 400
     try:
-        plan = call_agent_text_model(api_url, api_key, model, payload)
+        if connection_mode == "pool" and not text_custom_fallback:
+            pool_user, pool_error = require_pool_user_json()
+            if pool_error:
+                return pool_error
+            if not pool_available_accounts():
+                return jsonify({"ok": False, "error": "本地号池没有可用账号", "detail": "请先到管理后台导入并刷新可用号池账号"}), 200
+            plan = call_agent_text_model_with_pool(model, payload)
+        else:
+            api_url, api_key, _used_debug_key = resolve_custom_api_credentials(api_url, api_key)
+            if not api_url:
+                return jsonify({"error": "请先填写文本模型 API URL"}), 400
+            if not api_key:
+                return jsonify({"error": "请先填写文本模型 API Key"}), 400
+            plan = call_agent_text_model(api_url, api_key, model, payload)
         return jsonify({"ok": True, "plan": plan, "model": model})
     except Exception as exc:
-        return jsonify({"ok": False, "error": "Agent 文本模型生成失败", "detail": str(exc)}), 200
+        return jsonify({"ok": False, "error": "Agent 文本模型生成失败", "detail": redact_secrets(str(exc))}), 200
 
 
 @app.post("/api/jobs")
@@ -2662,8 +2907,7 @@ def create_job():
     count = max(1, min(int(payload.get("count") or 1), 20))
     connection_mode = str(payload.get("connection_mode") or "custom").strip()
     pool_user = None
-    if connection_mode != "pool" and not (api_key or NEW_API_TOKEN):
-        return jsonify({"error": "请先填写 API Key"}), 400
+    used_debug_key = False
     if connection_mode == "pool":
         pool_user, pool_error = require_pool_user_json()
         if pool_error:
@@ -2671,8 +2915,12 @@ def create_job():
     if connection_mode == "pool" and not pool_available_accounts():
         return jsonify({"error": "本地号池没有可用账号，请先到管理员号池导入账号并刷新额度"}), 400
     api_url = str(payload.get("api_url") or "").strip()
-    if connection_mode == "custom" and not api_url:
-        return jsonify({"error": "请先填写自定义 API URL"}), 400
+    if connection_mode == "custom":
+        api_url, api_key, used_debug_key = resolve_custom_api_credentials(api_url, api_key)
+        if not api_url:
+            return jsonify({"error": "请先填写自定义 API URL"}), 400
+        if not (api_key or NEW_API_TOKEN):
+            return jsonify({"error": "请先填写 API Key"}), 400
     if connection_mode == "pool":
         resolved_api_url, resolve_errors = "local-account-pool", []
     else:
@@ -2687,6 +2935,7 @@ def create_job():
         "api_url": api_url.rstrip("/") if api_url else resolved_api_url,
         "resolved_api_url": resolved_api_url,
         "api_key": api_key,
+        "api_key_source": "debug_admin_config" if used_debug_key else ("user_input" if api_key else ""),
         "connection_errors": resolve_errors,
         "pool_user_id": pool_user.get("id") if pool_user else "",
         "pool_username": pool_user.get("username") if pool_user else "",
@@ -2725,7 +2974,7 @@ def create_job():
         jobs.append(job)
         write_jobs(jobs)
     job_queue.put(job["id"])
-    return jsonify({"job": job})
+    return jsonify({"job": public_job(job)})
 
 
 @app.post("/api/jobs/<job_id>/retry")
@@ -2738,11 +2987,10 @@ def retry_job(job_id):
     if not source or not matches_client(source, client_id):
         return jsonify({"error": "任务不存在"}), 404
     payload = request.get_json(silent=True) or {}
-    api_key = str(payload.get("api_key") or source.get("api_key") or "").strip()
+    api_key = str(payload.get("api_key") or "").strip()
     connection_mode = str(payload.get("connection_mode") or source.get("connection_mode") or "custom").strip()
     pool_user = None
-    if connection_mode != "pool" and not (api_key or NEW_API_TOKEN):
-        return jsonify({"error": "请先填写 API Key"}), 400
+    used_debug_key = False
     if connection_mode == "pool":
         pool_user, pool_error = require_pool_user_json()
         if pool_error:
@@ -2750,8 +2998,12 @@ def retry_job(job_id):
     if connection_mode == "pool" and not pool_available_accounts():
         return jsonify({"error": "本地号池没有可用账号，请先到管理员号池导入账号并刷新额度"}), 400
     api_url = str(payload.get("api_url") or source.get("api_url") or "").strip()
-    if connection_mode == "custom" and not api_url:
-        return jsonify({"error": "请先填写自定义 API URL"}), 400
+    if connection_mode == "custom":
+        api_url, api_key, used_debug_key = resolve_custom_api_credentials(api_url, api_key)
+        if not api_url:
+            return jsonify({"error": "请先填写自定义 API URL"}), 400
+        if not (api_key or NEW_API_TOKEN):
+            return jsonify({"error": "请先填写 API Key"}), 400
     if connection_mode == "pool":
         resolved_api_url, resolve_errors = "local-account-pool", []
     else:
@@ -2766,6 +3018,7 @@ def retry_job(job_id):
         "api_url": api_url.rstrip("/") if api_url else resolved_api_url,
         "resolved_api_url": resolved_api_url,
         "api_key": api_key,
+        "api_key_source": "debug_admin_config" if used_debug_key else ("user_input" if api_key else ""),
         "connection_errors": resolve_errors,
         "pool_user_id": pool_user.get("id") if pool_user else "",
         "pool_username": pool_user.get("username") if pool_user else "",
@@ -2808,7 +3061,7 @@ def retry_job(job_id):
         jobs.append(job)
         write_jobs(jobs)
     job_queue.put(job["id"])
-    return jsonify({"job": job})
+    return jsonify({"job": public_job(job)})
 
 
 @app.post("/api/subjects")

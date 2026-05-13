@@ -157,7 +157,7 @@
         <table class="admin-table">
           <thead>
             <tr>
-              <th><input type="checkbox" data-check-all="account_token"></th>
+              <th><input type="checkbox" data-check-all="account_id"></th>
               <th>Token</th>
               <th>类型/来源</th>
               <th>状态</th>
@@ -171,7 +171,7 @@
           <tbody>
             {% for account in accounts %}
               <tr>
-                <td><input form="bulkAccounts" type="checkbox" name="account_token" value="{{ account.access_token }}"></td>
+                <td><input form="bulkAccounts" type="checkbox" name="account_id" value="{{ account.id }}"></td>
                 <td class="admin-token-cell">
                   <strong>{{ account.token_mask }}</strong>
                   {% if account.last_error %}<small class="admin-error-text">{{ account.last_error }}</small>{% endif %}
@@ -187,7 +187,7 @@
                 <td>{{ account.success }} / {{ account.fail }}</td>
                 <td>
                   <form method="post" class="admin-row-actions">
-                    <input type="hidden" name="target_token" value="{{ account.access_token }}">
+                    <input type="hidden" name="target_account_id" value="{{ account.id }}">
                     <select name="status">
                       {% for status in ["正常","限流","异常","禁用"] %}
                         <option value="{{ status }}" {% if account.status == status %}selected{% endif %}>{{ status }}</option>
@@ -292,10 +292,10 @@
             </label>
             <div class="admin-inline-fields" data-sub2api-auth="password">
               <label>管理员邮箱<input name="sub2api_username" value="{{ integrations.sub2api.username }}" placeholder="admin@example.com"></label>
-              <label>管理员密码<input name="sub2api_password" type="password" value="{{ integrations.sub2api.password }}"></label>
+              <label>管理员密码<input name="sub2api_password" type="password" placeholder="{{ integration_masks.sub2api_password or '不填则保留现有密码' }}"></label>
             </div>
             <div class="admin-inline-fields">
-              <label data-sub2api-auth="api_key">Admin API Key<input name="sub2api_api_key" value="{{ integrations.sub2api.api_key }}" placeholder="填写后使用 Key 鉴权"></label>
+              <label data-sub2api-auth="api_key">Admin API Key<input name="sub2api_api_key" type="password" placeholder="{{ integration_masks.sub2api_api_key or '填写后使用 Key 鉴权' }}"></label>
               <label>分组 ID<input name="sub2api_group_id" value="{{ integrations.sub2api.group_id }}" placeholder="可选"></label>
             </div>
             <div class="admin-form-actions">
@@ -364,7 +364,7 @@
               <label>连接名称<input name="cpa_name" value="{{ integrations.cpa.name }}" placeholder="CPA 账号池"></label>
               <label>服务地址<input name="cpa_base_url" value="{{ integrations.cpa.base_url }}" placeholder="http://host:port"></label>
             </div>
-            <label>Secret Key<input name="cpa_secret_key" type="password" value="{{ integrations.cpa.secret_key }}"></label>
+            <label>Secret Key<input name="cpa_secret_key" type="password" placeholder="{{ integration_masks.cpa_secret_key or '不填则保留现有 Secret Key' }}"></label>
             <div class="admin-form-actions">
               <button class="admin-primary-button" type="submit" name="action" value="save_cpa_config">保存连接</button>
               <button type="submit" name="action" value="browse_cpa_files">读取远端文件</button>
@@ -419,7 +419,7 @@
         <form method="post" class="admin-mini-form">
           <h3>管理员账号</h3>
           <label>账号<input name="admin_username" value="{{ admin_auth.username }}" autocomplete="username"></label>
-          <label>密码<input name="admin_password" type="password" value="{{ admin_auth.password }}" autocomplete="new-password"></label>
+          <label>Admin Password<input name="admin_password" type="password" placeholder="{{ admin_auth.password_mask or 'leave blank to keep current password' }}" autocomplete="new-password"></label>
           <button class="admin-primary-button" type="submit" name="action" value="save_admin_auth">保存管理员账号</button>
         </form>
       </div>
@@ -451,6 +451,18 @@
                 <label>显示名称<input name="{{ key }}_label" value="{{ conn.label }}"></label>
                 <label>徽标<input name="{{ key }}_badge" value="{{ conn.badge }}"></label>
                 <label class="admin-wide-field">地址<input name="{{ key }}_url" value="{{ conn.url }}"></label>
+                {% if key == "custom" %}
+                  <label class="admin-wide-field">调试 API Key<input name="custom_api_key" type="password" placeholder="{{ custom_api_key_mask or '未配置' }}"></label>
+                  <label class="admin-switch-row">
+                    <span>保留现有 Key</span>
+                    <span class="admin-switch"><input type="checkbox" name="keep_custom_api_key" checked><span></span></span>
+                  </label>
+                  <label class="admin-switch-row">
+                    <span>工作台调试模式</span>
+                    <span class="admin-switch"><input type="checkbox" name="workbench_custom_api_debug" {% if config.debug.workbench_custom_api %}checked{% endif %}><span></span></span>
+                  </label>
+                  <p class="admin-help-text">打开后，工作台自定义 API 可直接使用后台保存的 URL 和 Key；接口响应只返回调试状态，不下发 Key 明文。</p>
+                {% endif %}
                 <label class="admin-wide-field">描述<textarea name="{{ key }}_description" rows="3">{{ conn.description }}</textarea></label>
               </div>
             </article>
