@@ -1698,6 +1698,9 @@ async function requestAgentPlan(values, revision) {
       values,
     }),
   });
+  if (data && data.ok === false) {
+    throw new Error(data.detail || data.error || "Agent 文本模型生成失败");
+  }
   const plan = data.plan || {};
   return {
     ...makeAgentPlan(values, revision),

@@ -39,7 +39,7 @@ AVAILABLE_MODELS = [m.strip() for m in os.getenv("AVAILABLE_MODELS", DEFAULT_MOD
 MAX_HISTORY = int(os.getenv("MAX_HISTORY", "200"))
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "600"))
 AGENT_TEXT_TIMEOUT = int(os.getenv("AGENT_TEXT_TIMEOUT", "180"))
-AGENT_TEXT_RETRIES = int(os.getenv("AGENT_TEXT_RETRIES", "2"))
+AGENT_TEXT_RETRIES = int(os.getenv("AGENT_TEXT_RETRIES", "0"))
 DATA_DIR = Path(os.getenv("DATA_DIR", "/app/data"))
 MEDIA_DIR = DATA_DIR / "media"
 REFERENCE_DIR = DATA_DIR / "references"
@@ -1960,7 +1960,6 @@ def call_agent_text_model(api_url: str, api_key: str, model: str, payload: dict)
         "model": model,
         "messages": build_agent_plan_messages(payload),
         "temperature": 0.75,
-        "response_format": {"type": "json_object"},
     }
     endpoint = urljoin(api_base + "/", "v1/chat/completions")
     attempts = max(1, min(AGENT_TEXT_RETRIES + 1, 4))
@@ -2646,7 +2645,7 @@ def agent_plan():
         plan = call_agent_text_model(api_url, api_key, model, payload)
         return jsonify({"ok": True, "plan": plan, "model": model})
     except Exception as exc:
-        return jsonify({"error": "Agent 文本模型生成失败", "detail": str(exc)}), 502
+        return jsonify({"ok": False, "error": "Agent 文本模型生成失败", "detail": str(exc)}), 200
 
 
 @app.post("/api/jobs")
