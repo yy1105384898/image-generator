@@ -1007,6 +1007,7 @@ function replaceTextModelOptions(models = []) {
   const current = els.analysisModel.value;
   els.analysisModel.innerHTML = "";
   if (models.length) {
+    if (els.reuseTextApiKey) els.reuseTextApiKey.checked = true;
     for (const model of models) {
       const option = document.createElement("option");
       option.value = model;
@@ -1021,6 +1022,7 @@ function replaceTextModelOptions(models = []) {
     option.textContent = "手动填写文本模型";
     els.analysisModel.append(option);
     els.analysisModel.disabled = true;
+    if (els.reuseTextApiKey) els.reuseTextApiKey.checked = false;
     if (els.manualTextModel && !els.manualTextModel.value.trim()) {
       els.manualTextModel.value = modelConfig.agent_text?.default_model || "gpt-4.1-mini";
     }
@@ -2228,7 +2230,7 @@ async function refreshModels({ silent = false } = {}) {
     state.models = imageModels;
     setConnectionStatus("已连接", "success");
     setModelStatus(`✓ API Key 有效 · ${imageModels.length} 个生图模型 · ${textModels.length} 个文本模型 · ${formatModelTime()}`, "success");
-    setModelFetchHelp(`已连接：${data.api_url || selectedApiUrl() || "自定义 API"}。Agent 文本模型会优先复用当前 API；没有识别到文本模型时可手动填写。`, "success");
+    setModelFetchHelp(`已连接：${data.api_url || selectedApiUrl() || "自定义 API"}。Agent 会优先使用识别到的文本模型；未找到文本模型时请填写有文本权限的 Key。`, "success");
   } catch (err) {
     if (requestId !== modelRequestId) return;
     verifiedImageModels = [];

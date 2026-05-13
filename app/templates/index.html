@@ -728,6 +728,10 @@
               <option value="">未检测到 GPT 文本模型</option>
             </select>
             <div id="manualTextModelPanel" class="manual-text-model-panel hidden">
+              <div class="manual-text-model-head">
+                <strong>未找到文本模型</strong>
+                <span>当前生图 Key 没有返回 GPT 文本模型。请填写一个有文本模型权限的 Key，Agent 会用它生成三套方案。</span>
+              </div>
               <label>
                 <span>手动文本模型</span>
                 <input id="manualTextModel" placeholder="例如 gpt-4.1-mini">
@@ -741,15 +745,15 @@
                 <input id="textApiUrl" placeholder="https://your-api.example.com/v1">
               </label>
               <label class="check-row">
-                <input id="reuseTextApiKey" type="checkbox" checked>
-                <span>复用自定义 API Key</span>
+                <input id="reuseTextApiKey" type="checkbox">
+                <span>复用当前生图 API Key</span>
               </label>
-              <label id="textApiKeyField" class="hidden">
-                <span>文本 API Key</span>
-                <input id="textApiKey" type="password" placeholder="sk-...">
+              <label id="textApiKeyField">
+                <span>文本模型 API Key</span>
+                <input id="textApiKey" type="password" placeholder="填写有 GPT 文本模型权限的 Key">
               </label>
             </div>
-            <div class="inline-note muted"><span>ⓘ</span><span>Agent 会优先用 GPT 生成三套方案；未配置或失败时使用本地模板兜底。</span></div>
+            <div class="inline-note muted"><span>ⓘ</span><span>Agent 优先用 GPT 生成三套方案；未配置文本 Key 或调用失败时使用本地模板兜底。</span></div>
             <div class="local-save-note"><span>▣</span><span>生成图片和历史仅保存到当前浏览器本地，服务端只做无状态协议转发。</span></div>
           </section>
         </section>
