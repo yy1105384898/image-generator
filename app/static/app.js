@@ -1019,13 +1019,10 @@ function replaceTextModelOptions(models = []) {
   } else {
     const option = document.createElement("option");
     option.value = "";
-    option.textContent = "手动填写文本模型";
+    option.textContent = "未检测到文本模型";
     els.analysisModel.append(option);
     els.analysisModel.disabled = true;
     if (els.reuseTextApiKey) els.reuseTextApiKey.checked = false;
-    if (els.manualTextModel && !els.manualTextModel.value.trim()) {
-      els.manualTextModel.value = modelConfig.agent_text?.default_model || "gpt-4.1-mini";
-    }
   }
   syncTextModelFields();
 }
