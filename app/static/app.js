@@ -162,6 +162,7 @@ let agentGenerated = false;
 let agentPlan = null;
 let agentPlanRevision = 0;
 let appliedAgentVariant = null;
+let customIndustryAgent = null;
 let agentComposerExpanded = false;
 let guideStep = 0;
 let guideAutoShown = false;
@@ -341,6 +342,86 @@ const aspectSizes = {
 };
 
 const resolutionMultipliers = { "1K": 1, "2K": 2, "4K": 4 };
+
+const promptSkillLibrary = {
+  productHero: {
+    name: "产品英雄主图",
+    desc: "主体完整、大占比、平台安全区清楚",
+    instruction: "使用产品英雄主图技法：主体完整清晰，占画面主要面积，背景干净，平台安全区明确，适合首图和详情页首屏。",
+  },
+  lifestyleScene: {
+    name: "生活方式场景",
+    desc: "把产品放进真实使用环境",
+    instruction: "使用生活方式场景技法：把主体放进真实可理解的使用场景，加入少量人物动作或环境线索，强调真实使用价值。",
+  },
+  benefitVisual: {
+    name: "卖点可视化",
+    desc: "把功能优势转成画面证据",
+    instruction: "使用卖点可视化技法：把核心卖点转成可见的材质、结构、对比、状态变化或场景结果，不依赖文字解释。",
+  },
+  macroDetail: {
+    name: "材质微距",
+    desc: "突出纹理、工艺、质感",
+    instruction: "使用材质微距技法：靠近主体关键部位，突出纹理、工艺、高光、边缘和触感，背景虚化且不抢主体。",
+  },
+  miniatureWorld: {
+    name: "微缩场景",
+    desc: "用小人/微缩空间制造记忆点",
+    instruction: "使用微缩场景技法：围绕主体构建微缩世界或小尺度叙事，让主体像场景核心装置，保持商业质感和识别度。",
+  },
+  flatlayKit: {
+    name: "平铺清单",
+    desc: "适合套装、步骤、成分展示",
+    instruction: "使用平铺清单技法：俯拍整齐陈列主体、配件、材料或步骤道具，留出标题区，画面清楚有秩序。",
+  },
+  coverHook: {
+    name: "封面钩子",
+    desc: "大主体、高对比、一秒读懂",
+    instruction: "使用封面钩子技法：大主体、高对比、清晰动作瞬间或结果展示，手机缩略图也能一秒读懂。",
+  },
+  beforeAfter: {
+    name: "前后对比",
+    desc: "突出变化、效果、解决问题",
+    instruction: "使用前后对比技法：用左右分区、场景状态变化或结果对照表现痛点和改善，但不要生成错误文字。",
+  },
+  kvLayout: {
+    name: "广告 KV",
+    desc: "品牌主视觉、标题安全区",
+    instruction: "使用广告 KV 技法：主体、卖点视觉和标题安全区分区明确，构图适合投放、官网头图和品牌页面复用。",
+  },
+  infographic: {
+    name: "信息图布局",
+    desc: "参数、步骤、结构更清楚",
+    instruction: "使用信息图布局技法：以视觉分区表达结构、步骤或参数关系，保留文字位置但不要要求模型生成可读中文。",
+  },
+  ugcReal: {
+    name: "真实 UGC",
+    desc: "手机实拍感、自然可信",
+    instruction: "使用真实 UGC 技法：模拟自然手机拍摄、真实环境光和轻微生活痕迹，画面可信但保持干净专业。",
+  },
+  premiumLuxury: {
+    name: "奢华质感",
+    desc: "高级材质、克制光影",
+    instruction: "使用奢华质感技法：高级材质、高光边缘、克制背景、低噪点商业布光，避免廉价模板感。",
+  },
+  uiMockup: {
+    name: "界面样机",
+    desc: "SaaS/App 功能展示",
+    instruction: "使用界面样机技法：展示清晰产品界面、设备样机、功能层级和品牌色，不生成混乱文字和不可读界面。",
+  },
+};
+
+const defaultPromptSkills = {
+  commerce: ["productHero", "benefitVisual", "macroDetail", "lifestyleScene"],
+  xiaohongshu: ["coverHook", "lifestyleScene", "flatlayKit", "beforeAfter"],
+  "short-video": ["coverHook", "beforeAfter", "lifestyleScene", "benefitVisual"],
+  poster: ["kvLayout", "benefitVisual", "premiumLuxury", "infographic"],
+  interior: ["lifestyleScene", "premiumLuxury", "benefitVisual", "ugcReal"],
+  portrait: ["premiumLuxury", "lifestyleScene", "coverHook", "ugcReal"],
+  food: ["productHero", "macroDetail", "lifestyleScene", "coverHook"],
+  saas: ["uiMockup", "kvLayout", "infographic", "benefitVisual"],
+  custom: ["productHero", "lifestyleScene", "benefitVisual", "kvLayout"],
+};
 
 const industryAgents = [
   {
@@ -644,6 +725,23 @@ function clampNumberInput(input, fallback, min, max) {
   return next;
 }
 
+function recommendedConcurrency(count) {
+  const value = Number.parseInt(count, 10);
+  if (!Number.isFinite(value) || value <= 1) return 1;
+  if (value <= 3) return 2;
+  return Math.min(6, Math.ceil(value / 2));
+}
+
+function syncConcurrencyToCount() {
+  if (!els.count || !els.concurrency) return;
+  const count = clampNumberInput(els.count, 1, 1, 20);
+  const current = clampNumberInput(els.concurrency, 2, 1, 6);
+  const next = recommendedConcurrency(count);
+  if (current < next || count <= 1) {
+    els.concurrency.value = String(next);
+  }
+}
+
 function normalizeGenerationNumbers() {
   const count = clampNumberInput(els.count, 1, 1, 20);
   const concurrency = clampNumberInput(els.concurrency, 2, 1, 6);
@@ -877,12 +975,116 @@ function jobIndustry(job) {
   return { id: "general", name: "通用生图", variant: "", source: "general" };
 }
 
+function availableIndustryAgents() {
+  return customIndustryAgent ? [customIndustryAgent, ...industryAgents] : industryAgents;
+}
+
+function inferCustomIndustryAgent(text = "") {
+  const raw = String(text || "").trim();
+  const compact = raw.replace(/\s+/g, " ");
+  const lower = compact.toLowerCase();
+  const has = (...tokens) => tokens.some((token) => lower.includes(token));
+  let preset = {
+    name: "自定义行业",
+    meta: "动态需求 · 1:1",
+    aspectRatio: "1:1",
+    goals: ["主图方案", "场景方案", "广告方案"],
+    sceneOptions: ["标准主图", "生活方式场景", "卖点展示", "广告 KV"],
+    platformOptions: ["电商主图", "社媒内容", "官网头图", "广告投放"],
+    holdOptions: ["不需要", "上方留白", "右侧留白", "底部留白"],
+    skillIds: ["productHero", "lifestyleScene", "benefitVisual", "kvLayout"],
+  };
+  if (has("美妆", "护肤", "口红", "精华", "面霜", "香水")) {
+    preset = {
+      name: "美妆护肤",
+      meta: "美妆转化 · 4:5",
+      aspectRatio: "4:5",
+      goals: ["产品主图", "成分场景", "种草封面"],
+      sceneOptions: ["纯净棚拍", "水润质感", "成分场景", "梳妆台生活方式"],
+      platformOptions: ["电商详情页", "小红书封面", "品牌官网", "广告投放"],
+      holdOptions: ["顶部留白", "右侧留白", "不需要"],
+      skillIds: ["productHero", "macroDetail", "premiumLuxury", "lifestyleScene"],
+    };
+  } else if (has("食品", "饮料", "咖啡", "茶", "零食", "餐", "菜", "甜品")) {
+    preset = {
+      name: "食品饮品",
+      meta: "食欲转化 · 1:1",
+      aspectRatio: "1:1",
+      goals: ["菜单图", "外卖主图", "社媒推广"],
+      sceneOptions: ["菜单主图", "餐桌氛围", "食材飞溅", "门店海报"],
+      platformOptions: ["外卖平台", "菜单", "社媒", "门店屏幕"],
+      holdOptions: ["顶部留白", "底部留白", "不需要"],
+      skillIds: ["productHero", "macroDetail", "lifestyleScene", "coverHook"],
+    };
+  } else if (has("服装", "穿搭", "鞋", "包", "潮牌", "饰品")) {
+    preset = {
+      name: "服装穿搭",
+      meta: "穿搭展示 · 3:4",
+      aspectRatio: "3:4",
+      goals: ["穿搭图", "商品展示", "社媒封面"],
+      sceneOptions: ["模特穿搭", "平铺陈列", "街拍场景", "细节特写"],
+      platformOptions: ["电商详情页", "小红书", "Lookbook", "广告投放"],
+      holdOptions: ["左侧留白", "右侧留白", "不需要"],
+      skillIds: ["lifestyleScene", "flatlayKit", "macroDetail", "coverHook"],
+    };
+  } else if (has("课程", "训练营", "知识付费", "讲座", "教育", "培训")) {
+    preset = {
+      name: "课程知识付费",
+      meta: "转化封面 · 4:5",
+      aspectRatio: "4:5",
+      goals: ["课程封面", "直播海报", "社媒广告"],
+      sceneOptions: ["讲师形象", "学习场景", "成果展示", "干货清单"],
+      platformOptions: ["朋友圈海报", "小红书封面", "直播间封面", "落地页"],
+      holdOptions: ["顶部留白", "右侧留白", "中部留白"],
+      skillIds: ["coverHook", "infographic", "beforeAfter", "kvLayout"],
+    };
+  } else if (has("app", "saas", "软件", "系统", "平台", "工具", "ai ")) {
+    preset = {
+      name: "App / SaaS 宣传图",
+      meta: "科技营销 · 16:9",
+      aspectRatio: "16:9",
+      goals: ["官网头图", "产品发布图", "功能展示图"],
+      sceneOptions: ["官网首屏", "功能展示", "发布海报", "社媒横图"],
+      platformOptions: ["官网", "Product Hunt", "社媒", "产品发布"],
+      holdOptions: ["左侧留白", "右侧留白", "顶部留白", "不需要"],
+      skillIds: ["uiMockup", "kvLayout", "infographic", "benefitVisual"],
+    };
+  }
+  const subject = compact.slice(0, 36) || "自定义产品或主题";
+  return {
+    id: `custom-${Date.now()}`,
+    icon: "自",
+    name: preset.name,
+    meta: preset.meta,
+    aspectRatio: preset.aspectRatio,
+    count: 4,
+    negative: "低清晰度，主体变形，错误文字，杂乱背景，比例失真，廉价模板感，过度锐化，AI伪影",
+    prompt: `根据当前需求生成${preset.name}的商业生图方案，兼顾主体清晰、平台用途、卖点表达和可交付质感。`,
+    goals: preset.goals,
+    skillIds: preset.skillIds,
+    fields: {
+      subjectLabel: "产品 / 主题",
+      subject,
+      materialLabel: "材质 / 风格",
+      material: "按需求提取，保持真实商业质感",
+      sellingPoint: compact || "主体明确，卖点清楚，适合平台直接使用",
+      sceneLabel: "场景类型",
+      sceneOptions: preset.sceneOptions,
+      platformLabel: "目标平台",
+      platformOptions: preset.platformOptions,
+      holdLabel: "留白位置",
+      holdOptions: preset.holdOptions,
+      tags: ["动态行业", "主体清晰", "卖点可视化", "商业质感", "平台可用", "验收：主体明确", "验收：画面不杂乱"],
+    },
+  };
+}
+
 function historyIndustryKey(dayKey, industry) {
   return `${dayKey}:${industry.id || industry.name}`;
 }
 
 function restoreAgentFromJob(job) {
-  const matched = industryAgents.find((agent) => agent.id === job.agent_id || agent.name === job.agent_name);
+  const matched = availableIndustryAgents().find((agent) => agent.id === job.agent_id || agent.name === job.agent_name);
   selectedAgent = matched || null;
   agentEnabled = Boolean(matched && job.agent_enabled);
   appliedAgentVariant = matched ? (job.agent_variant || null) : null;
@@ -1133,7 +1335,7 @@ function syncAgentComposer() {
 function renderAgentQuickList() {
   if (!els.agentQuickList) return;
   els.agentQuickList.innerHTML = "";
-  for (const agent of industryAgents) {
+  for (const agent of availableIndustryAgents().slice(0, 5)) {
     const selected = selectedAgent?.id === agent.id;
     const button = document.createElement("button");
     button.type = "button";
@@ -1178,7 +1380,31 @@ function setAgentFooter(mode) {
 
 function renderAgentList() {
   els.agentList.innerHTML = "";
-  for (const agent of industryAgents) {
+  const customButton = document.createElement("button");
+  customButton.type = "button";
+  customButton.className = "agent-list-item agent-custom-builder";
+  customButton.innerHTML = `
+    <span>自</span>
+    <div>
+      <strong>根据当前需求生成行业</strong>
+      <small>从输入框提示词动态创建 Agent</small>
+    </div>
+    <em>+</em>
+  `;
+  customButton.addEventListener("click", () => {
+    customIndustryAgent = inferCustomIndustryAgent(els.prompt?.value || "");
+    selectedAgent = customIndustryAgent;
+    agentGenerated = false;
+    agentPlan = null;
+    agentPlanRevision = 0;
+    agentEnabled = false;
+    appliedAgentVariant = null;
+    syncAgentEntry();
+    syncAgentComposer();
+    renderAgentPanel();
+  });
+  els.agentList.append(customButton);
+  for (const agent of availableIndustryAgents()) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `agent-list-item ${selectedAgent?.id === agent.id ? "selected" : ""}`;
@@ -1210,14 +1436,36 @@ function renderAgentEmpty() {
     <div class="agent-empty-select">
       <span>✣</span>
       <strong>先选择一个行业 Agent</strong>
-      <p>默认不启用行业工作流。选择左侧行业后，系统会自动填入行业默认目标、比例、张数和负面提示词。</p>
+      <p>默认不启用行业工作流。可以选择左侧固定行业，也可以用当前输入内容动态生成一个自定义行业 Agent。</p>
     </div>
   `;
   setAgentFooter("empty");
 }
 
+function selectedPromptSkills() {
+  const checked = [...document.querySelectorAll("#agentSkillList input:checked")].map((input) => input.value);
+  const fallback = selectedAgent?.skillIds || defaultPromptSkills[selectedAgent?.id] || defaultPromptSkills.custom;
+  return (checked.length ? checked : fallback)
+    .map((id) => ({ id, ...(promptSkillLibrary[id] || {}) }))
+    .filter((item) => item.name);
+}
+
+function promptSkillIdsForAgent(agent) {
+  return agent?.skillIds || defaultPromptSkills[agent?.id] || defaultPromptSkills.custom;
+}
+
 function renderAgentForm() {
   const fields = selectedAgent.fields || {};
+  const activeSkillIds = new Set(promptSkillIdsForAgent(selectedAgent));
+  const skillList = Object.entries(promptSkillLibrary).map(([id, skill]) => `
+    <label class="agent-skill-chip">
+      <input type="checkbox" value="${escapeAttr(id)}" ${activeSkillIds.has(id) ? "checked" : ""}>
+      <span>
+        <strong>${escapeHtml(skill.name)}</strong>
+        <small>${escapeHtml(skill.desc)}</small>
+      </span>
+    </label>
+  `).join("");
   const optionHtml = (items = []) => items.map((item) => `<option value="${escapeAttr(item)}">${escapeHtml(item)}</option>`).join("");
   els.agentWorkspace.innerHTML = `
     <div class="agent-workspace-form">
@@ -1262,6 +1510,13 @@ function renderAgentForm() {
       <div class="agent-tag-cloud">
         ${(fields.tags || selectedAgent.goals).map((goal) => `<span>${escapeHtml(goal)}</span>`).join("")}
       </div>
+      <section class="agent-skill-section">
+        <div>
+          <strong>提示词技能</strong>
+          <span>按当前行业默认启用，可手动调整；GPT 和本地兜底都会使用这些技法。</span>
+        </div>
+        <div id="agentSkillList" class="agent-skill-list">${skillList}</div>
+      </section>
     </div>
   `;
   setAgentFooter("form");
@@ -1269,6 +1524,7 @@ function renderAgentForm() {
 
 function readAgentValues() {
   const fields = selectedAgent.fields || {};
+  const skills = selectedPromptSkills();
   return {
     subject: $("#agentSubject")?.value.trim() || fields.subject || selectedAgent.name,
     material: $("#agentMaterial")?.value.trim() || fields.material || "",
@@ -1276,6 +1532,7 @@ function readAgentValues() {
     scene: $("#agentScene")?.value.trim() || fields.sceneOptions?.[0] || selectedAgent.goals?.[0] || "",
     platform: $("#agentPlatform")?.value.trim() || fields.platformOptions?.[0] || selectedAgent.goals?.[0] || "",
     hold: $("#agentHold")?.value.trim() || "不需要",
+    skills,
   };
 }
 
@@ -1283,12 +1540,39 @@ function buildAgentPrompt(variant = "stable", values = agentPlan?.values || read
   const fields = selectedAgent.fields || {};
   const delivery = (selectedAgent.goals || ["业务场景"]).join(" / ");
   const businessGoal = `生成可直接用于${delivery}的高质感${selectedAgent.name === "电商商品图" ? "商业摄影图" : selectedAgent.name}。`;
-  const sceneLine = `${values.scene}${selectedAgent.id === "commerce" ? "电商主图，干净浅灰背景，商品完整居中" : "，主体明确，画面干净，有明确视觉中心"}。`;
-  const variantStrategies = {
-    stable: `主体为${values.subject}，产品完整清晰，占据画面中心，干净浅灰背景，柔和双侧棚拍布光，真实材质纹理，边缘清晰，轻微自然投影。`,
-    creative: `保持主体结构真实，加入更强场景叙事、氛围光和记忆点，让画面更适合传播，但不喧宾夺主。`,
-    commercial: `强调广告可交付质感，卖点可视化，背景克制，构图适合${delivery}和品牌页面复用。`,
+  const skills = Array.isArray(values.skills) && values.skills.length ? values.skills : promptSkillIdsForAgent(selectedAgent).map((id) => ({ id, ...(promptSkillLibrary[id] || {}) })).filter((item) => item.name);
+  const skillNames = skills.map((item) => item.name).join(" / ");
+  const skillInstructions = skills.map((item) => item.instruction).filter(Boolean).join("\n");
+  const variantPlans = {
+    stable: {
+      title: "稳定交付方案",
+      scene: `${values.scene}${selectedAgent.id === "commerce" ? "，标准电商棚拍主图，干净浅灰背景，商品完整居中" : "，标准业务场景，主体明确，画面干净"}。`,
+      composition: "主体居中或三分线偏中，完整露出关键结构，边缘留出平台安全区，画面信息少而清楚。",
+      lighting: "柔和双侧棚拍光或均匀自然光，阴影轻微，材质纹理真实，颜色不过饱和。",
+      camera: "50mm 标准视角，轻微俯拍或平视，透视克制，主体比例稳定。",
+      background: "干净浅灰、米白或低饱和背景，只保留少量辅助道具，不干扰主体。",
+      strategy: `主体为${values.subject}，强调完整清晰、材质可信、平台审核友好，适合直接交付。`,
+    },
+    creative: {
+      title: "创意传播方案",
+      scene: `${values.scene}，加入可理解的使用情境、动作瞬间或情绪氛围，让主体处在更有记忆点的画面里。`,
+      composition: "采用对角线、前景遮挡、局部大特写或透视纵深，保留主体识别度，同时制造视觉停留点。",
+      lighting: "使用清晨逆光、窗边侧光、霓虹边缘光或暖冷对比光，形成更强氛围和传播感。",
+      camera: "35mm 环境视角或 85mm 浅景深特写，允许轻微动态模糊，但主体关键部位必须清楚。",
+      background: "背景加入场景线索、光斑、材质反差或空间层次，避免杂乱和廉价贴纸感。",
+      strategy: `围绕${values.sellingPoint}做一个可被一眼记住的画面创意，不只换风格，要换场景叙事和视觉钩子。`,
+    },
+    commercial: {
+      title: "商业广告方案",
+      scene: `${values.scene}，广告 KV 或品牌详情页视觉，卖点被清晰组织成可复用的商业画面。`,
+      composition: `主体偏左或偏右布局，按“主体 + 卖点视觉 + ${values.hold || "文案安全区"}”组织，适合${delivery}。`,
+      lighting: "高质感商业布光，主体轮廓有高光，材质细节突出，整体对比清楚但不过曝。",
+      camera: "70mm 至 100mm 商业摄影视角，压缩背景，突出质感和高级感。",
+      background: "背景克制但有品牌感，可用色块、台面、柔和渐层或几何陈列承托主体。",
+      strategy: `把${values.sellingPoint}转成可视化卖点，画面预留标题和按钮区域，适合投放、详情页和品牌页面复用。`,
+    },
   };
+  const plan = variantPlans[variant] || variantPlans.stable;
   const tags = (fields.tags || selectedAgent.goals || []).slice(0, 8).join("，");
   const checks = (fields.tags || [])
     .filter((item) => item.startsWith("验收："))
@@ -1297,18 +1581,22 @@ function buildAgentPrompt(variant = "stable", values = agentPlan?.values || read
   return [
     `行业类型：${selectedAgent.name}，${delivery}`,
     `业务目标：${businessGoal}`,
+    `方案类型：${plan.title}`,
     `主体：${values.subject}`,
-    `使用场景：${sceneLine}`,
+    `使用场景：${plan.scene}`,
     `目标受众：电商运营、品牌营销和正在浏览内容的潜在买家。`,
     `业务信息：商品名称：${values.subject}；材质 / 颜色：${values.material || "按行业默认"}；核心卖点：${values.sellingPoint}；使用场景：${values.scene}；目标平台：${values.platform}；留白位置：${values.hold}。`,
     `平台/比例约束：${selectedAgent.aspectRatio}，画面可直接用于${delivery}。`,
-    `构图：主体清晰，视觉中心明确，保留必要文案区或平台安全区。`,
-    `光线：真实自然，符合${selectedAgent.name}的专业摄影语言。`,
-    `背景：干净、有层次，不干扰主体。`,
+    skillNames ? `启用提示词技能：${skillNames}。` : "",
+    skillInstructions ? `技能执行要求：\n${skillInstructions}` : "",
+    `构图：${plan.composition}`,
+    `光线：${plan.lighting}`,
+    `镜头：${plan.camera}`,
+    `背景：${plan.background}`,
     tags ? `镜头/材质/细节：${tags}。` : "",
     `提示词蓝图：主体 + 材质细节 + 平台用途 + 专业布光 + 干净背景 + 主体占比 + 可交付视觉。`,
     revision > 1 ? `重新生成要求：第 ${revision} 版，保持业务信息不变，但更换构图节奏、光线重点和画面卖点表达，避免和上一版重复。` : "",
-    `版本策略：${variantStrategies[variant]}`,
+    `版本策略：${plan.strategy}`,
     `负面控制：${selectedAgent.negative}`,
     `交付标准：${checks}。高细节，真实光影，专业商业视觉，可交付成片。`,
   ].filter(Boolean).join("\n");
@@ -1318,6 +1606,8 @@ function makeAgentPlan(valuesOverride = null, revision = 1) {
   const values = valuesOverride || readAgentValues();
   const delivery = (selectedAgent.goals || ["业务场景"]).join("、");
   const targetName = selectedAgent.id === "commerce" ? "商业摄影图" : selectedAgent.name;
+  const skills = Array.isArray(values.skills) && values.skills.length ? values.skills : promptSkillIdsForAgent(selectedAgent).map((id) => ({ id, ...(promptSkillLibrary[id] || {}) })).filter((item) => item.name);
+  const skillNames = skills.map((item) => item.name).join("、");
   const tags = (selectedAgent.fields?.tags || selectedAgent.goals || []).slice(0, 8).join("，");
   const checks = (selectedAgent.fields?.tags || [])
     .filter((item) => item.startsWith("验收："))
@@ -1330,6 +1620,7 @@ function makeAgentPlan(valuesOverride = null, revision = 1) {
     `默认场景：${values.scene}${selectedAgent.id === "commerce" ? "电商主图，干净浅灰背景，商品完整居中" : "，主体明确，画面干净，有明确视觉中心"}。`,
     `业务信息：商品名称：${values.subject}；材质 / 颜色：${values.material || "按行业默认"}；核心卖点：${values.sellingPoint}；使用场景：${values.scene}；目标平台：${values.platform}；留白位置：${values.hold}。`,
     `构图方案：推荐 ${selectedAgent.aspectRatio}，主体明确，保留必要文案或平台安全区。`,
+    skillNames ? `提示词技能：${skillNames}。` : "",
     `风格关键词：${tags}。`,
     `质量检查：${checks}。`,
   ].join("\n");
@@ -1369,6 +1660,7 @@ async function requestAgentPlan(values, revision) {
         name: selectedAgent.name,
         prompt: selectedAgent.prompt,
         goals: selectedAgent.goals || [],
+        prompt_skills: selectedPromptSkills(),
         aspect_ratio: selectedAgent.aspectRatio,
         count: selectedAgent.count,
         negative: selectedAgent.negative,
@@ -2524,9 +2816,14 @@ function recommendedPromptText() {
   if (base.includes("提示词蓝图") || base.includes("交付标准")) return base;
   const agentName = selectedAgent?.name || "通用生图";
   const subject = selectedAgent?.fields?.subject || "清晰主体";
+  const skills = selectedAgent ? selectedPromptSkills() : defaultPromptSkills.custom.map((id) => ({ id, ...(promptSkillLibrary[id] || {}) })).filter((item) => item.name);
+  const skillNames = skills.map((item) => item.name).join(" / ");
+  const skillInstructions = skills.map((item) => item.instruction).filter(Boolean).join("\n");
   return [
-    `提示词蓝图：${agentName} + 材质细节 + 平台用途 + 商业棚拍布光 + 干净背景 + 主体占比 + 可交付电商视觉`,
+    `提示词蓝图：${agentName} + ${skillNames || "主体清晰 / 卖点可视化"} + 材质细节 + 平台用途 + 可交付商业视觉`,
     `版本策略：主体为${subject}，产品完整清晰，占据画面中心，干净浅灰背景，柔和双侧棚拍布光，真实材质纹理，边缘清晰，轻微自然投影。`,
+    skillInstructions ? `提示词技能执行：\n${skillInstructions}` : "",
+    selectedReferenceIds.size ? `参考图要求：保留参考图主体结构、关键材质、色彩关系和构图线索，在此基础上重新生成可交付成片。` : "",
     "负面控制：低清晰度，主体变形，错误文字，杂乱背景，比例失真，廉价模板感，过度锐化，AI伪影，商品变形，过度反光，低质感，道具喧宾夺主",
     "交付标准：商品完整清晰；主体占比明确；材质真实；背景干净；适合电商平台。高细节，真实光影，专业商业视觉，可交付成片。",
     base,
@@ -2537,6 +2834,10 @@ function setRecommendedParams({ quality = "auto", applyNow = false } = {}) {
   els.aspectRatio.value = selectedAgent?.aspectRatio || "1:1";
   els.resolution.value = "1K";
   els.outputFormat.value = "png";
+  if (selectedAgent?.count) {
+    els.count.value = String(selectedAgent.count);
+  }
+  syncConcurrencyToCount();
   if ([...els.quality.options].some((option) => option.value === quality)) {
     els.quality.value = quality;
   }
@@ -2556,13 +2857,20 @@ function showPromptAnalysis(mode = "optimize") {
   const style = mode === "style" ? "high" : "medium";
   setRecommendedParams({ quality: mode === "style" ? "high" : "auto", applyNow: true });
   const optimized = recommendedPromptText();
+  const risks = [];
+  if (selectedReferenceIds.size) risks.push(`参考图 ${selectedReferenceIds.size} 张：将自动走图生图/编辑模式，适合重绘、改风格和保留主体。`);
+  if (Number(els.count.value || 1) > 1) risks.push(`当前 ${els.count.value} 张，并发建议 ${recommendedConcurrency(els.count.value)}；过高并发可能触发上游限流。`);
+  if (!selectedAgent) risks.push("未选择行业 Agent：建议用动态行业或固定行业补全场景、平台和负面提示词。");
+  if (!els.prompt.value.trim()) risks.push("提示词为空：需要输入主题或先用动态行业生成默认方案。");
   els.analysisResultTitle.textContent = titles[mode] || titles.optimize;
-  els.promptScore.textContent = "84";
+  els.promptScore.textContent = String(Math.max(62, 92 - risks.length * 8));
   els.analysisAspect.textContent = els.aspectRatio.value;
   els.analysisSize.textContent = requestSize();
   els.analysisCount.textContent = els.count.value;
   els.analysisStyle.textContent = style;
-  els.optimizedPrompt.value = optimized;
+  els.optimizedPrompt.value = mode === "failure" && risks.length
+    ? `${optimized}\n\n失败预判：\n${risks.map((item) => `- ${item}`).join("\n")}`
+    : optimized;
   els.promptAnalysisCard.classList.remove("hidden");
   els.composer?.classList.add("analysis-open");
 }
@@ -3446,7 +3754,10 @@ function initResearchWorkbench() {
 
 els.prompt.addEventListener("input", syncSummary);
 ["change", "input"].forEach((eventName) => {
-  [els.protocol, els.model, els.apiUrl, els.apiKey, els.rememberApiKey, els.aspectRatio, els.resolution, els.count, els.concurrency, els.retryLimit, els.quality, els.outputFormat, els.seed, els.negative].forEach((el) => el.addEventListener(eventName, syncSummary));
+  [els.protocol, els.model, els.apiUrl, els.apiKey, els.rememberApiKey, els.aspectRatio, els.resolution, els.count, els.concurrency, els.retryLimit, els.quality, els.outputFormat, els.seed, els.negative].forEach((el) => el.addEventListener(eventName, () => {
+    if (el === els.count && eventName === "change") syncConcurrencyToCount();
+    syncSummary();
+  }));
 });
 els.connectionButtons.forEach((button) => button.addEventListener("click", () => {
   setConnectionMode(button.dataset.connectionMode, { persist: true });
@@ -3520,10 +3831,12 @@ els.closeQuickConfig?.addEventListener("click", () => setQuickConfigPanel(false)
 ].forEach(([quick, source]) => {
   quick?.addEventListener("input", () => {
     source.value = quick.value;
+    if (source === els.count) syncConcurrencyToCount();
     syncSummary();
   });
   quick?.addEventListener("change", () => {
     source.value = quick.value;
+    if (source === els.count) syncConcurrencyToCount();
     syncSummary();
   });
 });

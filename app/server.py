@@ -38,6 +38,8 @@ DEFAULT_TEXT_MODEL = os.getenv("AGENT_TEXT_MODEL", "gpt-4.1-mini")
 AVAILABLE_MODELS = [m.strip() for m in os.getenv("AVAILABLE_MODELS", DEFAULT_MODEL).split(",") if m.strip()]
 MAX_HISTORY = int(os.getenv("MAX_HISTORY", "200"))
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "600"))
+AGENT_TEXT_TIMEOUT = int(os.getenv("AGENT_TEXT_TIMEOUT", "180"))
+AGENT_TEXT_RETRIES = int(os.getenv("AGENT_TEXT_RETRIES", "2"))
 DATA_DIR = Path(os.getenv("DATA_DIR", "/app/data"))
 MEDIA_DIR = DATA_DIR / "media"
 REFERENCE_DIR = DATA_DIR / "references"
@@ -1937,6 +1939,7 @@ def build_agent_plan_messages(payload: dict) -> list[dict]:
                     "creative: 场景叙事、视觉隐喻、非常规构图或情绪光线，仍保持主体真实可识别",
                     "commercial: 广告 KV、卖点可视化、品牌页面可用、文案安全区明确",
                     "每个 prompt 必须包含主体、材质/颜色、场景、构图、光线、镜头、背景、平台约束、交付标准、负面控制",
+                    "如果 agent.prompt_skills 存在，必须把这些提示词技能落实到三个方案中，不要只复述技能名称",
                     "不要生成真实品牌 Logo、不要要求画中文字，除非用户明确要求",
                 ],
                 "revision": revision,
@@ -1959,13 +1962,27 @@ def call_agent_text_model(api_url: str, api_key: str, model: str, payload: dict)
         "temperature": 0.75,
         "response_format": {"type": "json_object"},
     }
-    resp = requests.post(
-        urljoin(api_base + "/", "v1/chat/completions"),
-        headers=headers,
-        json=body,
-        timeout=60,
-    )
-    resp.raise_for_status()
+    endpoint = urljoin(api_base + "/", "v1/chat/completions")
+    attempts = max(1, min(AGENT_TEXT_RETRIES + 1, 4))
+    last_error = ""
+    resp = None
+    for attempt in range(attempts):
+        try:
+            resp = requests.post(endpoint, headers=headers, json=body, timeout=AGENT_TEXT_TIMEOUT)
+            if resp.status_code not in {429, 502, 503, 504}:
+                break
+            last_error = f"New API {resp.status_code}: {resp.text[:500]}"
+        except requests.Timeout:
+            last_error = f"文本模型请求超过 {AGENT_TEXT_TIMEOUT} 秒"
+        except requests.RequestException as exc:
+            last_error = str(exc)
+        if attempt < attempts - 1:
+            time.sleep(1.5 * (attempt + 1))
+    if resp is None:
+        raise RuntimeError(last_error or "文本模型请求失败")
+    if resp.status_code >= 400:
+        detail = resp.text[:800].strip()
+        raise RuntimeError(f"New API {resp.status_code}: {detail or last_error}")
     data = resp.json()
     choices = data.get("choices") or []
     if not choices:
@@ -2035,33 +2052,49 @@ def run_job(job_id: str) -> None:
         else:
             prompts = [base_prompt for _ in range(count)]
         retry_limit = max(0, min(int(job.get("retry_limit") or 0), 5))
-        for idx, prompt in enumerate(prompts):
+        concurrency = max(1, min(int(job.get("concurrency") or 1), 6, len(prompts)))
+
+        def generate_prompt_index(item: tuple[int, str]) -> list[dict]:
+            idx, prompt = item
             last_error = ""
             for attempt in range(retry_limit + 1):
                 attempt_text = f" · 重试 {attempt}/{retry_limit}" if attempt else ""
                 update_job(job_id, {
                     "progress": {
-                        "done": idx,
+                        "done": len(created_media),
                         "total": len(prompts),
-                        "message": f"生成第 {idx + 1}/{len(prompts)} 张{attempt_text}",
+                        "message": f"生成第 {idx + 1}/{len(prompts)} 张{attempt_text} · 并发 {concurrency}",
                     },
                     "last_attempt": attempt + 1,
                 })
                 try:
-                    created_media.extend(generate_one(job, prompt, idx))
-                    last_error = ""
-                    break
+                    return generate_one(job, prompt, idx)
                 except Exception as exc:
                     last_error = str(exc)
                     update_job(job_id, {"error": last_error})
                     if attempt >= retry_limit:
                         raise
                     time.sleep(min(10, 1.6 * (attempt + 1)))
-            with state_lock:
-                media = read_media()
-                media.extend(created_media)
-                unique = {item["id"]: item for item in media}
-                write_media(list(unique.values()))
+            raise RuntimeError(last_error or "生成失败")
+
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            futures = [executor.submit(generate_prompt_index, item) for item in enumerate(prompts)]
+            for future in as_completed(futures):
+                new_media = future.result()
+                created_media.extend(new_media)
+                done_count = min(len(created_media), len(prompts))
+                with state_lock:
+                    media = read_media()
+                    media.extend(new_media)
+                    unique = {item["id"]: item for item in media}
+                    write_media(list(unique.values()))
+                update_job(job_id, {
+                    "progress": {
+                        "done": done_count,
+                        "total": len(prompts),
+                        "message": f"已完成 {done_count}/{len(prompts)} 张 · 并发 {concurrency}",
+                    }
+                })
         update_job(
             job_id,
             {
