@@ -2978,6 +2978,18 @@ body.research-active .studio-view {
   gap: 10px;
   padding-top: 2px;
 }
+.manual-text-model-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(16, 163, 127, .2);
+  border-radius: 8px;
+  background: #f6fffb;
+}
+.manual-text-model-panel.hidden,
+.manual-text-model-panel .hidden {
+  display: none !important;
+}
 .analysis-card > strong {
   color: #666761;
   font-size: 13px;

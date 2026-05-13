@@ -131,6 +131,7 @@ pip install -r requirements.txt
 - `NEW_API_BASE`：默认模型接口入口。
 - `NEW_API_TOKEN`：可选默认 API Token，也可以在工作台页面填写。
 - `DEFAULT_MODEL`：默认生图模型。
+- `AGENT_TEXT_MODEL`：Agent 生成行业方案时的默认文本模型；工作台会优先复用自定义 API URL 和 Key。
 - `AVAILABLE_MODELS`：后台初始化时可选模型列表。
 
 公开仓库里不要提交真实接口、真实 IP、真实域名、Token、密码和运行数据。
@@ -139,7 +140,7 @@ pip install -r requirements.txt
 
 1. 启动 Docker 服务。
 2. 进入管理后台，修改管理员账号密码。
-3. 在“设置”里配置自定义 API、本地号池和模型描述。
+3. 在“设置”里配置自定义 API、本地号池和模型描述；工作台可从自定义 API 中识别文本模型供行业 Agent 生成方案。
 4. 如需本地号池，先在“号池管理”创建工作台号池用户，再导入或同步账号。
 5. 回到工作台，选择自定义 API 或本地号池，读取模型。
 6. 输入提示词，选择参数或行业 Agent，提交生成。

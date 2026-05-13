@@ -57,6 +57,15 @@ const els = {
   availableModelList: $("#availableModelList"),
   modelStatus: $("#modelStatus"),
   modelFetchHelp: $("#modelFetchHelp"),
+  analysisModel: $("#analysisModel"),
+  manualTextModelPanel: $("#manualTextModelPanel"),
+  manualTextModel: $("#manualTextModel"),
+  reuseTextApiUrl: $("#reuseTextApiUrl"),
+  textApiUrlField: $("#textApiUrlField"),
+  textApiUrl: $("#textApiUrl"),
+  reuseTextApiKey: $("#reuseTextApiKey"),
+  textApiKeyField: $("#textApiKeyField"),
+  textApiKey: $("#textApiKey"),
   aspectRatio: $("#aspectRatio"),
   resolution: $("#resolution"),
   count: $("#count"),
@@ -143,6 +152,7 @@ const els = {
   enhanceStyle: $("#enhanceStyle"),
 };
 let verifiedImageModels = [];
+let verifiedTextModels = [];
 let autoModelTimer = 0;
 let modelRequestId = 0;
 let selectedAgent = null;
@@ -911,6 +921,39 @@ function isImageModel(model) {
   ].some((token) => value.includes(token));
 }
 
+function isTextModel(model) {
+  const value = String(model || "").toLowerCase();
+  if (!value || isImageModel(value)) return false;
+  return [
+    "gpt-",
+    "gpt4",
+    "gpt5",
+    "o3",
+    "o4",
+    "o5",
+    "chat",
+    "claude",
+    "deepseek",
+    "qwen",
+    "glm",
+    "moonshot",
+    "kimi",
+    "yi-",
+    "llama",
+    "mistral",
+    "gemini",
+  ].some((token) => value.includes(token));
+}
+
+function preferredTextModel(models = []) {
+  const priorities = ["gpt-4.1-mini", "gpt-4o-mini", "gpt-5-mini", "gpt-4.1", "gpt-4o", "gpt-5"];
+  const lowerMap = new Map(models.map((model) => [model.toLowerCase(), model]));
+  for (const item of priorities) {
+    if (lowerMap.has(item)) return lowerMap.get(item);
+  }
+  return models[0] || "";
+}
+
 function formatModelTime() {
   const now = new Date();
   return `${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -942,6 +985,59 @@ function replaceModelOptions(models) {
     els.model.value = models[0];
   }
   syncSummary();
+}
+
+function syncTextModelFields() {
+  const manual = !verifiedTextModels.length;
+  els.manualTextModelPanel?.classList.toggle("hidden", !manual);
+  els.analysisModel?.classList.toggle("manual", manual);
+  if (els.textApiUrlField) {
+    els.textApiUrlField.classList.toggle("hidden", Boolean(els.reuseTextApiUrl?.checked));
+  }
+  if (els.textApiKeyField) {
+    els.textApiKeyField.classList.toggle("hidden", Boolean(els.reuseTextApiKey?.checked));
+  }
+  if (els.textApiUrl && els.reuseTextApiUrl?.checked) {
+    els.textApiUrl.value = selectedApiUrl();
+  }
+}
+
+function replaceTextModelOptions(models = []) {
+  if (!els.analysisModel) return;
+  const current = els.analysisModel.value;
+  els.analysisModel.innerHTML = "";
+  if (models.length) {
+    for (const model of models) {
+      const option = document.createElement("option");
+      option.value = model;
+      option.textContent = model;
+      els.analysisModel.append(option);
+    }
+    els.analysisModel.disabled = false;
+    els.analysisModel.value = models.includes(current) ? current : preferredTextModel(models);
+  } else {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "手动填写文本模型";
+    els.analysisModel.append(option);
+    els.analysisModel.disabled = true;
+    if (els.manualTextModel && !els.manualTextModel.value.trim()) {
+      els.manualTextModel.value = modelConfig.agent_text?.default_model || "gpt-4.1-mini";
+    }
+  }
+  syncTextModelFields();
+}
+
+function selectedTextModel() {
+  return (verifiedTextModels.length ? els.analysisModel?.value : els.manualTextModel?.value || "").trim();
+}
+
+function selectedTextApiUrl() {
+  return (els.reuseTextApiUrl?.checked ? selectedApiUrl() : els.textApiUrl?.value || "").trim();
+}
+
+function selectedTextApiKey() {
+  return (els.reuseTextApiKey?.checked ? selectedApiKey() : els.textApiKey?.value || "").trim();
 }
 
 function renderAvailableModels(models = verifiedImageModels) {
@@ -1241,12 +1337,55 @@ function makeAgentPlan(valuesOverride = null, revision = 1) {
   return {
     values,
     revision,
+    source: "local",
     brief,
     variants: [
       { id: "stable", title: revision > 1 ? `稳定版 R${revision}` : "稳定版", prompt: buildAgentPrompt("stable", values, revision) },
       { id: "creative", title: revision > 1 ? `创意版 R${revision}` : "创意版", prompt: buildAgentPrompt("creative", values, revision) },
       { id: "commercial", title: revision > 1 ? `商业版 R${revision}` : "商业版", prompt: buildAgentPrompt("commercial", values, revision) },
     ],
+  };
+}
+
+async function requestAgentPlan(values, revision) {
+  if (els.connectionMode.value === "pool") {
+    throw new Error("本地号池模式暂不支持 GPT 文本方案，已改用本地模板。");
+  }
+  const textModel = selectedTextModel();
+  if (!textModel) {
+    throw new Error("未配置 Agent 文本模型，已改用本地模板。");
+  }
+  const data = await api("/api/agent-plan", {
+    method: "POST",
+    body: JSON.stringify({
+      connection_mode: els.connectionMode.value,
+      api_url: selectedApiUrl(),
+      api_key: selectedApiKey(),
+      text_model: textModel,
+      text_api_url: selectedTextApiUrl(),
+      text_api_key: selectedTextApiKey(),
+      revision,
+      agent: {
+        id: selectedAgent.id,
+        name: selectedAgent.name,
+        prompt: selectedAgent.prompt,
+        goals: selectedAgent.goals || [],
+        aspect_ratio: selectedAgent.aspectRatio,
+        count: selectedAgent.count,
+        negative: selectedAgent.negative,
+        fields: selectedAgent.fields || {},
+      },
+      values,
+    }),
+  });
+  const plan = data.plan || {};
+  return {
+    ...makeAgentPlan(values, revision),
+    ...plan,
+    values: { ...values, ...(plan.values || {}) },
+    revision,
+    source: "gpt",
+    textModel: data.model || textModel,
   };
 }
 
@@ -1281,7 +1420,7 @@ function renderAgentGenerated() {
       <div class="agent-variant-grid">${variantCards}</div>
       <div class="agent-generated-notes">
         <span>不填写也会默认生成现代消费级${escapeHtml(selectedAgent.name)}方案。</span>
-        <span>已按「${escapeHtml(selectedAgent.name)}」补全行业摄影语言、比例、负面提示词和质量检查项。</span>
+        <span>${agentPlan.source === "gpt" ? `由 ${escapeHtml(agentPlan.textModel || "GPT")} 生成差异化方案。` : "已使用本地模板补全行业摄影语言、比例、负面提示词和质量检查项。"}</span>
         <span>选择 variant 后系统会把提示词填入输入框，你可以继续编辑再点击生成。</span>
       </div>
       <div class="agent-form-grid agent-form-grid-compact">
@@ -1315,11 +1454,25 @@ function setAgentPanel(open) {
   if (open) renderAgentPanel();
 }
 
-function generateAgentPlan() {
+async function generateAgentPlan() {
   if (!selectedAgent) return;
   const values = agentPlan?.values || null;
   agentPlanRevision += 1;
-  agentPlan = makeAgentPlan(values, agentPlanRevision);
+  const nextValues = values || readAgentValues();
+  const fallbackPlan = makeAgentPlan(nextValues, agentPlanRevision);
+  els.applyAgent.disabled = true;
+  els.applyAgent.textContent = "✣ 正在生成方案...";
+  try {
+    agentPlan = await requestAgentPlan(nextValues, agentPlanRevision);
+  } catch (err) {
+    agentPlan = {
+      ...fallbackPlan,
+      brief: `${fallbackPlan.brief}\n\nGPT 方案生成未启用或失败，已使用本地模板兜底：${err.message}`,
+      source: "local",
+    };
+  } finally {
+    els.applyAgent.disabled = false;
+  }
   agentGenerated = true;
   renderAgentPanel();
 }
@@ -2001,7 +2154,9 @@ async function refreshModels({ silent = false } = {}) {
   if (els.connectionMode.value === "pool") {
     if (!activePoolUser()) {
       verifiedImageModels = [];
+      verifiedTextModels = [];
       replaceModelOptions([]);
+      replaceTextModelOptions([]);
       renderAvailableModels();
       renderPoolUser();
       setConnectionStatus("请先登录号池账号", "idle");
@@ -2012,7 +2167,9 @@ async function refreshModels({ silent = false } = {}) {
     }
     const imageModels = Array.isArray(state.models) ? state.models.filter(isImageModel) : modelProfiles.map((item) => item.id).filter(isImageModel);
     verifiedImageModels = imageModels.length ? imageModels : ["gpt-image-2"];
+    verifiedTextModels = [];
     replaceModelOptions(verifiedImageModels);
+    replaceTextModelOptions([]);
     renderAvailableModels();
     const pool = state.account_pool || {};
     const okCount = Number(pool.ok || 0);
@@ -2023,7 +2180,9 @@ async function refreshModels({ silent = false } = {}) {
   }
   if (els.connectionMode.value === "custom" && !selectedApiUrl()) {
     verifiedImageModels = [];
+    verifiedTextModels = [];
     replaceModelOptions([]);
+    replaceTextModelOptions([]);
     renderAvailableModels();
     setModelStatus("ⓘ 填写自定义 API URL 和 API Key 后自动验证", "idle");
     setConnectionStatus("填写自定义 API URL", "idle");
@@ -2034,7 +2193,9 @@ async function refreshModels({ silent = false } = {}) {
   const apiKey = selectedApiKey();
   if (!apiKey) {
     verifiedImageModels = [];
+    verifiedTextModels = [];
     replaceModelOptions([]);
+    replaceTextModelOptions([]);
     renderAvailableModels();
     setModelStatus("ⓘ 填写 API Key 后自动验证", "idle");
     setConnectionStatus("填写 API Key 后自动验证", "idle");
@@ -2057,18 +2218,23 @@ async function refreshModels({ silent = false } = {}) {
     });
     if (requestId !== modelRequestId) return;
     const allModels = Array.isArray(data.models) ? data.models : [];
-    const imageModels = allModels.filter(isImageModel);
+    const imageModels = Array.isArray(data.image_models) ? data.image_models : allModels.filter(isImageModel);
+    const textModels = Array.isArray(data.text_models) ? data.text_models : allModels.filter(isTextModel);
     verifiedImageModels = imageModels;
+    verifiedTextModels = textModels;
     replaceModelOptions(imageModels);
+    replaceTextModelOptions(textModels);
     renderAvailableModels();
     state.models = imageModels;
     setConnectionStatus("已连接", "success");
-    setModelStatus(`✓ API Key 有效 · ${imageModels.length} 个生图模型 · ${formatModelTime()}`, "success");
-    setModelFetchHelp(`已连接：${data.api_url || selectedApiUrl() || "自定义 API"}。模型 Token 可在云端 New API 后台“令牌”页面管理。`, "success");
+    setModelStatus(`✓ API Key 有效 · ${imageModels.length} 个生图模型 · ${textModels.length} 个文本模型 · ${formatModelTime()}`, "success");
+    setModelFetchHelp(`已连接：${data.api_url || selectedApiUrl() || "自定义 API"}。Agent 文本模型会优先复用当前 API；没有识别到文本模型时可手动填写。`, "success");
   } catch (err) {
     if (requestId !== modelRequestId) return;
     verifiedImageModels = [];
+    verifiedTextModels = [];
     replaceModelOptions([]);
+    replaceTextModelOptions([]);
     renderAvailableModels();
     setConnectionStatus("连接失败", "error");
     const mode = els.connectionMode.value;
@@ -3326,7 +3492,12 @@ els.newTask.addEventListener("click", () => {
 els.refreshModels.addEventListener("click", refreshModels);
 els.modelFilter.addEventListener("input", () => renderAvailableModels());
 els.apiKey.addEventListener("input", scheduleAutoRefreshModels);
-els.apiUrl.addEventListener("input", scheduleAutoRefreshModels);
+els.apiUrl.addEventListener("input", () => {
+  syncTextModelFields();
+  scheduleAutoRefreshModels();
+});
+els.reuseTextApiUrl?.addEventListener("change", syncTextModelFields);
+els.reuseTextApiKey?.addEventListener("change", syncTextModelFields);
 els.rememberApiKey.addEventListener("change", saveApiKeyPreference);
 els.poolLoginButton?.addEventListener("click", loginPoolUser);
 els.poolLogoutButton?.addEventListener("click", logoutPoolUser);
@@ -3456,6 +3627,7 @@ window.addEventListener("resize", () => {
 loadApiKeyPreference();
 applyModelConfigToUi();
 setConnectionMode(localStorage.getItem(CONNECTION_MODE_STORAGE_KEY) || "custom");
+replaceTextModelOptions([]);
 if (els.count && (!els.count.value || els.count.value === "4")) els.count.value = "1";
 syncShellToggles();
 syncAgentEntry();

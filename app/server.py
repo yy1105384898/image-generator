@@ -34,6 +34,7 @@ NEW_API_TOKEN = os.getenv("NEW_API_TOKEN", "")
 
 
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gpt-image-2")
+DEFAULT_TEXT_MODEL = os.getenv("AGENT_TEXT_MODEL", "gpt-4.1-mini")
 AVAILABLE_MODELS = [m.strip() for m in os.getenv("AVAILABLE_MODELS", DEFAULT_MODEL).split(",") if m.strip()]
 MAX_HISTORY = int(os.getenv("MAX_HISTORY", "200"))
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "600"))
@@ -115,6 +116,11 @@ def default_model_config() -> dict:
             }
             for model in model_ids
         ],
+        "agent_text": {
+            "default_model": DEFAULT_TEXT_MODEL,
+            "reuse_custom_api": True,
+            "reuse_custom_key": True,
+        },
     }
 
 
@@ -146,6 +152,13 @@ def normalize_model_config(raw: dict | None = None) -> dict:
         if cleaned:
             base["model_profiles"] = cleaned
     base["auto_order"] = []
+    agent_text = raw.get("agent_text") if isinstance(raw.get("agent_text"), dict) else {}
+    base["agent_text"] = {
+        **base["agent_text"],
+        "default_model": str(agent_text.get("default_model") or base["agent_text"]["default_model"]).strip(),
+        "reuse_custom_api": bool(agent_text.get("reuse_custom_api", True)),
+        "reuse_custom_key": bool(agent_text.get("reuse_custom_key", True)),
+    }
     default_mode = str(raw.get("default_connection_mode") or base["default_connection_mode"]).strip()
     if default_mode in base["connections"]:
         base["default_connection_mode"] = default_mode
@@ -1772,6 +1785,55 @@ def fetch_models(api_url: str, api_key: str) -> list[str]:
     return models
 
 
+def is_image_model_id(model: str) -> bool:
+    value = str(model or "").lower()
+    return any(token in value for token in (
+        "dall-e",
+        "dalle",
+        "gpt-image",
+        "image",
+        "imagen",
+        "banana",
+        "flux",
+        "stable",
+        "stability",
+        "sdxl",
+        "midjourney",
+        "mj-",
+    ))
+
+
+def is_text_model_id(model: str) -> bool:
+    value = str(model or "").lower()
+    if not value or is_image_model_id(value):
+        return False
+    return any(token in value for token in (
+        "gpt-",
+        "gpt4",
+        "gpt5",
+        "o3",
+        "o4",
+        "o5",
+        "chat",
+        "claude",
+        "deepseek",
+        "qwen",
+        "glm",
+        "moonshot",
+        "kimi",
+        "yi-",
+        "llama",
+        "mistral",
+        "gemini",
+    ))
+
+
+def split_model_ids(models: list[str]) -> tuple[list[str], list[str]]:
+    image_models = [model for model in models if is_image_model_id(model)]
+    text_models = [model for model in models if is_text_model_id(model)]
+    return image_models, text_models
+
+
 def resolve_api_url(connection_mode: str, api_url: str, api_key: str) -> tuple[str, list[str]]:
     errors = []
     for candidate in candidate_api_urls(connection_mode, api_url):
@@ -1782,6 +1844,135 @@ def resolve_api_url(connection_mode: str, api_url: str, api_key: str) -> tuple[s
             errors.append(f"{candidate}: {exc}")
     fallback = (api_url.strip() or connection_endpoints().get("custom", NEW_API_BASE)).rstrip("/")
     return fallback, errors
+
+
+def extract_json_object(text: str) -> dict:
+    value = str(text or "").strip()
+    if not value:
+        raise ValueError("empty response")
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        pass
+    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", value, re.S)
+    if fenced:
+        return json.loads(fenced.group(1))
+    start = value.find("{")
+    end = value.rfind("}")
+    if start >= 0 and end > start:
+        return json.loads(value[start:end + 1])
+    raise ValueError("response does not contain JSON")
+
+
+def normalize_agent_plan(plan: dict, fallback_values: dict) -> dict:
+    if not isinstance(plan, dict):
+        raise ValueError("agent plan must be an object")
+    variants = plan.get("variants")
+    if not isinstance(variants, list):
+        variants = []
+    normalized_variants = []
+    for item in variants:
+        if not isinstance(item, dict):
+            continue
+        variant_id = str(item.get("id") or "").strip().lower()
+        if variant_id not in {"stable", "creative", "commercial"}:
+            continue
+        prompt = str(item.get("prompt") or "").strip()
+        if not prompt:
+            continue
+        normalized_variants.append({
+            "id": variant_id,
+            "title": str(item.get("title") or {"stable": "稳定版", "creative": "创意版", "commercial": "商业版"}[variant_id]).strip(),
+            "prompt": prompt,
+        })
+    seen = {item["id"] for item in normalized_variants}
+    if not {"stable", "creative", "commercial"}.issubset(seen):
+        raise ValueError("agent plan missing required variants")
+    order = {"stable": 0, "creative": 1, "commercial": 2}
+    normalized_variants = sorted(normalized_variants, key=lambda item: order[item["id"]])
+    brief = str(plan.get("brief") or "").strip()
+    if not brief:
+        brief = "已根据行业、平台、主体、卖点和留白要求生成三套差异化提示词方案。"
+    values = plan.get("values") if isinstance(plan.get("values"), dict) else {}
+    return {
+        "brief": brief[:2400],
+        "variants": normalized_variants,
+        "values": {**fallback_values, **values},
+        "negative": str(plan.get("negative") or "").strip(),
+        "params": plan.get("params") if isinstance(plan.get("params"), dict) else {},
+    }
+
+
+def build_agent_plan_messages(payload: dict) -> list[dict]:
+    agent = payload.get("agent") if isinstance(payload.get("agent"), dict) else {}
+    values = payload.get("values") if isinstance(payload.get("values"), dict) else {}
+    revision = int(payload.get("revision") or 1)
+    return [
+        {
+            "role": "system",
+            "content": (
+                "你是商业生图工作台的行业创意总监和提示词工程师。"
+                "只输出严格 JSON，不要 Markdown。"
+                "你要为同一个业务 brief 生成 stable、creative、commercial 三套明显不同的中文生图提示词。"
+                "三套方案必须在场景、构图、光线、镜头、道具或视觉隐喻上有实质差异；"
+                "creative 不能只写更有创意，必须给出可执行画面方案。"
+            ),
+        },
+        {
+            "role": "user",
+            "content": json.dumps({
+                "output_schema": {
+                    "brief": "string",
+                    "values": "object",
+                    "variants": [
+                        {"id": "stable", "title": "稳定版", "prompt": "string"},
+                        {"id": "creative", "title": "创意版", "prompt": "string"},
+                        {"id": "commercial", "title": "商业版", "prompt": "string"},
+                    ],
+                    "negative": "string",
+                    "params": {"aspect_ratio": "string", "count": "number"},
+                },
+                "requirements": [
+                    "stable: 主体完整、棚拍或干净场景、交付稳定",
+                    "creative: 场景叙事、视觉隐喻、非常规构图或情绪光线，仍保持主体真实可识别",
+                    "commercial: 广告 KV、卖点可视化、品牌页面可用、文案安全区明确",
+                    "每个 prompt 必须包含主体、材质/颜色、场景、构图、光线、镜头、背景、平台约束、交付标准、负面控制",
+                    "不要生成真实品牌 Logo、不要要求画中文字，除非用户明确要求",
+                ],
+                "revision": revision,
+                "agent": agent,
+                "values": values,
+            }, ensure_ascii=False),
+        },
+    ]
+
+
+def call_agent_text_model(api_url: str, api_key: str, model: str, payload: dict) -> dict:
+    api_base = normalize_api_base(api_url)
+    headers = {"Content-Type": "application/json"}
+    auth = bearer_token(api_key)
+    if auth:
+        headers["Authorization"] = auth
+    body = {
+        "model": model,
+        "messages": build_agent_plan_messages(payload),
+        "temperature": 0.75,
+        "response_format": {"type": "json_object"},
+    }
+    resp = requests.post(
+        urljoin(api_base + "/", "v1/chat/completions"),
+        headers=headers,
+        json=body,
+        timeout=60,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    choices = data.get("choices") or []
+    if not choices:
+        raise RuntimeError("文本模型没有返回 choices")
+    message = choices[0].get("message") if isinstance(choices[0], dict) else {}
+    content = message.get("content") if isinstance(message, dict) else ""
+    return normalize_agent_plan(extract_json_object(content), payload.get("values") if isinstance(payload.get("values"), dict) else {})
 
 
 def generate_one(job: dict, prompt: str, index: int) -> list[dict]:
@@ -2390,10 +2581,39 @@ def models():
     for candidate in candidate_api_urls(connection_mode, api_url):
         try:
             model_list = fetch_models(candidate, api_key)
-            return jsonify({"ok": True, "models": model_list, "api_url": candidate.rstrip("/")})
+            image_models, text_models = split_model_ids(model_list)
+            return jsonify({
+                "ok": True,
+                "models": model_list,
+                "image_models": image_models,
+                "text_models": text_models,
+                "api_url": candidate.rstrip("/"),
+            })
         except Exception as exc:
             errors.append(f"{candidate}: {exc}")
     return jsonify({"error": "模型读取失败", "detail": " | ".join(errors)}), 502
+
+
+@app.post("/api/agent-plan")
+def agent_plan():
+    auth = login_required_json()
+    if auth:
+        return auth
+    payload = request.get_json(silent=True) or {}
+    model = str(payload.get("text_model") or DEFAULT_TEXT_MODEL).strip()
+    api_url = str(payload.get("text_api_url") or payload.get("api_url") or "").strip()
+    api_key = str(payload.get("text_api_key") or payload.get("api_key") or "").strip()
+    if not model:
+        return jsonify({"error": "请先选择或填写 Agent 文本模型"}), 400
+    if not api_url:
+        return jsonify({"error": "请先填写文本模型 API URL"}), 400
+    if not api_key:
+        return jsonify({"error": "请先填写文本模型 API Key"}), 400
+    try:
+        plan = call_agent_text_model(api_url, api_key, model, payload)
+        return jsonify({"ok": True, "plan": plan, "model": model})
+    except Exception as exc:
+        return jsonify({"error": "Agent 文本模型生成失败", "detail": str(exc)}), 502
 
 
 @app.post("/api/jobs")
