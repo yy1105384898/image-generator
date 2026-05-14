@@ -437,46 +437,21 @@
         <div class="admin-card-head">
           <div>
             <h3>模型 API 接入</h3>
-            <p>工作台只展示自定义 API 和本地号池；自定义 API 适合接入云端服务器里的 Token。</p>
-          </div>
-          <div class="admin-inline-fields">
-            <label>默认线路
-              <select name="default_connection_mode">
-                {% for mode in ["custom","pool"] %}
-                  <option value="{{ mode }}" {% if config.default_connection_mode == mode %}selected{% endif %}>{{ mode }}</option>
-                {% endfor %}
-              </select>
-            </label>
+            <p>普通用户只能使用本地号池或自己填写自定义 API；管理员调试开启后，工作台才会复用后台保存的接入配置。</p>
           </div>
         </div>
-        <div class="admin-route-grid">
-          {% for key in ["custom","pool"] %}
-            {% set conn = config["connections"][key] %}
-            <article class="admin-route-item">
-              <div class="admin-route-title">
-                <strong>{{ conn.label or ("自定义 API" if key == "custom" else "本地号池") }}</strong>
-              </div>
-              <div class="admin-route-fields">
-                <label>显示名称<input name="{{ key }}_label" value="{{ conn.label }}"></label>
-                <label>徽标<input name="{{ key }}_badge" value="{{ conn.badge }}"></label>
-                <label class="admin-wide-field">地址<input name="{{ key }}_url" value="{{ conn.url }}"></label>
-                {% if key == "custom" %}
-                  <label class="admin-wide-field">调试 API Key<input name="custom_api_key" type="password" placeholder="{{ custom_api_key_mask or '未配置' }}"></label>
-                  <label class="admin-switch-row">
-                    <span>保留现有 Key</span>
-                    <span class="admin-switch"><input type="checkbox" name="keep_custom_api_key" checked><span></span></span>
-                  </label>
-                  <label class="admin-switch-row">
-                    <span>工作台调试模式</span>
-                    <span class="admin-switch"><input type="checkbox" name="workbench_custom_api_debug" {% if config.debug.workbench_custom_api %}checked{% endif %}><span></span></span>
-                  </label>
-                  <p class="admin-help-text">打开后，工作台自定义 API 可直接使用后台保存的 URL 和 Key；接口响应只返回调试状态，不下发 Key 明文。</p>
-                {% endif %}
-                <label class="admin-wide-field">描述<textarea name="{{ key }}_description" rows="3">{{ conn.description }}</textarea></label>
-              </div>
-            </article>
-          {% endfor %}
-        </div>
+        <section class="admin-debug-panel">
+          <div>
+            <strong>工作台调试模式</strong>
+            <p>开启后，管理员登录工作台时可直接使用下方后台配置的生图/文本 API；响应只返回调试状态，不下发 Key 明文。</p>
+          </div>
+          <label class="admin-switch-row compact-switch">
+            <span>{{ "已开启" if config.debug.workbench_custom_api else "未开启" }}</span>
+            <span class="admin-switch"><input type="checkbox" name="workbench_custom_api_debug" {% if config.debug.workbench_custom_api %}checked{% endif %}><span></span></span>
+          </label>
+        </section>
+        <input type="hidden" name="default_connection_mode" value="{{ config.default_connection_mode or 'custom' }}">
+        <input type="hidden" name="keep_custom_api_key" value="on">
         <div class="admin-card-head compact-head">
           <div>
             <h3>调试模型接入</h3>
@@ -516,6 +491,67 @@
             </article>
           {% endfor %}
         </div>
+        <section class="admin-model-summary" aria-label="已配置模型">
+          <div class="admin-model-summary-head">
+            <div>
+              <strong>已配置模型</strong>
+              <span>共 {{ profile_model_ids|length }} 个 · 生图 {{ profile_image_models|length }} 个 · 文本 {{ profile_text_models|length }} 个</span>
+            </div>
+          </div>
+          {% if profile_model_ids %}
+            <div class="admin-model-chip-grid">
+              {% for model_id in profile_model_ids %}
+                <span class="admin-model-chip">{{ model_id }}</span>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="admin-help-text">还没有配置模型描述，保存后这里会显示模型数量和名称。</p>
+          {% endif %}
+        </section>
+        <section class="admin-model-filter-panel">
+          <div class="admin-model-summary-head">
+            <div>
+              <strong>模型供应商过滤</strong>
+              <span>NewAPI 返回模型后，只展示命中已启用供应商规则的模型；取消勾选就不在工作台展示。</span>
+            </div>
+          </div>
+          <div class="admin-provider-list">
+            {% for provider in config.model_providers %}
+              <article class="admin-provider-row">
+                <input type="hidden" name="provider_id" value="{{ provider.id }}">
+                <label>供应商名称<input name="provider_name" value="{{ provider.name }}"></label>
+                <label>类型
+                  <select name="provider_kind">
+                    <option value="image" {% if provider.kind == "image" %}selected{% endif %}>生图</option>
+                    <option value="text" {% if provider.kind == "text" %}selected{% endif %}>文本</option>
+                    <option value="both" {% if provider.kind == "both" %}selected{% endif %}>通用</option>
+                  </select>
+                </label>
+                <label class="admin-wide-field">匹配关键词<input name="provider_patterns" value="{{ provider.patterns }}" placeholder="多个用逗号分隔，例如 gpt-image,imagen"></label>
+                <label class="admin-switch-row compact-switch">
+                  <span>启用</span>
+                  <span class="admin-switch"><input type="checkbox" name="provider_enabled" value="{{ provider.id }}" {% if provider.enabled %}checked{% endif %}><span></span></span>
+                </label>
+              </article>
+            {% endfor %}
+            <article class="admin-provider-row admin-provider-new">
+              <label>新增供应商<input name="new_provider_name" placeholder="例如 Midjourney"></label>
+              <label>类型
+                <select name="new_provider_kind">
+                  <option value="image">生图</option>
+                  <option value="text">文本</option>
+                  <option value="both">通用</option>
+                </select>
+              </label>
+              <label class="admin-wide-field">匹配关键词<input name="new_provider_patterns" placeholder="例如 midjourney,mj-"></label>
+              <label class="admin-switch-row compact-switch">
+                <span>启用新增</span>
+                <span class="admin-switch"><input type="checkbox" name="new_provider_enabled" checked><span></span></span>
+              </label>
+            </article>
+          </div>
+          <p class="admin-help-text">关键词支持逗号、分号、换行分隔，也支持 * 通配符，例如 <code>gpt-image*</code>。如果某一类型所有供应商都取消启用，该类型模型会全部隐藏。</p>
+        </section>
         <label class="admin-wide-field admin-textarea-field">
           <span class="admin-field-head"><span>模型描述配置</span><button type="button" data-admin-paste="model_profiles">粘贴</button></span>
           <textarea class="admin-model-textarea" name="model_profiles" rows="8" spellcheck="false" autocapitalize="off" autocomplete="off">{{ profile_lines }}</textarea>

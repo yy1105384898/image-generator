@@ -118,6 +118,43 @@ def default_model_config() -> dict:
             }
             for model in model_ids
         ],
+        "model_providers": [
+            {
+                "id": "openai-image",
+                "name": "OpenAI 生图",
+                "kind": "image",
+                "patterns": "gpt-image,dall-e,dalle",
+                "enabled": True,
+            },
+            {
+                "id": "google-imagen",
+                "name": "Google Imagen",
+                "kind": "image",
+                "patterns": "imagen",
+                "enabled": True,
+            },
+            {
+                "id": "banana-image",
+                "name": "Nano Banana",
+                "kind": "image",
+                "patterns": "banana",
+                "enabled": True,
+            },
+            {
+                "id": "flux-stable-image",
+                "name": "Flux / Stable",
+                "kind": "image",
+                "patterns": "flux,stable,stability,sdxl",
+                "enabled": True,
+            },
+            {
+                "id": "common-text",
+                "name": "常用文本模型",
+                "kind": "text",
+                "patterns": "gpt-,gpt4,gpt5,o3,o4,o5,chat,claude,deepseek,qwen,glm,moonshot,kimi,yi-,llama,mistral,gemini",
+                "enabled": True,
+            },
+        ],
         "agent_text": {
             "default_model": DEFAULT_TEXT_MODEL,
             "reuse_custom_api": True,
@@ -174,6 +211,28 @@ def normalize_model_config(raw: dict | None = None) -> dict:
             })
         if cleaned:
             base["model_profiles"] = cleaned
+    providers = raw.get("model_providers")
+    if isinstance(providers, list):
+        cleaned_providers = []
+        for item in providers:
+            if not isinstance(item, dict):
+                continue
+            provider_id = str(item.get("id") or "").strip() or re.sub(r"[^a-z0-9]+", "-", str(item.get("name") or "").lower()).strip("-")
+            name = str(item.get("name") or provider_id).strip()
+            kind = str(item.get("kind") or "image").strip().lower()
+            if kind not in {"image", "text", "both"}:
+                kind = "image"
+            patterns = str(item.get("patterns") or "").strip()
+            if not provider_id or not name or not patterns:
+                continue
+            cleaned_providers.append({
+                "id": provider_id[:80],
+                "name": name[:80],
+                "kind": kind,
+                "patterns": patterns[:500],
+                "enabled": bool(item.get("enabled", True)),
+            })
+        base["model_providers"] = cleaned_providers
     base["auto_order"] = []
     agent_text = raw.get("agent_text") if isinstance(raw.get("agent_text"), dict) else {}
     base["agent_text"] = {
@@ -486,7 +545,74 @@ def resolve_custom_api_credentials(api_url: str, api_key: str, kind: str = "imag
 def available_model_ids() -> list[str]:
     ids = [str(item.get("id") or "").strip() for item in read_model_config().get("model_profiles", [])]
     ids = [item for item in ids if item]
-    return ids or AVAILABLE_MODELS or [DEFAULT_MODEL]
+    return [item for item in ids if model_allowed_by_kind(item)] or AVAILABLE_MODELS or [DEFAULT_MODEL]
+
+
+def provider_patterns(provider: dict) -> list[str]:
+    raw = str(provider.get("patterns") or "")
+    return [item.strip().lower() for item in re.split(r"[\n,，;；]+", raw) if item.strip()]
+
+
+def provider_matches_model(provider: dict, model: str, kind: str) -> bool:
+    provider_kind = str(provider.get("kind") or "image").strip().lower()
+    if provider_kind not in {"both", kind}:
+        return False
+    value = str(model or "").lower()
+    return any(fnmatch_model(pattern, value) for pattern in provider_patterns(provider))
+
+
+def fnmatch_model(pattern: str, value: str) -> bool:
+    if not pattern:
+        return False
+    if "*" in pattern:
+        regex = "^" + re.escape(pattern).replace("\\*", ".*") + "$"
+        return re.search(regex, value) is not None
+    return pattern in value
+
+
+def model_allowed_by_providers(model: str, kind: str, config: dict | None = None) -> bool:
+    config = config or read_model_config()
+    providers = [item for item in config.get("model_providers", []) if isinstance(item, dict)]
+    relevant = [item for item in providers if str(item.get("kind") or "image").strip().lower() in {"both", kind}]
+    if not relevant:
+        return True
+    enabled = [item for item in relevant if item.get("enabled")]
+    if not enabled:
+        return False
+    return any(provider_matches_model(provider, model, kind) for provider in enabled)
+
+
+def is_raw_text_model_id(model: str) -> bool:
+    value = str(model or "").lower()
+    if not value or is_raw_image_model_id(value):
+        return False
+    return any(token in value for token in (
+        "gpt-",
+        "gpt4",
+        "gpt5",
+        "o3",
+        "o4",
+        "o5",
+        "chat",
+        "claude",
+        "deepseek",
+        "qwen",
+        "glm",
+        "moonshot",
+        "kimi",
+        "yi-",
+        "llama",
+        "mistral",
+        "gemini",
+    ))
+
+
+def model_allowed_by_kind(model: str) -> bool:
+    if is_raw_image_model_id(model):
+        return model_allowed_by_providers(model, "image")
+    if is_raw_text_model_id(model):
+        return model_allowed_by_providers(model, "text")
+    return True
 
 
 def mask_secret(value: str, left: int = 8, right: int = 4) -> str:
@@ -2096,7 +2222,7 @@ def fetch_models(api_url: str, api_key: str) -> list[str]:
     return models
 
 
-def is_image_model_id(model: str) -> bool:
+def is_raw_image_model_id(model: str) -> bool:
     value = str(model or "").lower()
     return any(token in value for token in (
         "dall-e",
@@ -2114,29 +2240,12 @@ def is_image_model_id(model: str) -> bool:
     ))
 
 
+def is_image_model_id(model: str) -> bool:
+    return is_raw_image_model_id(model) and model_allowed_by_providers(model, "image")
+
+
 def is_text_model_id(model: str) -> bool:
-    value = str(model or "").lower()
-    if not value or is_image_model_id(value):
-        return False
-    return any(token in value for token in (
-        "gpt-",
-        "gpt4",
-        "gpt5",
-        "o3",
-        "o4",
-        "o5",
-        "chat",
-        "claude",
-        "deepseek",
-        "qwen",
-        "glm",
-        "moonshot",
-        "kimi",
-        "yi-",
-        "llama",
-        "mistral",
-        "gemini",
-    ))
+    return is_raw_text_model_id(model) and model_allowed_by_providers(model, "text")
 
 
 def split_model_ids(models: list[str]) -> tuple[list[str], list[str]]:
@@ -2715,10 +2824,10 @@ def admin():
             for key in ("custom", "pool"):
                 existing = current["connections"].get(key, {})
                 connections[key] = {
-                    "label": request.form.get(f"{key}_label", existing.get("label", key)).strip(),
-                    "badge": request.form.get(f"{key}_badge", existing.get("badge", "")).strip(),
-                    "url": request.form.get(f"{key}_url", existing.get("url", "")).strip(),
-                    "description": request.form.get(f"{key}_description", existing.get("description", "")).strip(),
+                    "label": existing.get("label") or ("自定义 API" if key == "custom" else "本地号池"),
+                    "badge": existing.get("badge") or ("云端" if key == "custom" else "OAuth"),
+                    "url": existing.get("url", ""),
+                    "description": existing.get("description", ""),
                     "enabled": True,
                 }
                 if key == "custom":
@@ -2751,12 +2860,48 @@ def admin():
                     "description": parts[2] if len(parts) > 2 and parts[2] else "后台可维护模型说明。",
                     "tag": parts[3] if len(parts) > 3 and parts[3] else "生图",
                 })
+            model_providers = []
+            provider_ids = request.form.getlist("provider_id")
+            provider_names = request.form.getlist("provider_name")
+            provider_kinds = request.form.getlist("provider_kind")
+            provider_patterns_list = request.form.getlist("provider_patterns")
+            enabled_provider_ids = set(request.form.getlist("provider_enabled"))
+            for index, provider_id in enumerate(provider_ids):
+                name = provider_names[index].strip() if index < len(provider_names) else ""
+                kind = provider_kinds[index].strip() if index < len(provider_kinds) else "image"
+                patterns = provider_patterns_list[index].strip() if index < len(provider_patterns_list) else ""
+                provider_id = provider_id.strip() or re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or uuid.uuid4().hex[:10]
+                if not name or not patterns:
+                    continue
+                model_providers.append({
+                    "id": provider_id,
+                    "name": name,
+                    "kind": kind if kind in {"image", "text", "both"} else "image",
+                    "patterns": patterns,
+                    "enabled": provider_id in enabled_provider_ids,
+                })
+            new_provider_name = request.form.get("new_provider_name", "").strip()
+            new_provider_patterns = request.form.get("new_provider_patterns", "").strip()
+            if new_provider_name and new_provider_patterns:
+                new_provider_id = re.sub(r"[^a-z0-9]+", "-", new_provider_name.lower()).strip("-") or uuid.uuid4().hex[:10]
+                existing_ids = {item["id"] for item in model_providers}
+                if new_provider_id in existing_ids:
+                    new_provider_id = f"{new_provider_id}-{uuid.uuid4().hex[:6]}"
+                new_provider_kind = request.form.get("new_provider_kind", "image").strip()
+                model_providers.append({
+                    "id": new_provider_id,
+                    "name": new_provider_name,
+                    "kind": new_provider_kind if new_provider_kind in {"image", "text", "both"} else "image",
+                    "patterns": new_provider_patterns,
+                    "enabled": request.form.get("new_provider_enabled") == "on",
+                })
             config = {
                 "default_connection_mode": request.form.get("default_connection_mode", "custom"),
                 "auto_order": [],
                 "connections": connections,
                 "custom_model_routes": custom_model_routes,
                 "model_profiles": profiles,
+                "model_providers": model_providers,
                 "debug": {
                     "workbench_custom_api": request.form.get("workbench_custom_api_debug") == "on",
                 },
@@ -2969,6 +3114,8 @@ def admin():
         f"{item.get('id','')} | {item.get('title','')} | {item.get('description','')} | {item.get('tag','')}"
         for item in config.get("model_profiles", [])
     )
+    profile_model_ids = [str(item.get("id") or "").strip() for item in config.get("model_profiles", []) if str(item.get("id") or "").strip()]
+    profile_image_models, profile_text_models = split_model_ids(profile_model_ids)
     accounts = read_account_pool()
     pool_users = read_pool_users()
     media_items = sorted(read_media(), key=lambda x: x.get("created_at", 0), reverse=True)
@@ -2984,6 +3131,9 @@ def admin():
             for kind in ("image", "text")
         },
         profile_lines=profile_lines,
+        profile_model_ids=profile_model_ids,
+        profile_image_models=profile_image_models,
+        profile_text_models=profile_text_models,
         saved=saved,
         message=message,
         admin_auth=public_admin_auth(),

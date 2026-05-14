@@ -3667,6 +3667,108 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
   resize: vertical;
   line-height: 1.5;
 }
+.admin-debug-panel,
+.admin-model-filter-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fbfbfa;
+}
+.admin-debug-panel {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+.admin-debug-panel strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 920;
+}
+.admin-debug-panel p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 740;
+  line-height: 1.55;
+}
+.admin-model-summary {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fbfbfa;
+}
+.admin-model-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.admin-model-summary-head strong {
+  display: block;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 920;
+}
+.admin-model-summary-head span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 780;
+}
+.admin-model-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-model-chip {
+  max-width: 100%;
+  padding: 6px 9px;
+  border: 1px solid rgba(15, 111, 90, .18);
+  border-radius: 7px;
+  background: var(--green-soft);
+  color: #123a31;
+  font-size: 12px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+.admin-provider-list {
+  display: grid;
+  gap: 10px;
+}
+.admin-provider-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) 120px auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid rgba(17,17,17,.08);
+  border-radius: 8px;
+  background: #fff;
+}
+.admin-provider-row label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+.admin-provider-row input,
+.admin-provider-row select {
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfbfa;
+  color: var(--text);
+  padding: 8px 10px;
+}
+.admin-provider-new {
+  border-style: dashed;
+  background: #fbfbfa;
+}
 .admin-switch input {
   position: absolute;
   opacity: 0;
