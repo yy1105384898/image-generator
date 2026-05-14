@@ -1973,6 +1973,61 @@ function showAgentModeAnalysis(plan, originalPrompt) {
   els.composer?.classList.add("analysis-open");
 }
 
+function setAnalysisReady(label, message) {
+  const row = els.promptAnalysisCard?.querySelector(".analysis-ready-row");
+  if (!row) return;
+  const title = row.querySelector("strong");
+  const copy = row.querySelector("span");
+  if (title) title.textContent = label;
+  if (copy) copy.textContent = message;
+}
+
+function flashButton(button, text, duration = 1100) {
+  if (!button) return;
+  const original = button.textContent;
+  button.textContent = text;
+  window.setTimeout(() => {
+    button.textContent = original;
+  }, duration);
+}
+
+function showTextAiAnalysis(plan, originalPrompt, mode = "preflight") {
+  const prompt = String(plan?.prompt || originalPrompt || "").trim();
+  agentModePlan = plan || null;
+  const warning = els.promptAnalysisCard?.querySelector(".analysis-warning");
+  const notes = [
+    plan?.brief ? `Brief：${plan.brief}` : "",
+    Array.isArray(plan?.steps) && plan.steps.length ? `拆解步骤：${plan.steps.join("；")}` : "",
+    Array.isArray(plan?.notes) && plan.notes.length ? `注意事项：${plan.notes.join("；")}` : "",
+  ].filter(Boolean);
+  if (warning) {
+    warning.querySelector("b").textContent = "文本 AI 已完成分析";
+    warning.querySelector("span").textContent = notes.join(" ") || "已根据当前提示词、参考图和参数生成优化建议。";
+  }
+  const styleTags = els.promptAnalysisCard?.querySelector(".analysis-style-tags");
+  if (styleTags) {
+    const tags = [plan?.task_type === "album" ? "宣传画册" : plan?.task_type === "set" ? "成组图片" : "单图任务", "文本 AI", selectedReferenceIds.size ? "参考图约束" : "参数建议"].filter(Boolean);
+    styleTags.innerHTML = tags.map((item) => `<span>${escapeHtml(item)}</span>`).join("");
+  }
+  const titles = {
+    preflight: "文本 AI 预检完成",
+    optimize: "文本 AI 优化完成",
+    params: "文本 AI 参数推荐完成",
+    failure: "文本 AI 风险预判完成",
+    style: "文本 AI 风格增强完成",
+  };
+  els.analysisResultTitle.textContent = titles[mode] || "文本 AI 分析完成";
+  setAnalysisReady("GPT 分析模型", `已使用 ${plan?.textModel || selectedTextModel() || "文本模型"} 完成分析，可应用优化提示词或推荐参数。`);
+  els.promptScore.textContent = "96";
+  els.analysisAspect.textContent = plan?.aspect_ratio || els.aspectRatio.value;
+  els.analysisSize.textContent = requestSize();
+  els.analysisCount.textContent = plan?.count || els.count.value;
+  els.analysisStyle.textContent = "AI";
+  els.optimizedPrompt.value = prompt;
+  els.promptAnalysisCard.classList.remove("hidden");
+  els.composer?.classList.add("analysis-open");
+}
+
 async function requestAgentPlan(values, revision) {
   const textModel = selectedTextModel();
   if (!textModel) {
@@ -3287,6 +3342,15 @@ function setRecommendedParams({ quality = "auto", applyNow = false } = {}) {
   if (applyNow) syncSummary();
 }
 
+async function requestPromptAnalysis(mode = "optimize") {
+  const textModel = selectedTextModel();
+  if (!textModel) {
+    throw new Error("未配置文本分析模型");
+  }
+  const plan = await requestAgentModePlan(els.prompt.value.trim());
+  return { ...plan, analysisMode: mode };
+}
+
 function showPromptAnalysis(mode = "optimize") {
   const titles = {
     optimize: "提示词优化完成",
@@ -3309,6 +3373,7 @@ function showPromptAnalysis(mode = "optimize") {
       ? risks.join(" ")
       : "当前提示词、参数和参考图配置可以直接生成；如需更强控制，可先应用优化版再发送。";
   }
+  setAnalysisReady("本地规则预检", "未配置或未调用文本模型时，使用本地规则完成预检；右侧 Agent 文本模型可接入 GPT 做更强分析。");
   const styleTags = els.promptAnalysisCard?.querySelector(".analysis-style-tags");
   if (styleTags) {
     const skills = selectedAgent ? selectedPromptSkills() : defaultPromptSkills.custom.map((id) => ({ id, ...(promptSkillLibrary[id] || {}) })).filter((item) => item.name);
@@ -3325,6 +3390,36 @@ function showPromptAnalysis(mode = "optimize") {
     : optimized;
   els.promptAnalysisCard.classList.remove("hidden");
   els.composer?.classList.add("analysis-open");
+}
+
+async function showSmartPromptAnalysis(mode = "optimize") {
+  if (!els.prompt.value.trim()) {
+    showPromptAnalysis(mode);
+    return;
+  }
+  const sourceButton = {
+    optimize: els.optimizePrompt,
+    params: els.recommendParams,
+    failure: els.predictFailure,
+    style: els.enhanceStyle,
+  }[mode];
+  const originalText = sourceButton?.textContent;
+  if (sourceButton) {
+    sourceButton.disabled = true;
+    sourceButton.textContent = "分析中...";
+  }
+  try {
+    const plan = await requestPromptAnalysis(mode);
+    showTextAiAnalysis(plan, els.prompt.value.trim(), mode);
+  } catch (err) {
+    showPromptAnalysis(mode);
+    setAnalysisReady("本地规则预检", `文本 AI 未启用或调用失败，已使用本地规则：${err.message}`);
+  } finally {
+    if (sourceButton) {
+      sourceButton.disabled = false;
+      sourceButton.textContent = originalText;
+    }
+  }
 }
 
 function closePromptAnalysis() {
@@ -3344,19 +3439,23 @@ function applyOptimizedPrompt() {
   els.prompt.value = els.optimizedPrompt.value.trim();
   syncSummary();
   els.prompt.focus();
+  flashButton(els.applyOptimizedPrompt, "已应用到输入框");
 }
 
 function applyRecommendedParams() {
   if (agentModePlan) {
     applyAgentModePlan(agentModePlan);
+    flashButton(els.applyOptimizedParams, "已应用参数");
     return;
   }
   setRecommendedParams({ quality: els.analysisStyle?.textContent === "high" ? "high" : "auto", applyNow: true });
+  flashButton(els.applyOptimizedParams, "已应用参数");
 }
 
 function continueOriginalPrompt() {
   const text = preflightOriginalPrompt || els.prompt.value.trim();
   stopPreflight();
+  flashButton(els.continueOriginalPrompt, "正在生成");
   performSubmitJob(text);
 }
 
@@ -3379,7 +3478,7 @@ async function copyOptimizedPrompt() {
 }
 
 function optimizePromptLocal() {
-  showPromptAnalysis("optimize");
+  showSmartPromptAnalysis("optimize");
 }
 
 function recommendParamsLocal() {
@@ -3387,15 +3486,15 @@ function recommendParamsLocal() {
     els.aspectRatio.value = selectedAgent.aspectRatio;
     els.negative.value = selectedAgent.negative;
   }
-  showPromptAnalysis("params");
+  showSmartPromptAnalysis("params");
 }
 
 function predictFailureLocal() {
-  showPromptAnalysis("failure");
+  showSmartPromptAnalysis("failure");
 }
 
 function enhanceStyleLocal() {
-  showPromptAnalysis("style");
+  showSmartPromptAnalysis("style");
 }
 
 function scheduleAutoRefreshModels() {

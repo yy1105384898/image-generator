@@ -1944,17 +1944,19 @@ body.research-active .studio-view {
 }
 .prompt-analysis-card textarea {
   width: 100%;
-  min-height: 94px;
-  max-height: 128px;
-  padding: 13px 14px;
+  min-height: 180px;
+  max-height: 260px;
+  padding: 14px 15px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: #fff;
-  color: var(--muted);
+  background: #fbfbfa;
+  color: var(--text);
   font: inherit;
-  font-size: 16px;
-  line-height: 1.5;
-  resize: none;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.62;
+  resize: vertical;
+  white-space: pre-wrap;
 }
 .analysis-style-tags {
   display: flex;
@@ -1983,7 +1985,8 @@ body.research-active .studio-view {
   min-height: 46px;
   padding: 0 16px;
   border-radius: 9px;
-  font-size: 16px;
+  font-size: 13px;
+  font-weight: 850;
 }
 .analysis-actions .copy-analysis-button {
   min-width: 126px;
@@ -3024,23 +3027,14 @@ body.research-active .studio-view {
   clip: rect(0 0 0 0);
 }
 .model-filter input {
-  padding-left: 34px;
-  background:
-    linear-gradient(transparent, transparent),
-    #fbfbfa;
+  padding-left: 12px;
+  background: #fbfbfa;
 }
 .model-filter {
   position: relative;
 }
 .model-filter::before {
-  content: "⌕";
-  position: absolute;
-  left: 12px;
-  bottom: 10px;
-  z-index: 1;
-  color: var(--muted);
-  font-size: 16px;
-  line-height: 1;
+  content: none;
 }
 .available-model-list {
   display: grid;

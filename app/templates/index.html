@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>YANGYANGAPI 生图工作台</title>
   <link rel="icon" href="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=2026051404">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=2026051406">
 </head>
 <body>
   <main id="home" class="home-page">
@@ -587,7 +587,7 @@
             </div>
             <div class="analysis-block">
               <strong>提示词优化</strong>
-              <textarea id="optimizedPrompt" readonly rows="4"></textarea>
+              <textarea id="optimizedPrompt" readonly rows="8"></textarea>
             </div>
             <div class="analysis-block">
               <strong>风格增强</strong>
@@ -904,6 +904,6 @@
   <script>
     window.YY_MODEL_CONFIG = {{ model_config|tojson }};
   </script>
-  <script src="{{ url_for('static', filename='app.js') }}?v=2026051404"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=2026051406"></script>
 </body>
 </html>
