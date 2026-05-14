@@ -2766,8 +2766,8 @@ async function refreshModels({ silent = false } = {}) {
     const pool = state.account_pool || {};
     const okCount = Number(pool.ok || 0);
     setConnectionStatus(okCount > 0 ? `本地号池可用 ${okCount} 个账号` : "本地号池暂无可用账号", okCount > 0 ? "success" : "error");
-    setModelStatus(`Pool enabled · ${verifiedImageModels.length} image models · ${verifiedTextModels.length} text models`, okCount > 0 ? "success" : "idle");
-    setModelFetchHelp(verifiedTextModels.length ? "Pool mode reuses local account-pool accounts for image generation and Agent text plans; no custom API key is required." : "No text model is configured for pool mode; Agent will show the manual text-model fallback panel.", okCount > 0 ? "success" : "idle");
+    setModelStatus(`号池已启用 · ${verifiedImageModels.length} 个生图模型 · ${verifiedTextModels.length} 个文本模型`, okCount > 0 ? "success" : "idle");
+    setModelFetchHelp(verifiedTextModels.length ? "号池模式会复用本地号池账号生成图片和 Agent 文本方案，无需填写自定义 API Key。" : "号池模式未配置文本模型，Agent 会显示手动文本模型配置面板。", okCount > 0 ? "success" : "idle");
     return;
   }
   if (els.connectionMode.value === "custom" && !selectedApiUrl()) {
