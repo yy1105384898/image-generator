@@ -151,7 +151,7 @@ def default_model_config() -> dict:
                 "id": "common-text",
                 "name": "常用文本模型",
                 "kind": "text",
-                "patterns": "gpt-,gpt4,gpt5,o3,o4,o5,chat,claude,deepseek,qwen,glm,moonshot,kimi,yi-,llama,mistral,gemini",
+                "patterns": "gpt,gpt-,gpt4,gpt5,gpt5-,o3,o4,o5,chat,claude,deepseek,qwen,glm,moonshot,kimi,yi-,llama,mistral,gemini,mimo",
                 "enabled": True,
             },
         ],
@@ -225,6 +225,12 @@ def normalize_model_config(raw: dict | None = None) -> dict:
             patterns = str(item.get("patterns") or "").strip()
             if not provider_id or not name or not patterns:
                 continue
+            if provider_id == "common-text":
+                existing_patterns = provider_patterns({"patterns": patterns})
+                for token in ("gpt", "gpt-", "gpt5", "gpt5-", "mimo"):
+                    if token not in existing_patterns:
+                        existing_patterns.append(token)
+                patterns = ",".join(existing_patterns)
             cleaned_providers.append({
                 "id": provider_id[:80],
                 "name": name[:80],
@@ -303,8 +309,21 @@ def parse_secret_lines(value: str) -> list[str]:
 def merge_route_secrets(current_routes: dict, kind: str, posted: str, keep_existing: bool) -> list[str]:
     current = current_routes.get(kind) if isinstance(current_routes.get(kind), dict) else {}
     posted_keys = parse_secret_lines(posted)
-    if keep_existing and not posted_keys:
-        return [str(key or "").strip() for key in current.get("api_keys", []) if str(key or "").strip()]
+    current_keys = [str(key or "").strip() for key in current.get("api_keys", []) if str(key or "").strip()]
+    delete_indexes = set()
+    if hasattr(request, "form"):
+        for value in request.form.getlist(f"{kind}_route_delete_key"):
+            try:
+                delete_indexes.add(int(value))
+            except (TypeError, ValueError):
+                continue
+    kept_keys = [key for index, key in enumerate(current_keys) if index not in delete_indexes]
+    if keep_existing:
+        merged = kept_keys[:]
+        for key in posted_keys:
+            if key not in merged:
+                merged.append(key)
+        return merged
     return posted_keys
 
 
@@ -606,6 +625,7 @@ def is_raw_text_model_id(model: str) -> bool:
         return False
     return any(token in value for token in (
         "gpt-",
+        "gpt",
         "gpt4",
         "gpt5",
         "o3",
@@ -622,6 +642,7 @@ def is_raw_text_model_id(model: str) -> bool:
         "llama",
         "mistral",
         "gemini",
+        "mimo",
     ))
 
 
@@ -2290,19 +2311,26 @@ def fetch_custom_models_by_kind(kind: str, api_url: str, api_key: str) -> tuple[
     merged_models = []
     errors = []
     resolved_url = ""
-    for key_index, final_key in enumerate(final_keys, 1):
-        key_success = False
-        for candidate in candidate_api_urls("custom", final_url):
+    candidates = candidate_api_urls("custom", final_url)
+    def fetch_with_key(key_index: int, final_key: str) -> tuple[list[str], str, list[str]]:
+        key_errors = []
+        for candidate in candidates:
             try:
-                models = fetch_models(candidate, final_key)
-                unique_extend(merged_models, models)
-                resolved_url = candidate.rstrip("/")
-                key_success = True
-                break
+                return fetch_models(candidate, final_key), candidate.rstrip("/"), key_errors
             except Exception as exc:
-                errors.append(redact_secrets(f"Key {key_index} {mask_secret(final_key)} @ {candidate}: {exc}"))
-        if key_success:
-            continue
+                key_errors.append(redact_secrets(f"Key {key_index} {mask_secret(final_key)} @ {candidate}: {exc}"))
+        return [], "", key_errors
+
+    max_workers = max(1, min(len(final_keys), 6))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(fetch_with_key, index, final_key) for index, final_key in enumerate(final_keys, 1)]
+        for future in as_completed(futures):
+            models, key_url, key_errors = future.result()
+            if models:
+                unique_extend(merged_models, models)
+                if not resolved_url:
+                    resolved_url = key_url
+            errors.extend(key_errors)
     if merged_models:
         return merged_models, resolved_url or final_url.rstrip("/"), route_kind
     raise RuntimeError(redact_secrets(" | ".join(errors) or "模型读取失败"))

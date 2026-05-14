@@ -3681,7 +3681,11 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
   flex-wrap: wrap;
   gap: 6px;
 }
-.admin-key-summary span {
+.admin-key-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
   padding: 5px 8px;
   border: 1px solid rgba(15, 111, 90, .16);
   border-radius: 7px;
@@ -3689,6 +3693,35 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
   color: #123a31;
   font-size: 12px;
   font-weight: 850;
+}
+.admin-key-chip input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.admin-key-chip b {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: rgba(17,17,17,.12);
+  color: #555;
+  font-size: 12px;
+  line-height: 1;
+  pointer-events: none;
+}
+.admin-key-chip:has(input:checked) {
+  border-color: rgba(180, 45, 33, .35);
+  background: var(--red-soft);
+  color: var(--red);
+  text-decoration: line-through;
+}
+.admin-key-chip:has(input:checked) b {
+  background: rgba(180, 45, 33, .16);
+  color: var(--red);
 }
 .admin-route-fields textarea,
 .admin-model-textarea {

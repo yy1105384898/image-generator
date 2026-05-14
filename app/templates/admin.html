@@ -481,7 +481,11 @@
                   {% if route_key_summaries[kind] %}
                     <div>
                       {% for masked_key in route_key_summaries[kind] %}
-                        <span>{{ masked_key }}</span>
+                        <label class="admin-key-chip">
+                          <span>{{ masked_key }}</span>
+                          <input type="checkbox" name="{{ kind }}_route_delete_key" value="{{ loop.index0 }}" aria-label="删除 {{ masked_key }}">
+                          <b>×</b>
+                        </label>
                       {% endfor %}
                     </div>
                   {% else %}
