@@ -223,6 +223,12 @@
           <h2>图片管理</h2>
           <p>查看最近生成图片、任务来源和提示词，可批量删除本地文件记录。</p>
         </div>
+        {% if media_items %}
+          <label class="admin-check-all">
+            <input type="checkbox" data-check-all="media_id">
+            <span>全选最近 80 张</span>
+          </label>
+        {% endif %}
       </div>
       <form id="bulkMedia" method="post"></form>
       <div class="admin-image-grid">
@@ -448,7 +454,7 @@
             {% set conn = config["connections"][key] %}
             <article class="admin-route-item">
               <div class="admin-route-title">
-                <strong>{{ key }}</strong>
+                <strong>{{ conn.label or ("自定义 API" if key == "custom" else "本地号池") }}</strong>
               </div>
               <div class="admin-route-fields">
                 <label>显示名称<input name="{{ key }}_label" value="{{ conn.label }}"></label>
@@ -524,11 +530,23 @@
 
   <script>
     document.querySelectorAll("[data-check-all]").forEach((box) => {
+      const selector = `input[name="${CSS.escape(box.dataset.checkAll)}"]`;
+      const syncCheckAll = () => {
+        const items = Array.from(document.querySelectorAll(selector));
+        const checked = items.filter((input) => input.checked).length;
+        box.checked = items.length > 0 && checked === items.length;
+        box.indeterminate = checked > 0 && checked < items.length;
+      };
       box.addEventListener("change", () => {
-        document.querySelectorAll(`input[name="${box.dataset.checkAll}"]`).forEach((input) => {
+        document.querySelectorAll(selector).forEach((input) => {
           input.checked = box.checked;
         });
+        syncCheckAll();
       });
+      document.querySelectorAll(selector).forEach((input) => {
+        input.addEventListener("change", syncCheckAll);
+      });
+      syncCheckAll();
     });
     const sub2apiAuthMethod = document.querySelector("#sub2apiAuthMethod");
     const syncSub2apiAuth = () => {

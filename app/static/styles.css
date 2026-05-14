@@ -3701,6 +3701,25 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
   align-items: center;
   gap: 12px;
 }
+.admin-check-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfbfa;
+  color: #222;
+  font-size: 13px;
+  font-weight: 880;
+  white-space: nowrap;
+}
+.admin-check-all input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--green);
+}
 .admin-primary-button {
   min-height: 46px;
   padding: 0 22px;
