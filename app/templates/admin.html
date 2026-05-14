@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>YANGYANGAPI 管理后台</title>
   <link rel="icon" href="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=202605121505">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=2026051407">
 </head>
 <body class="admin-page">
   <header class="admin-topbar">
@@ -147,7 +147,10 @@
               <option value="cpa-json">CPA JSON</option>
             </select>
           </label>
-          <label>账号内容<textarea name="account_import" rows="8" placeholder="一行一个 token，或粘贴包含 access_token/accessToken/token 的 JSON"></textarea></label>
+          <label class="admin-wide-field admin-textarea-field">
+            <span class="admin-field-head"><span>账号内容</span><button type="button" data-admin-paste="account_import">粘贴</button></span>
+            <textarea name="account_import" rows="8" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="一行一个 token，或粘贴包含 access_token/accessToken/token 的 JSON"></textarea>
+          </label>
           <button class="admin-primary-button" type="submit" name="action" value="import_accounts">导入到号池</button>
         </form>
       </div>
@@ -488,7 +491,10 @@
               <div class="admin-route-fields">
                 <label>显示名称<input name="{{ kind }}_route_label" value="{{ route.label or title }}"></label>
                 <label class="admin-wide-field">API URL<input name="{{ kind }}_route_url" value="{{ route.url }}" placeholder="https://your-api.example.com/v1"></label>
-                <label class="admin-wide-field">API Key 池<textarea name="{{ kind }}_route_api_keys" rows="4" placeholder="{{ route_key_masks[kind] or '每行一个 Key，留空并勾选保留则不变' }}"></textarea></label>
+                <label class="admin-wide-field admin-textarea-field">
+                  <span class="admin-field-head"><span>API Key 池</span><button type="button" data-admin-paste="{{ kind }}_route_api_keys">粘贴</button></span>
+                  <textarea name="{{ kind }}_route_api_keys" rows="4" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="{{ route_key_masks[kind] or '每行一个 Key，留空并勾选保留则不变' }}"></textarea>
+                </label>
                 <label class="admin-switch-row">
                   <span>保留现有 Key</span>
                   <span class="admin-switch"><input type="checkbox" name="keep_{{ kind }}_route_api_key" checked><span></span></span>
@@ -504,8 +510,9 @@
             </article>
           {% endfor %}
         </div>
-        <label class="admin-wide-field">模型描述配置
-          <textarea class="admin-model-textarea" name="model_profiles" rows="8">{{ profile_lines }}</textarea>
+        <label class="admin-wide-field admin-textarea-field">
+          <span class="admin-field-head"><span>模型描述配置</span><button type="button" data-admin-paste="model_profiles">粘贴</button></span>
+          <textarea class="admin-model-textarea" name="model_profiles" rows="8" spellcheck="false" autocapitalize="off" autocomplete="off">{{ profile_lines }}</textarea>
         </label>
         <div class="admin-form-actions">
           <button class="admin-primary-button" type="submit" name="action" value="save_model_config">保存模型配置</button>
@@ -557,6 +564,38 @@
     const requestedTab = (location.hash || "").replace("#", "") || localStorage.getItem("yy-admin-tab") || "account-pool";
     const initialTab = ["sub2api", "cpa"].includes(requestedTab) ? "settings" : requestedTab;
     activateAdminTab(initialTab, Boolean(location.hash));
+    const insertTextareaText = (textarea, text) => {
+      const start = textarea.selectionStart ?? textarea.value.length;
+      const end = textarea.selectionEnd ?? textarea.value.length;
+      const before = textarea.value.slice(0, start);
+      const after = textarea.value.slice(end);
+      const needsBreak = before && !before.endsWith("\n") && text && !text.startsWith("\n");
+      textarea.value = `${before}${needsBreak ? "\n" : ""}${text}${after}`;
+      const cursor = before.length + (needsBreak ? 1 : 0) + text.length;
+      textarea.focus();
+      textarea.setSelectionRange(cursor, cursor);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    document.querySelectorAll("[data-admin-paste]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const name = button.dataset.adminPaste;
+        const textarea = document.querySelector(`textarea[name="${CSS.escape(name)}"]`);
+        if (!textarea) return;
+        textarea.focus();
+        try {
+          const text = await navigator.clipboard?.readText?.();
+          if (!text) throw new Error("empty clipboard");
+          insertTextareaText(textarea, text);
+          button.textContent = "已粘贴";
+          setTimeout(() => { button.textContent = "粘贴"; }, 1200);
+        } catch (error) {
+          textarea.focus();
+          button.textContent = "按 Ctrl+V";
+          setTimeout(() => { button.textContent = "粘贴"; }, 1600);
+          window.alert("浏览器没有授权后台页面直接读取剪贴板。光标已放入输入框，请按 Ctrl+V 或右键粘贴。");
+        }
+      });
+    });
   </script>
 </body>
 </html>

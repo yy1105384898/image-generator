@@ -3638,6 +3638,30 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
 .admin-wide-field {
   grid-column: 1 / -1;
 }
+.admin-textarea-field {
+  gap: 8px;
+}
+.admin-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.admin-field-head button {
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fff;
+  color: #1f5f50;
+  font-size: 12px;
+  font-weight: 880;
+  cursor: pointer;
+}
+.admin-field-head button:hover {
+  border-color: #9cc8af;
+  background: var(--green-soft);
+}
 .admin-route-fields textarea,
 .admin-model-textarea {
   resize: vertical;
