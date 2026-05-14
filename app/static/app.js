@@ -2507,13 +2507,19 @@ function renderReferences() {
   if (!els.composerReferenceList) return;
   els.composerReferenceList.classList.toggle("hidden", !selectedRefs.length);
   selectedRefs.forEach((ref) => {
+    const type = (ref.mime || "image/png").split("/").pop().toUpperCase();
+    const meta = [
+      ref.width && ref.height ? `${ref.width} x ${ref.height}` : "参考图",
+      type,
+      ref.size ? `${Math.max(1, Math.round(ref.size / 1024))} KB` : "",
+    ].filter(Boolean).join(" · ");
     const item = document.createElement("article");
     item.className = "composer-reference-item";
     item.innerHTML = `
       <img src="${escapeAttr(ref.url)}" alt="">
       <div>
         <strong>${escapeHtml(ref.name || "参考图")}</strong>
-        <span>${escapeHtml(ref.width && ref.height ? `${ref.width} x ${ref.height}` : "参考图")} · ${escapeHtml((ref.mime || "image/png").split("/").pop().toUpperCase())}${ref.size ? ` · ${Math.max(1, Math.round(ref.size / 1024))} KB` : ""}</span>
+        <span>${escapeHtml(meta)}</span>
       </div>
       <span class="reference-ok">✓</span>
       <button type="button" aria-label="移除参考图">×</button>

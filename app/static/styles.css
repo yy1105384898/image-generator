@@ -5154,57 +5154,95 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
 }
 
 .composer-reference-list {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 0;
   z-index: 7;
   display: flex;
-  width: min(520px, 100%);
-  gap: 6px;
+  width: 100%;
+  gap: 8px;
   overflow-x: auto;
-  padding: 0 2px 2px;
+  min-height: 58px;
+  padding: 6px 8px;
+  border: 1px solid rgba(184,222,210,.78);
+  border-radius: 13px;
+  background: rgba(255,255,255,.76);
+  box-shadow: inset 0 1px rgba(255,255,255,.72);
+  backdrop-filter: blur(16px) saturate(1.12);
   pointer-events: auto;
 }
 
-.composer.quick-config-open .composer-reference-list {
-  bottom: calc(100% + 248px);
-}
-
 .composer-reference-item {
-  flex: 0 0 min(280px, calc(100vw - 80px));
-  grid-template-columns: 36px minmax(0, 1fr) 18px 28px;
+  display: grid;
+  flex: 0 0 min(310px, calc(100vw - 72px));
+  grid-template-columns: 40px minmax(0, 1fr) 18px 30px;
+  align-items: center;
   gap: 8px;
-  padding: 6px;
+  padding: 6px 6px 6px 7px;
+  border: 1px solid rgba(210,214,207,.98);
   border-radius: 11px;
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 8px 18px rgba(17,17,17,.08), inset 0 1px rgba(255,255,255,.8);
 }
 
 .composer-reference-item img {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 9px;
+  object-fit: cover;
+  background: var(--surface-soft);
 }
 
 .composer-reference-item strong {
   font-size: 12px;
   line-height: 1.1;
+  color: var(--text);
+  font-weight: 880;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .composer-reference-item span {
   font-size: 11px;
+  color: var(--muted);
+  font-weight: 760;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .composer-reference-item .reference-ok {
-  width: 16px;
-  height: 16px;
+  display: grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
   border-width: 1.5px;
+  border-style: solid;
+  border-color: var(--green);
+  border-radius: 999px;
+  color: var(--green);
   font-size: 10px;
+  font-weight: 900;
 }
 
 .composer-reference-item button {
-  width: 28px;
-  height: 28px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid var(--border);
   border-radius: 8px;
+  background: #f7f8f5;
+  color: #60665f;
   font-size: 17px;
+}
+.composer-reference-item button:hover {
+  border-color: #cfd4ca;
+  background: #eef2ec;
+  color: var(--text);
+}
+
+.composer-reference-list:not(.hidden) + .composer-tools {
+  margin-top: 2px;
 }
 
 @media (max-width: 900px) {
@@ -5253,8 +5291,9 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .composer.quick-config-open .composer-reference-list {
-    bottom: calc(100% + 378px);
+  .composer-reference-list {
+    min-height: 54px;
+    padding: 5px 6px;
   }
 }
 
