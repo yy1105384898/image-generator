@@ -165,12 +165,13 @@ let agentPlanRevision = 0;
 let appliedAgentVariant = null;
 let previewAgentVariant = "stable";
 let agentModePlan = null;
-let customIndustryAgent = null;
+let customIndustryAgents = [];
 let agentComposerExpanded = false;
 let guideStep = 0;
 let guideAutoShown = false;
 let guideDismissedThisSession = false;
 const GUIDE_STORAGE_KEY = "yangyangapi:onboarding:v1:completed";
+const CUSTOM_INDUSTRY_AGENTS_KEY = "yangyangapi:custom-industry-agents:v1";
 let submitInFlight = false;
 let activeSubmitRequestId = "";
 
@@ -1192,13 +1193,91 @@ function jobIndustry(job) {
   return { id: "general", name: "通用生图", variant: "", source: "general" };
 }
 
+function compactText(value = "") {
+  return String(value || "")
+    .replace(/\r/g, "\n")
+    .replace(/[“”"]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function loadCustomIndustryAgents() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CUSTOM_INDUSTRY_AGENTS_KEY) || "[]");
+    customIndustryAgents = Array.isArray(parsed) ? parsed.filter((agent) => agent && String(agent.id || "").startsWith("custom-")).slice(0, 30) : [];
+  } catch {
+    customIndustryAgents = [];
+  }
+}
+
+function saveCustomIndustryAgents() {
+  try {
+    localStorage.setItem(CUSTOM_INDUSTRY_AGENTS_KEY, JSON.stringify(customIndustryAgents.slice(0, 30)));
+  } catch {
+    // Ignore storage failures; the current session list still works.
+  }
+}
+
 function availableIndustryAgents() {
-  return customIndustryAgent ? [customIndustryAgent, ...industryAgents] : industryAgents;
+  return [...customIndustryAgents, ...industryAgents];
+}
+
+function addCustomIndustryAgent(agent) {
+  if (!agent) return null;
+  customIndustryAgents = [agent, ...customIndustryAgents.filter((item) => item.id !== agent.id)].slice(0, 30);
+  saveCustomIndustryAgents();
+  return agent;
+}
+
+function clipText(value = "", max = 80) {
+  const text = compactText(value);
+  return text.length > max ? `${text.slice(0, max)}...` : text;
+}
+
+function cleanGeneratedPromptSeed(text = "") {
+  const raw = String(text || "").replace(/\r/g, "\n");
+  const lines = raw.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const useful = [];
+  for (const line of lines) {
+    if (/^(提示词技能执行|负面控制|交付标准|参考图要求|平台\/比例约束|构图方案|默认场景|行业类型|版本策略|验收标准)[:：]/.test(line)) {
+      continue;
+    }
+    if (/^业务信息[:：]/.test(line)) {
+      const subject = line.match(/商品名称[:：]\s*([^；;。]+)/)?.[1] || "";
+      const selling = line.match(/核心卖点[:：]\s*([^；;。]+)/)?.[1] || "";
+      if (subject) useful.push(subject);
+      if (selling) useful.push(selling);
+      continue;
+    }
+    if (/^提示词蓝图[:：]/.test(line)) {
+      useful.push(line.replace(/^提示词蓝图[:：]\s*/, "").split(/[+＋/｜|；;]/)[0]);
+      continue;
+    }
+    useful.push(line);
+  }
+  const compact = compactText(useful.join(" "));
+  return compact
+    .replace(/^自定义\s*[·-]\s*/, "")
+    .replace(/^(提示词蓝图|业务信息|商品名称|核心卖点)[:：]\s*/g, "")
+    .trim();
+}
+
+function shortCustomSubject(text = "") {
+  const cleaned = cleanGeneratedPromptSeed(text);
+  const first = cleaned.split(/[。；;，,\n]/).map((item) => item.trim()).find(Boolean) || "";
+  return clipText(first.replace(/^自定义\s*[·-]\s*/, ""), 28) || "自定义产品或主题";
+}
+
+function customSellingPoint(text = "", subject = "") {
+  const cleaned = cleanGeneratedPromptSeed(text);
+  if (!cleaned || cleaned === subject) {
+    return `围绕${subject || "主体"}突出主体清晰、卖点可视化、商业质感和平台可用性`;
+  }
+  return clipText(cleaned, 140);
 }
 
 function inferCustomIndustryAgent(text = "") {
-  const raw = String(text || "").trim();
-  const compact = raw.replace(/\s+/g, " ");
+  const compact = cleanGeneratedPromptSeed(text);
   const lower = compact.toLowerCase();
   const has = (...tokens) => tokens.some((token) => lower.includes(token));
   let preset = {
@@ -1267,7 +1346,8 @@ function inferCustomIndustryAgent(text = "") {
       skillIds: ["uiMockup", "caseSocialMockup", "kvLayout", "infographic", "benefitVisual"],
     };
   }
-  const subject = compact.slice(0, 36) || "自定义产品或主题";
+  const subject = shortCustomSubject(compact);
+  const sellingPoint = customSellingPoint(compact, subject);
   return {
     id: `custom-${Date.now()}`,
     icon: "自",
@@ -1284,7 +1364,7 @@ function inferCustomIndustryAgent(text = "") {
       subject,
       materialLabel: "材质 / 风格",
       material: "按需求提取，保持真实商业质感",
-      sellingPoint: compact || "主体明确，卖点清楚，适合平台直接使用",
+      sellingPoint,
       sceneLabel: "场景类型",
       sceneOptions: preset.sceneOptions,
       platformLabel: "目标平台",
@@ -1663,8 +1743,7 @@ function renderAgentList() {
     <em>+</em>
   `;
   customButton.addEventListener("click", () => {
-    customIndustryAgent = inferCustomIndustryAgent(els.prompt?.value || "");
-    selectedAgent = customIndustryAgent;
+    selectedAgent = addCustomIndustryAgent(inferCustomIndustryAgent(els.prompt?.value || ""));
     agentGenerated = false;
     agentPlan = null;
     agentPlanRevision = 0;
@@ -1678,7 +1757,8 @@ function renderAgentList() {
   for (const agent of availableIndustryAgents()) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `agent-list-item ${selectedAgent?.id === agent.id ? "selected" : ""}`;
+    const isCustomAgent = String(agent.id || "").startsWith("custom-");
+    button.className = `agent-list-item ${isCustomAgent ? "custom-agent-item" : ""} ${selectedAgent?.id === agent.id ? "selected" : ""}`;
     button.innerHTML = `
       <span>${escapeHtml(agent.icon)}</span>
       <div>
@@ -1686,8 +1766,10 @@ function renderAgentList() {
         <small>${escapeHtml(agent.meta)}</small>
       </div>
       <em>›</em>
+      ${isCustomAgent ? `<i class="agent-delete-custom" data-delete-custom-agent="${escapeAttr(agent.id)}" title="删除自定义行业">×</i>` : ""}
     `;
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
+      if (event.target.closest("[data-delete-custom-agent]")) return;
       selectedAgent = agent;
       agentGenerated = false;
       agentPlan = null;
@@ -1700,6 +1782,23 @@ function renderAgentList() {
     });
     els.agentList.append(button);
   }
+}
+
+function deleteCustomAgent(agentId = "") {
+  const deletingSelected = selectedAgent?.id === agentId;
+  customIndustryAgents = customIndustryAgents.filter((agent) => agent.id !== agentId);
+  saveCustomIndustryAgents();
+  if (deletingSelected) {
+    selectedAgent = null;
+    agentGenerated = false;
+    agentPlan = null;
+    agentPlanRevision = 0;
+    agentEnabled = false;
+    appliedAgentVariant = null;
+  }
+  syncAgentEntry();
+  syncAgentComposer();
+  renderAgentPanel();
 }
 
 function renderAgentEmpty() {
@@ -1735,7 +1834,7 @@ function promptSkillIdsForAgent(agent) {
 }
 
 function customAgentDisplayName(values = null) {
-  const raw = String(values?.subject || $("#agentSubject")?.value || selectedAgent?.fields?.subject || "").trim();
+  const raw = shortCustomSubject(values?.subject || $("#agentSubject")?.value || selectedAgent?.fields?.subject || "");
   const cleaned = raw
     .replace(/[，。；、,.，:：!！?？\n\r]+/g, " ")
     .replace(/\s+/g, " ")
@@ -1755,7 +1854,8 @@ function syncCustomAgentName(values = null) {
     meta: "动态行业 · 已命名",
     prompt: `根据“${name.replace(/^自定义 · /, "")}”生成商业生图方案，兼顾主体清晰、平台用途、卖点表达和可交付质感。`,
   };
-  customIndustryAgent = selectedAgent;
+  customIndustryAgents = customIndustryAgents.map((agent) => agent.id === selectedAgent.id ? selectedAgent : agent);
+  saveCustomIndustryAgents();
 }
 
 function renderPromptSkillChips(activeSkillIds = new Set(), { preview = false, limit = 0 } = {}) {
@@ -1798,6 +1898,9 @@ function renderPromptSkillChips(activeSkillIds = new Set(), { preview = false, l
 
 function renderAgentForm() {
   const fields = selectedAgent.fields || {};
+  const subjectValue = clipText(fields.subject || selectedAgent.name, 80);
+  const materialValue = clipText(fields.material || "", 90);
+  const sellingValue = clipText(fields.sellingPoint || selectedAgent.prompt, 180);
   const activeSkillIds = new Set(promptSkillIdsForAgent(selectedAgent));
   const skillList = renderPromptSkillChips(activeSkillIds);
   const optionHtml = (items = []) => items.map((item) => `<option value="${escapeAttr(item)}">${escapeHtml(item)}</option>`).join("");
@@ -1818,15 +1921,15 @@ function renderAgentForm() {
       <div class="agent-form-grid">
         <label>
           <span>${escapeHtml(fields.subjectLabel || "主题名称 · 建议")}</span>
-          <input id="agentSubject" value="${escapeAttr(fields.subject || selectedAgent.name)}">
+          <input id="agentSubject" value="${escapeAttr(subjectValue)}">
         </label>
         <label>
           <span>${escapeHtml(fields.materialLabel || "材质 / 风格")}</span>
-          <input id="agentMaterial" value="${escapeAttr(fields.material || "")}">
+          <input id="agentMaterial" value="${escapeAttr(materialValue)}">
         </label>
         <label class="agent-wide-field">
           <span>核心卖点</span>
-          <textarea id="agentSellingPoint" rows="2">${escapeHtml(fields.sellingPoint || selectedAgent.prompt)}</textarea>
+          <textarea id="agentSellingPoint" rows="2">${escapeHtml(sellingValue)}</textarea>
         </label>
         <label>
           <span>${escapeHtml(fields.sceneLabel || "使用场景")}</span>
@@ -1859,10 +1962,11 @@ function renderAgentForm() {
 function readAgentValues() {
   const fields = selectedAgent.fields || {};
   const skills = selectedPromptSkills();
+  const subject = shortCustomSubject($("#agentSubject")?.value.trim() || fields.subject || selectedAgent.name);
   return {
-    subject: $("#agentSubject")?.value.trim() || fields.subject || selectedAgent.name,
-    material: $("#agentMaterial")?.value.trim() || fields.material || "",
-    sellingPoint: $("#agentSellingPoint")?.value.trim() || fields.sellingPoint || selectedAgent.prompt,
+    subject,
+    material: clipText($("#agentMaterial")?.value.trim() || fields.material || "", 90),
+    sellingPoint: customSellingPoint($("#agentSellingPoint")?.value.trim() || fields.sellingPoint || selectedAgent.prompt, subject),
     scene: $("#agentScene")?.value.trim() || fields.sceneOptions?.[0] || selectedAgent.goals?.[0] || "",
     platform: $("#agentPlatform")?.value.trim() || fields.platformOptions?.[0] || selectedAgent.goals?.[0] || "",
     hold: $("#agentHold")?.value.trim() || "不需要",
@@ -4902,6 +5006,13 @@ els.agentWorkspace.addEventListener("keydown", (event) => {
   previewAgentVariantCard(target.dataset.agentVariant);
 });
 els.agentModal.addEventListener("click", (event) => {
+  const deleteButton = event.target.closest("[data-delete-custom-agent]");
+  if (deleteButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    deleteCustomAgent(deleteButton.dataset.deleteCustomAgent);
+    return;
+  }
   if (event.target === els.agentModal) setAgentPanel(false);
 });
 els.connectionStatus.addEventListener("click", () => showGuide(0));
@@ -4957,6 +5068,7 @@ setConnectionMode(localStorage.getItem(CONNECTION_MODE_STORAGE_KEY) || "custom")
 replaceTextModelOptions([]);
 if (els.count && (!els.count.value || els.count.value === "4")) els.count.value = "1";
 syncShellToggles();
+loadCustomIndustryAgents();
 syncAgentEntry();
 syncAgentMode();
 syncAgentComposer();

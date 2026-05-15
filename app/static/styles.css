@@ -2269,6 +2269,7 @@ body.research-active .studio-view {
   background: #f8f8f6;
 }
 .agent-list-item {
+  position: relative;
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) auto;
   align-items: center;
@@ -2310,6 +2311,30 @@ body.research-active .studio-view {
   color: var(--muted);
   font-style: normal;
   font-weight: 900;
+}
+.agent-list-item.custom-agent-item {
+  padding-right: 38px;
+}
+.agent-delete-custom {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid #efd3cf;
+  border-radius: 999px;
+  background: #fffaf9;
+  color: var(--red);
+  font-style: normal;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+}
+.agent-delete-custom:hover {
+  border-color: #df8f87;
+  background: var(--red-soft);
 }
 .agent-workspace {
   display: block;
