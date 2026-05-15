@@ -1846,15 +1846,27 @@ function customAgentDisplayName(values = null) {
   return `自定义 · ${name}`;
 }
 
-function syncCustomAgentName(values = null) {
+function syncCustomAgentState(values = null) {
   if (!selectedAgent || !String(selectedAgent.id || "").startsWith("custom-")) return;
+  values = values || readAgentValues();
   const name = customAgentDisplayName(values);
-  if (!name || selectedAgent.name === name) return;
+  const displayName = name || selectedAgent.name;
+  const skillIds = Array.isArray(values.skills) ? values.skills.map((item) => item.id).filter(Boolean) : selectedAgent.skillIds;
   selectedAgent = {
     ...selectedAgent,
-    name,
+    name: displayName,
     meta: "动态行业 · 已命名",
-    prompt: `根据“${name.replace(/^自定义 · /, "")}”生成商业生图方案，兼顾主体清晰、平台用途、卖点表达和可交付质感。`,
+    prompt: `根据“${displayName.replace(/^自定义 · /, "")}”生成商业生图方案，兼顾主体清晰、平台用途、卖点表达和可交付质感。`,
+    skillIds: skillIds?.length ? skillIds : selectedAgent.skillIds,
+    fields: {
+      ...(selectedAgent.fields || {}),
+      subject: values.subject || selectedAgent.fields?.subject || "",
+      material: values.material || selectedAgent.fields?.material || "",
+      sellingPoint: values.sellingPoint || selectedAgent.fields?.sellingPoint || "",
+      scene: values.scene || selectedAgent.fields?.scene || "",
+      platform: values.platform || selectedAgent.fields?.platform || "",
+      hold: values.hold || selectedAgent.fields?.hold || "",
+    },
   };
   customIndustryAgents = customIndustryAgents.map((agent) => agent.id === selectedAgent.id ? selectedAgent : agent);
   saveCustomIndustryAgents();
@@ -1905,7 +1917,10 @@ function renderAgentForm() {
   const sellingValue = clipText(fields.sellingPoint || selectedAgent.prompt, 180);
   const activeSkillIds = new Set(promptSkillIdsForAgent(selectedAgent));
   const skillList = renderPromptSkillChips(activeSkillIds);
-  const optionHtml = (items = []) => items.map((item) => `<option value="${escapeAttr(item)}">${escapeHtml(item)}</option>`).join("");
+  const optionHtml = (items = [], selected = "") => items.map((item) => `<option value="${escapeAttr(item)}" ${item === selected ? "selected" : ""}>${escapeHtml(item)}</option>`).join("");
+  const sceneOptions = fields.sceneOptions || selectedAgent.goals;
+  const platformOptions = fields.platformOptions || selectedAgent.goals;
+  const holdOptions = fields.holdOptions || ["不需要", "顶部留白", "右侧留白"];
   els.agentWorkspace.innerHTML = `
     <div class="agent-workspace-form">
       <div class="agent-workspace-head">
@@ -1935,15 +1950,15 @@ function renderAgentForm() {
         </label>
         <label>
           <span>${escapeHtml(fields.sceneLabel || "使用场景")}</span>
-          <select id="agentScene">${optionHtml(fields.sceneOptions || selectedAgent.goals)}</select>
+          <select id="agentScene">${optionHtml(sceneOptions, fields.scene || sceneOptions?.[0] || "")}</select>
         </label>
         <label>
           <span>${escapeHtml(fields.platformLabel || "目标平台")}</span>
-          <select id="agentPlatform">${optionHtml(fields.platformOptions || selectedAgent.goals)}</select>
+          <select id="agentPlatform">${optionHtml(platformOptions, fields.platform || platformOptions?.[0] || "")}</select>
         </label>
         <label>
           <span>${escapeHtml(fields.holdLabel || "留白位置")}</span>
-          <select id="agentHold">${optionHtml(fields.holdOptions || ["不需要", "顶部留白", "右侧留白"])}</select>
+          <select id="agentHold">${optionHtml(holdOptions, fields.hold || holdOptions?.[0] || "不需要")}</select>
         </label>
       </div>
       <div class="agent-tag-cloud">
@@ -1969,9 +1984,9 @@ function readAgentValues() {
     subject,
     material: clipText($("#agentMaterial")?.value.trim() || fields.material || "", 90),
     sellingPoint: customSellingPoint($("#agentSellingPoint")?.value.trim() || fields.sellingPoint || selectedAgent.prompt, subject),
-    scene: $("#agentScene")?.value.trim() || fields.sceneOptions?.[0] || selectedAgent.goals?.[0] || "",
-    platform: $("#agentPlatform")?.value.trim() || fields.platformOptions?.[0] || selectedAgent.goals?.[0] || "",
-    hold: $("#agentHold")?.value.trim() || "不需要",
+    scene: $("#agentScene")?.value.trim() || fields.scene || fields.sceneOptions?.[0] || selectedAgent.goals?.[0] || "",
+    platform: $("#agentPlatform")?.value.trim() || fields.platform || fields.platformOptions?.[0] || selectedAgent.goals?.[0] || "",
+    hold: $("#agentHold")?.value.trim() || fields.hold || "不需要",
     skills,
   };
 }
@@ -2253,7 +2268,7 @@ async function requestAgentPlan(values, revision) {
   return {
     ...makeAgentPlan(values, revision),
     ...plan,
-    values: { ...values, ...(plan.values || {}) },
+    values: { ...(plan.values || {}), ...values },
     revision,
     source: "gpt",
     textModel: data.model || textModel,
@@ -2339,7 +2354,7 @@ async function generateAgentPlan() {
   const values = agentPlan?.values || null;
   agentPlanRevision += 1;
   const nextValues = values || readAgentValues();
-  syncCustomAgentName(nextValues);
+  syncCustomAgentState(nextValues);
   const fallbackPlan = makeAgentPlan(nextValues, agentPlanRevision);
   els.applyAgent.disabled = true;
   els.applyAgent.textContent = "✣ 正在生成方案...";
@@ -2374,7 +2389,7 @@ function previewAgentVariantCard(variantId = "stable") {
 function applyAgentVariant(variantId = "stable") {
   if (!selectedAgent || !agentPlan) return;
   const variant = agentPlan.variants.find((item) => item.id === variantId) || agentPlan.variants[0];
-  syncCustomAgentName(agentPlan.values);
+  syncCustomAgentState(agentPlan.values);
   els.prompt.value = variant.prompt;
   if (!els.title.value.trim()) {
     els.title.value = selectedAgent.name;
