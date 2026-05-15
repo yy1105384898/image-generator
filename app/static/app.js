@@ -174,6 +174,8 @@ const GUIDE_STORAGE_KEY = "yangyangapi:onboarding:v1:completed";
 const CUSTOM_INDUSTRY_AGENTS_KEY = "yangyangapi:custom-industry-agents:v1";
 let submitInFlight = false;
 let activeSubmitRequestId = "";
+let preflightAnalysisInFlight = false;
+let preflightCancelled = false;
 
 function currentHistoryJob() {
   if (!selectedHistoryJobId || selectedHistoryJobId === NEW_TASK_DRAFT_ID) return null;
@@ -3072,8 +3074,14 @@ function setPreflightActionMode(active = false) {
 }
 
 function stopPreflight() {
+  preflightCancelled = true;
+  preflightAnalysisInFlight = false;
   window.clearInterval(preflightTimer);
   preflightTimer = 0;
+  if (els.submitJob) {
+    els.submitJob.disabled = false;
+    els.submitJob.textContent = "➤";
+  }
   if (els.preflightGenerate && !els.preflightGenerate.classList.contains("hidden")) {
     els.preflightGenerate.classList.add("paused");
     if (els.preflightSeconds) els.preflightSeconds.textContent = "0";
@@ -3108,12 +3116,7 @@ async function showAgentModePreflight() {
   }
 }
 
-function showPreflightGenerate() {
-  if (preflightTimer || submitInFlight) return;
-  preflightOriginalPrompt = els.prompt.value.trim();
-  agentModePlan = null;
-  showPromptAnalysis("preflight");
-  els.analysisResultTitle.textContent = "已完成预检";
+function startPreflightCountdown() {
   setPreflightActionMode(true);
   els.preflightGenerate?.classList.remove("hidden");
   els.preflightGenerate?.classList.remove("paused");
@@ -3136,8 +3139,45 @@ function showPreflightGenerate() {
   preflightTimer = window.setInterval(tick, 1000);
 }
 
+async function showPreflightGenerate() {
+  if (preflightTimer || submitInFlight || preflightAnalysisInFlight) return;
+  preflightCancelled = false;
+  preflightOriginalPrompt = els.prompt.value.trim();
+  agentModePlan = null;
+  showPromptAnalysis("preflight");
+  els.analysisResultTitle.textContent = "已完成预检";
+  const textModel = selectedTextModel();
+  els.preflightGenerate?.classList.remove("hidden");
+  els.preflightGenerate?.classList.remove("paused");
+  if (textModel) {
+    preflightAnalysisInFlight = true;
+    els.submitJob.disabled = true;
+    els.submitJob.textContent = "AI";
+    setPreflightActionMode(false);
+    els.analysisResultTitle.textContent = "正在调用文本 AI 预检";
+    setAnalysisReady("GPT 分析模型", `正在使用 ${selectedTextModelLabel()} 优化提示词和参数，完成后再进入自动生成倒计时。`);
+    if (els.preflightSeconds) els.preflightSeconds.textContent = "AI";
+    if (els.preflightText) els.preflightText.textContent = `正在使用 ${selectedTextModelLabel()} 做发送前优化...`;
+    if (els.preflightProgress) els.preflightProgress.style.width = "18%";
+    try {
+      const plan = await requestPromptAnalysis("preflight");
+      if (preflightCancelled) return;
+      showTextAiAnalysis(plan, preflightOriginalPrompt, "preflight");
+    } catch (err) {
+      if (preflightCancelled) return;
+      showPromptAnalysis("preflight");
+      setAnalysisReady("本地规则预检", `文本 AI 调用失败，已使用本地规则兜底：${err.message}`);
+    } finally {
+      preflightAnalysisInFlight = false;
+      els.submitJob.disabled = false;
+      els.submitJob.textContent = "➤";
+    }
+  }
+  startPreflightCountdown();
+}
+
 async function submitJob() {
-  if (submitInFlight || preflightTimer) return;
+  if (submitInFlight || preflightTimer || preflightAnalysisInFlight) return;
   const prompt = els.prompt.value.trim();
   if (!prompt) {
     els.prompt.focus();
@@ -3148,7 +3188,7 @@ async function submitJob() {
     return;
   }
   if (els.sendOptimize?.checked) {
-    showPreflightGenerate();
+    await showPreflightGenerate();
     return;
   }
   performSubmitJob(prompt);
