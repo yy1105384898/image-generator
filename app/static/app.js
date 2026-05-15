@@ -1566,6 +1566,13 @@ function selectedTextModel() {
   return (verifiedTextModels.length ? els.analysisModel?.value : els.manualTextModel?.value || "").trim();
 }
 
+function selectedTextModelLabel() {
+  const model = selectedTextModel();
+  if (model) return model;
+  if (debugTextRouteActive()) return "管理后台文本模型";
+  return "";
+}
+
 function selectedTextApiUrl() {
   if (debugTextRouteActive()) return (debugCustomApi.text?.apiUrl || selectedApiUrl()).trim();
   return (els.reuseTextApiUrl?.checked ? selectedApiUrl() : els.textApiUrl?.value || "").trim();
@@ -1600,6 +1607,23 @@ function renderAvailableModels(models = verifiedImageModels) {
     });
     els.availableModelList.append(button);
   }
+}
+
+function selectIndustryAgent(agent, { preserveCurrent = true } = {}) {
+  if (!agent) return;
+  const sameAgent = preserveCurrent && selectedAgent?.id === agent.id;
+  selectedAgent = agent;
+  if (!sameAgent) {
+    agentGenerated = false;
+    agentPlan = null;
+    agentPlanRevision = 0;
+    agentEnabled = false;
+    appliedAgentVariant = null;
+    previewAgentVariant = "stable";
+  }
+  agentComposerExpanded = true;
+  syncAgentEntry();
+  syncAgentComposer();
 }
 
 function setActionHidden(el, hidden) {
@@ -1682,15 +1706,7 @@ function renderAgentQuickList() {
       <small>${selected ? "已选" : "开启"}</small>
     `;
     button.addEventListener("click", () => {
-      selectedAgent = agent;
-      agentGenerated = false;
-      agentPlan = null;
-      agentPlanRevision = 0;
-      agentEnabled = false;
-      appliedAgentVariant = null;
-      agentComposerExpanded = true;
-      syncAgentEntry();
-      syncAgentComposer();
+      selectIndustryAgent(agent);
       setAgentPanel(true);
     });
     els.agentQuickList.append(button);
@@ -1743,14 +1759,7 @@ function renderAgentList() {
     <em>+</em>
   `;
   customButton.addEventListener("click", () => {
-    selectedAgent = addCustomIndustryAgent(inferCustomIndustryAgent(els.prompt?.value || ""));
-    agentGenerated = false;
-    agentPlan = null;
-    agentPlanRevision = 0;
-    agentEnabled = false;
-    appliedAgentVariant = null;
-    syncAgentEntry();
-    syncAgentComposer();
+    selectIndustryAgent(addCustomIndustryAgent(inferCustomIndustryAgent(els.prompt?.value || "")), { preserveCurrent: false });
     renderAgentPanel();
   });
   els.agentList.append(customButton);
@@ -1770,14 +1779,7 @@ function renderAgentList() {
     `;
     button.addEventListener("click", (event) => {
       if (event.target.closest("[data-delete-custom-agent]")) return;
-      selectedAgent = agent;
-      agentGenerated = false;
-      agentPlan = null;
-      agentPlanRevision = 0;
-      agentEnabled = false;
-      appliedAgentVariant = null;
-      syncAgentEntry();
-      syncAgentComposer();
+      selectIndustryAgent(agent);
       renderAgentPanel();
     });
     els.agentList.append(button);
@@ -2980,18 +2982,18 @@ async function performSubmitJob(promptOverride = "") {
   }
   submitInFlight = true;
   agentModePlan = null;
-  if (els.connectionMode.value === "pool" && !activePoolUser()) {
-    setConnectionStatus("请先登录号池账号", "error");
-    setModelStatus("请先登录号池账号", "error");
-    els.poolUsername?.focus();
-    return;
-  }
-  saveApiKeyPreference();
-  const numbers = normalizeGenerationNumbers();
-  activeSubmitRequestId = activeSubmitRequestId || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  els.submitJob.disabled = true;
-  els.submitJob.textContent = "…";
   try {
+    if (els.connectionMode.value === "pool" && !activePoolUser()) {
+      setConnectionStatus("请先登录号池账号", "error");
+      setModelStatus("请先登录号池账号", "error");
+      els.poolUsername?.focus();
+      return;
+    }
+    saveApiKeyPreference();
+    const numbers = normalizeGenerationNumbers();
+    activeSubmitRequestId = activeSubmitRequestId || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    els.submitJob.disabled = true;
+    els.submitJob.textContent = "…";
     const title = els.title.value.trim() || (agentEnabled && selectedAgent ? selectedAgent.name : "");
     const created = await api("/api/jobs", {
       method: "POST",
@@ -3033,8 +3035,24 @@ async function performSubmitJob(promptOverride = "") {
   } catch (err) {
     alert(err.message);
   } finally {
+    submitInFlight = false;
+    activeSubmitRequestId = "";
     els.submitJob.disabled = false;
     els.submitJob.textContent = "➤";
+  }
+}
+
+function setPreflightActionMode(active = false) {
+  if (!els.applyOptimizedPrompt) return;
+  els.applyOptimizedPrompt.textContent = active ? "✣ 立即使用优化版生成" : "✣ 应用优化提示词";
+  if (els.applyOptimizedParams) {
+    els.applyOptimizedParams.textContent = "☷ 应用推荐参数";
+    els.applyOptimizedParams.classList.toggle("hidden", active);
+  }
+  els.copyOptimizedPrompt?.classList.toggle("hidden", active);
+  if (els.continueOriginalPrompt) {
+    els.continueOriginalPrompt.textContent = active ? "原样立即生成" : "原样继续";
+    els.continueOriginalPrompt.classList.toggle("hidden", !active && (!els.promptAnalysisCard || els.promptAnalysisCard.classList.contains("hidden")));
   }
 }
 
@@ -3049,12 +3067,7 @@ function stopPreflight() {
   } else {
     els.preflightGenerate?.classList.add("hidden");
   }
-  if (!els.applyOptimizedPrompt) return;
-  els.applyOptimizedPrompt.textContent = "✣ 应用优化提示词";
-  els.applyOptimizedParams.textContent = "☷ 应用推荐参数";
-  if (!els.promptAnalysisCard || els.promptAnalysisCard.classList.contains("hidden")) {
-    els.continueOriginalPrompt?.classList.add("hidden");
-  }
+  setPreflightActionMode(false);
 }
 
 async function showAgentModePreflight() {
@@ -3086,9 +3099,7 @@ function showPreflightGenerate() {
   agentModePlan = null;
   showPromptAnalysis("preflight");
   els.analysisResultTitle.textContent = "已完成预检";
-  els.applyOptimizedPrompt.textContent = "✣ 使用优化版生成";
-  els.applyOptimizedParams.textContent = "☷ 应用推荐参数";
-  els.continueOriginalPrompt?.classList.remove("hidden");
+  setPreflightActionMode(true);
   els.preflightGenerate?.classList.remove("hidden");
   els.preflightGenerate?.classList.remove("paused");
   let remaining = 10;
@@ -3566,7 +3577,13 @@ function showPromptAnalysis(mode = "optimize") {
       ? risks.join(" ")
       : "当前提示词、参数和参考图配置可以直接生成；如需更强控制，可先应用优化版再发送。";
   }
-  setAnalysisReady("本地规则预检", "未配置或未调用文本模型时，使用本地规则完成预检；右侧 Agent 文本模型可接入 GPT 做更强分析。");
+  const textModelLabel = selectedTextModelLabel();
+  setAnalysisReady(
+    textModelLabel ? "本地快速预检" : "本地规则预检",
+    textModelLabel
+      ? `文本模型已配置（${textModelLabel}），本次发送倒计时使用本地快速预检；需要深度优化可点击优化提示词。`
+      : "未配置文本模型时，使用本地规则完成预检；右侧 Agent 文本模型可接入 GPT 做更强分析。"
+  );
   const styleTags = els.promptAnalysisCard?.querySelector(".analysis-style-tags");
   if (styleTags) {
     const skills = selectedAgent ? selectedPromptSkills() : defaultPromptSkills.custom.map((id) => ({ id, ...(promptSkillLibrary[id] || {}) })).filter((item) => item.name);
@@ -3619,6 +3636,7 @@ function closePromptAnalysis() {
   stopPreflight();
   els.promptAnalysisCard?.classList.add("hidden");
   els.composer?.classList.remove("analysis-open");
+  setPreflightActionMode(false);
 }
 
 function applyOptimizedPrompt() {
