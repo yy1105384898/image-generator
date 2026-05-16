@@ -2968,11 +2968,22 @@ function renderMedia() {
       ? `<img src="${escapeAttr(item.url)}" alt="${escapeAttr(item.prompt)}" loading="lazy">`
       : `<div class="failed-preview"><span>!</span><strong>生成失败</strong><div><button type="button" data-card-action="retry">重试</button><button type="button" data-card-action="details">详情</button></div></div>`;
     const referenceStrip = item.references?.length ? `
-        <div class="image-reference-strip">
-          <div class="image-reference-stack">${item.references.map((ref, index) => `<img src="${escapeAttr(ref.url)}" alt="${escapeAttr(ref.name || "参考图")}" title="${escapeAttr(ref.name || "参考图")}" style="--i:${index}">`).join("")}</div>
-          <span>${item.editMode ? "图生图参考" : "参考图"} · ${item.references.length}</span>
-          <button type="button" data-card-action="reuse-references" aria-label="复用参考图">↻</button>
-        </div>
+        <details class="image-reference-drawer">
+          <summary>
+            <span class="image-reference-stack">${item.references.map((ref, index) => `<img src="${escapeAttr(ref.url)}" alt="${escapeAttr(ref.name || "参考图")}" title="${escapeAttr(ref.name || "参考图")}" style="--i:${index}">`).join("")}</span>
+            <strong>${item.editMode ? "图生图参考" : "参考图"} · ${item.references.length}</strong>
+            <em>展开</em>
+          </summary>
+          <div class="image-reference-panel">
+            ${item.references.map((ref) => `
+              <figure>
+                <img src="${escapeAttr(ref.url)}" alt="${escapeAttr(ref.name || "参考图")}" loading="lazy">
+                <figcaption>${escapeHtml(ref.name || "参考图")}</figcaption>
+              </figure>
+            `).join("")}
+            <button type="button" data-card-action="reuse-references">复用参考图</button>
+          </div>
+        </details>
       ` : "";
     card.innerHTML = `
       <button class="image-select" type="button" aria-label="选择生成记录"><span>${selected ? "✓" : ""}</span></button>
@@ -3006,7 +3017,7 @@ function renderMedia() {
       toggleGalleryItem(item.id);
     });
     card.addEventListener("click", (event) => {
-      if (event.target.closest("a,button")) return;
+      if (event.target.closest("a,button,summary,details")) return;
       toggleGalleryItem(item.id);
     });
     card.querySelector('[data-card-action="reuse"]')?.addEventListener("click", () => {

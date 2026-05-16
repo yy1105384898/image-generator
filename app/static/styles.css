@@ -1187,7 +1187,7 @@ body.research-active .studio-view {
   border-color: #77aee8;
   box-shadow: 0 0 0 2px rgba(37,99,235,.15), 0 16px 38px rgba(17,17,17,.08);
 }
-.image-card img {
+.image-card > img {
   display: block;
   width: 100%;
   aspect-ratio: 1 / 1;
@@ -4915,21 +4915,31 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
   color: var(--muted);
   font-size: 18px;
 }
-.image-reference-strip {
-  display: flex;
+.image-reference-drawer {
+  border: 1px solid #e3e8df;
+  border-radius: 9px;
+  background: #fbfcfa;
+}
+.image-reference-drawer summary {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 7px;
-  min-height: 28px;
+  gap: 8px;
+  min-height: 34px;
+  padding: 4px 7px 4px 5px;
   color: var(--muted);
-  font-size: 12px;
-  font-weight: 780;
+  cursor: pointer;
+  list-style: none;
+}
+.image-reference-drawer summary::-webkit-details-marker {
+  display: none;
 }
 .image-reference-stack {
   display: flex;
   min-width: 56px;
   height: 26px;
 }
-.image-reference-strip img {
+.image-reference-stack img {
   width: 26px;
   height: 26px;
   margin-left: calc(var(--i, 0) * -10px);
@@ -4938,27 +4948,64 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
   object-fit: cover;
   box-shadow: 0 4px 10px rgba(17,17,17,.12);
 }
-.image-reference-strip img:first-child {
+.image-reference-stack img:first-child {
   margin-left: 0;
 }
-.image-reference-strip span {
+.image-reference-drawer summary strong {
   min-width: 0;
-  flex: 1;
   overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 820;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.image-reference-strip button {
+.image-reference-drawer summary em {
+  color: var(--green);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 860;
+}
+.image-reference-drawer[open] summary {
+  border-bottom: 1px solid #e8eee5;
+}
+.image-reference-panel {
   display: grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  padding: 7px;
+}
+.image-reference-panel figure {
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid #e4e9e0;
+  border-radius: 8px;
+  background: #fff;
+}
+.image-reference-panel img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+.image-reference-panel figcaption {
+  overflow: hidden;
+  padding: 4px 6px 5px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.image-reference-panel button {
+  grid-column: 1 / -1;
+  min-height: 30px;
+  border: 1px solid #cfe2d9;
+  border-radius: 8px;
   background: #fff;
   color: var(--green);
-  font-size: 15px;
-  font-weight: 900;
+  font-size: 12px;
+  font-weight: 860;
 }
 .composer-main {
     grid-template-columns: 36px minmax(56px, auto) minmax(0, 1fr) 36px 36px;
