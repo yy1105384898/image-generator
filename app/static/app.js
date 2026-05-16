@@ -1261,7 +1261,15 @@ function jobIndustry(job) {
       source: "agent",
     };
   }
+  if (Array.isArray(job.reference_ids) && job.reference_ids.length) {
+    return { id: "reference", name: "参考生图", variant: "", source: "reference" };
+  }
   return { id: "general", name: "通用生图", variant: "", source: "general" };
+}
+
+function titleMatchesIndustryAgent(title = "") {
+  const value = String(title || "").trim();
+  return Boolean(value && availableIndustryAgents().some((agent) => agent.name === value));
 }
 
 function syncTextApiKeyStatus(message = "") {
@@ -1312,6 +1320,9 @@ function scheduleTextModelRefresh({ immediate = false } = {}) {
 function displayJobTitle(job = {}) {
   const rawTitle = String(job.title || "").trim();
   const industry = jobIndustry(job);
+  if (rawTitle && industry.source !== "agent" && titleMatchesIndustryAgent(rawTitle)) {
+    return String(job.prompt || "").trim() || "未命名任务";
+  }
   const titleLooksLikeDifferentAgent = rawTitle
     && industry.source === "agent"
     && rawTitle !== industry.name
@@ -1800,14 +1811,9 @@ function renderAvailableModels(models = verifiedImageModels) {
 
 function selectIndustryAgent(agent, { preserveCurrent = true } = {}) {
   if (!agent) return;
-  const previousAgentName = selectedAgent?.name || "";
   const sameAgent = preserveCurrent && selectedAgent?.id === agent.id;
   selectedAgent = agent;
   if (!sameAgent) {
-    const currentTitle = els.title?.value.trim() || "";
-    if (els.title && (!currentTitle || currentTitle === previousAgentName)) {
-      els.title.value = agent.name;
-    }
     agentGenerated = false;
     agentPlan = null;
     agentPlanRevision = 0;
@@ -3130,7 +3136,7 @@ function renderMedia() {
     const selected = selectedGalleryIds.has(item.id);
     const agentLabel = item.agentName
       ? `✣ ${escapeHtml(item.agentName)} ${item.agentVariant ? variantLabel(item.agentVariant) : ""}`
-      : "✣ 通用生图";
+      : (item.references?.length ? "✣ 参考生图" : "✣ 通用生图");
     const card = document.createElement("article");
     card.className = `image-card ${item.status} ${selected ? "selected" : ""}`;
     const preview = item.url
@@ -3358,8 +3364,12 @@ async function performSubmitJob(promptOverride = "") {
     activeSubmitRequestId = activeSubmitRequestId || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     els.submitJob.disabled = true;
     els.submitJob.textContent = "…";
-    const title = els.title.value.trim() || (agentEnabled && selectedAgent ? selectedAgent.name : "");
     const activeAgent = agentEnabled && selectedAgent ? selectedAgent : null;
+    let title = els.title.value.trim();
+    if (!activeAgent && titleMatchesIndustryAgent(title)) {
+      title = "";
+    }
+    title = title || (activeAgent ? activeAgent.name : "");
     const created = await api("/api/jobs", {
       method: "POST",
       body: JSON.stringify({
@@ -3753,15 +3763,17 @@ async function uploadReference() {
     showReferenceLimitHint(`一次最多上传并选中 ${MAX_REFERENCE_SELECTION} 张参考图，已忽略后 ${files.length - MAX_REFERENCE_SELECTION} 张`);
   }
   const uploaded = [];
-  const originalButtonText = els.referenceUploadButton?.textContent || "↥";
   if (els.referenceUploadButton) {
     els.referenceUploadButton.disabled = true;
-    els.referenceUploadButton.textContent = `${uploadFiles.length}`;
+    els.referenceUploadButton.dataset.uploading = "true";
+    els.referenceUploadButton.querySelector(".upload-label")?.replaceChildren(document.createTextNode(`0/${uploadFiles.length}`));
   }
   try {
     for (let index = 0; index < uploadFiles.length; index += 1) {
       const file = uploadFiles[index];
-      if (els.referenceUploadButton) els.referenceUploadButton.textContent = `${index + 1}/${uploadFiles.length}`;
+      if (els.referenceUploadButton) {
+        els.referenceUploadButton.querySelector(".upload-label")?.replaceChildren(document.createTextNode(`${index + 1}/${uploadFiles.length}`));
+      }
       const form = new FormData();
       form.append("file", file);
       form.append("name", file.name);
@@ -3783,7 +3795,8 @@ async function uploadReference() {
     els.referenceUpload.value = "";
     if (els.referenceUploadButton) {
       els.referenceUploadButton.disabled = false;
-      els.referenceUploadButton.textContent = originalButtonText;
+      delete els.referenceUploadButton.dataset.uploading;
+      els.referenceUploadButton.querySelector(".upload-label")?.replaceChildren(document.createTextNode("参考图"));
     }
   }
   await loadState();

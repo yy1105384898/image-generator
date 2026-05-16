@@ -620,7 +620,16 @@
           </section>
           <div id="composerReferenceList" class="composer-reference-list hidden" aria-label="已选择参考图"></div>
           <div class="composer-main">
-            <button class="upload-button" id="referenceUploadButton" type="button">↥</button>
+            <button class="upload-button" id="referenceUploadButton" type="button" title="上传参考图" aria-label="上传参考图">
+              <span class="upload-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M5 7.6C5 6.2 6.2 5 7.6 5h8.8C17.8 5 19 6.2 19 7.6v8.8c0 1.4-1.2 2.6-2.6 2.6H7.6C6.2 19 5 17.8 5 16.4V7.6Z"></path>
+                  <path d="m8 15 2.7-3 2 2.1 1.5-1.7L17 15H8Z"></path>
+                  <path d="M16.5 4.5v5M14 7h5"></path>
+                </svg>
+              </span>
+              <span class="upload-label">参考图</span>
+            </button>
             <input id="referenceUpload" class="hidden-input" type="file" accept="image/*" multiple>
             <button class="preset-button" id="presetButton" type="button">✣ 预设</button>
             <textarea id="prompt" rows="1" placeholder="描述你想生成的图片..."></textarea>

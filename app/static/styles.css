@@ -2148,7 +2148,7 @@ body.research-active .studio-view {
 }
 .composer-main {
   display: grid;
-  grid-template-columns: 38px minmax(76px, auto) minmax(260px, 1fr) minmax(112px, max-content) 40px 40px;
+  grid-template-columns: minmax(86px, max-content) minmax(76px, auto) minmax(260px, 1fr) minmax(112px, max-content) 40px 40px;
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -2173,8 +2173,11 @@ body.research-active .studio-view {
 .upload-button,
 .send-button,
 .clear-prompt-button {
-  width: 38px;
   padding: 0;
+}
+.send-button,
+.clear-prompt-button {
+  width: 38px;
 }
 .preset-button {
   gap: 6px;
@@ -4848,7 +4851,7 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
   }
 
   .composer-main {
-    grid-template-columns: 40px minmax(0, 1fr) 42px 40px;
+    grid-template-columns: minmax(92px, max-content) minmax(0, 1fr) 42px 40px;
     align-items: center;
     gap: 8px;
     padding: 8px;
@@ -5297,7 +5300,7 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
   }
 
   .composer-main {
-    grid-template-columns: 34px minmax(68px, auto) minmax(240px, 1fr) minmax(104px, max-content) 38px 34px;
+    grid-template-columns: minmax(82px, max-content) minmax(68px, auto) minmax(240px, 1fr) minmax(104px, max-content) 38px 34px;
     gap: 6px;
     min-height: 52px;
     padding: 6px;
@@ -5314,10 +5317,14 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
     font-size: 12px;
   }
 
-  .upload-button,
   .send-button,
   .clear-prompt-button {
     width: 34px;
+  }
+
+  .upload-button {
+    min-width: 82px;
+    padding: 0 9px;
   }
 
   .preset-button,
@@ -5466,7 +5473,7 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
   .composer.has-prompt .composer-main,
   .composer.agent-applied .composer-main,
   .composer.agent-mode-enabled .composer-main {
-    grid-template-columns: 40px minmax(0, 1fr) 42px 40px;
+    grid-template-columns: minmax(92px, max-content) minmax(0, 1fr) 42px 40px;
   }
 
   .composer.has-prompt .preset-button,
@@ -5504,10 +5511,9 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
 }
 
 .composer-main {
-  grid-template-columns: 40px minmax(74px, max-content) minmax(180px, 1fr) minmax(124px, max-content) 42px 36px;
+  grid-template-columns: minmax(92px, max-content) minmax(74px, max-content) minmax(180px, 1fr) minmax(124px, max-content) 42px 36px;
 }
 
-.upload-button,
 .send-button,
 .clear-prompt-button {
   aspect-ratio: 1;
@@ -5515,10 +5521,42 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
 }
 
 .upload-button {
-  border-color: #a7d9ca;
-  background: linear-gradient(180deg, #f1fffb, #dff8ef);
-  box-shadow: inset 0 1px rgba(255,255,255,.78);
-  font-size: 18px;
+  gap: 7px;
+  min-width: 92px;
+  padding: 0 12px;
+  border-color: #7fcfb7;
+  background: linear-gradient(180deg, #eafff7, #c9f2e3);
+  box-shadow: 0 10px 24px rgba(20,111,92,.12), inset 0 1px rgba(255,255,255,.82);
+  font-size: 13px;
+}
+
+.upload-button .upload-icon {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 7px;
+  background: rgba(20,111,92,.1);
+}
+
+.upload-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.upload-button .upload-label {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: -.02em;
+}
+
+.upload-button[data-uploading="true"] {
+  opacity: .78;
 }
 
 .preset-button {
@@ -5534,7 +5572,7 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
 .composer.has-prompt .composer-main,
 .composer.agent-applied .composer-main,
 .composer.agent-mode-enabled .composer-main {
-  grid-template-columns: 40px minmax(74px, max-content) minmax(180px, 1fr) minmax(124px, max-content) 42px 36px;
+  grid-template-columns: minmax(92px, max-content) minmax(74px, max-content) minmax(180px, 1fr) minmax(124px, max-content) 42px 36px;
 }
 
 .composer.has-prompt .composer-main textarea,
@@ -7159,7 +7197,7 @@ body.research-active .research-workbench {
   .composer.has-prompt .composer-main,
   .composer.agent-applied .composer-main,
   .composer.agent-mode-enabled .composer-main {
-    grid-template-columns: 40px minmax(72px, max-content) minmax(0, 1fr) 42px;
+    grid-template-columns: minmax(92px, max-content) minmax(72px, max-content) minmax(0, 1fr) 42px;
     gap: 8px;
     padding: 8px;
     border-radius: 16px;
@@ -7352,7 +7390,7 @@ body.research-active .research-workbench {
   .composer.has-prompt .composer-main,
   .composer.agent-applied .composer-main,
   .composer.agent-mode-enabled .composer-main {
-    grid-template-columns: 40px minmax(0, 1fr) 42px 40px;
+    grid-template-columns: minmax(92px, max-content) minmax(0, 1fr) 42px 40px;
   }
 
   .preset-button {
