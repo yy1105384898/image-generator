@@ -3120,7 +3120,7 @@ function renderMedia() {
         ${item.status === "error" ? `<div class="image-error">${escapeHtml(item.error || "生成失败")}</div>` : ""}
         <p>${escapeHtml(item.prompt || "暂无提示词")}</p>
         <div class="image-actions">
-          ${item.url ? `<a href="${escapeAttr(item.url)}" target="_blank" rel="noopener">打开</a><a href="${escapeAttr(item.url)}" download>下载</a>` : ""}
+          ${item.url ? `<button type="button" data-card-action="preview">预览</button><a href="${escapeAttr(item.url)}" download>下载</a>` : ""}
           ${item.status === "error" ? `<button type="button" class="retry" data-card-action="retry">重试</button>` : ""}
           <button type="button" data-card-action="reuse">复用</button>
           ${item.references?.length ? `<button type="button" data-card-action="reuse-with-references" title="连同参考图一起复用">参考</button>` : ""}
@@ -3138,6 +3138,9 @@ function renderMedia() {
     card.addEventListener("click", (event) => {
       if (event.target.closest("a,button")) return;
       toggleGalleryItem(item.id);
+    });
+    card.querySelector('[data-card-action="preview"]')?.addEventListener("click", () => {
+      setMediaPreview(true, item);
     });
     card.querySelector('[data-card-action="reuse"]')?.addEventListener("click", () => {
       applyGalleryItemToPrompt(item, false);
