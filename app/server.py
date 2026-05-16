@@ -2872,6 +2872,31 @@ def call_prompt_analysis_text_model(api_url: str, api_key: str, model: str, payl
     return normalize_prompt_analysis_plan(extract_json_object(content), payload)
 
 
+def call_pool_text_model_once(
+    model: str,
+    messages: list[dict],
+    normalize,
+    payload,
+    requirements: dict | None = None,
+) -> tuple[dict, str]:
+    account = pick_pool_account()
+    token = account["access_token"]
+    try:
+        client = ChatGptImageClient(token)
+        client.bootstrap()
+        active_requirements = requirements or client.chat_requirements()
+        resp = client.start_text_generation(model, messages, active_requirements)
+        content = collect_pool_text_response(resp)
+        if not content:
+            raise RuntimeError("号池文本模型没有返回内容")
+        plan = normalize(extract_json_object(content), payload)
+        mark_pool_account_result(token, True)
+        return plan, model
+    except Exception as exc:
+        mark_pool_account_result(token, False, redact_secrets(str(exc)))
+        raise
+
+
 def call_agent_text_model(api_url: str, api_key: str, model: str, payload: dict) -> dict:
     api_base = normalize_api_base(api_url)
     headers = {"Content-Type": "application/json"}
@@ -3139,16 +3164,60 @@ def is_model_unavailable_error(exc: Exception) -> bool:
         or "no available channel" in text
         or "no channel" in text
         or "model not found" in text
+        or "model_not_available" in text
+        or "does not exist" in text and "model" in text
+        or "invalid model" in text
+        or "unsupported model" in text
     )
 
 
-def preferred_research_text_models(models: list[str], selected: str = "") -> list[str]:
+def parse_text_model_version(model: str) -> tuple[str, tuple[int, ...], str] | None:
+    value = str(model or "").strip().lower()
+    match = re.search(r"^(.*?)(\d+(?:[.-]\d+)*)(.*)$", value)
+    if not match:
+        return None
+    prefix, raw_version, suffix = match.groups()
+    numbers = tuple(int(part) for part in re.findall(r"\d+", raw_version))
+    return prefix, numbers, suffix
+
+
+def text_model_distance(selected: str, candidate: str) -> tuple[int, int, int, str]:
+    selected_parts = parse_text_model_version(selected)
+    candidate_parts = parse_text_model_version(candidate)
+    candidate_value = str(candidate or "").strip().lower()
+    if selected_parts and candidate_parts:
+        selected_prefix, selected_version, selected_suffix = selected_parts
+        candidate_prefix, candidate_version, candidate_suffix = candidate_parts
+        same_series = selected_prefix == candidate_prefix and selected_suffix == candidate_suffix
+        same_major = same_series and selected_version[:1] == candidate_version[:1]
+        width = max(len(selected_version), len(candidate_version))
+        selected_padded = selected_version + (0,) * (width - len(selected_version))
+        candidate_padded = candidate_version + (0,) * (width - len(candidate_version))
+        distance = sum(abs(a - b) for a, b in zip(selected_padded, candidate_padded))
+        if same_major and candidate_version < selected_version:
+            return (0, distance, -sum(candidate_padded), candidate_value)
+        if same_major:
+            return (1, distance, -sum(candidate_padded), candidate_value)
+        if same_series:
+            return (2, distance, -sum(candidate_padded), candidate_value)
+    return (9, 999, 0, candidate_value)
+
+
+def preferred_text_models(models: list[str], selected: str = "") -> list[str]:
     cleaned = []
     for model in models:
         model = str(model or "").strip()
         if model and model not in cleaned and is_text_model_id(model):
             cleaned.append(model)
-    priority = ["gpt-4.1-mini", "gpt-4o-mini", "gpt-5-mini", "gpt-4.1", "gpt-4o", "gpt-5"]
+    selected = str(selected or "").strip()
+    priority = []
+    if selected:
+        related = sorted(
+            [model for model in cleaned if model != selected],
+            key=lambda item: text_model_distance(selected, item),
+        )
+        priority.extend([model for model in related if text_model_distance(selected, model)[0] < 9])
+    priority.extend(["gpt-5.4", "gpt-5.3", "gpt-5.2", "gpt-5", "gpt-5-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini"])
     selected = str(selected or "").strip()
     ordered = []
     if selected and selected in cleaned:
@@ -3162,6 +3231,105 @@ def preferred_research_text_models(models: list[str], selected: str = "") -> lis
         if model not in ordered:
             ordered.append(model)
     return ordered
+
+
+def preferred_research_text_models(models: list[str], selected: str = "") -> list[str]:
+    return preferred_text_models(models, selected)
+
+
+def available_pool_text_models(selected: str = "") -> list[str]:
+    models = available_model_ids()
+    ordered = preferred_text_models(models, selected)
+    if ordered:
+        return ordered
+    selected = str(selected or "").strip()
+    return [selected] if selected and is_text_model_id(selected) else []
+
+
+def call_custom_text_model_with_fallback(
+    api_url: str,
+    api_key: str,
+    model: str,
+    payload: dict,
+    caller,
+) -> tuple[dict, str]:
+    errors = []
+    try:
+        return caller(api_url, api_key, model, payload), model
+    except Exception as exc:
+        if not is_model_unavailable_error(exc):
+            raise
+        errors.append(f"{model}: {exc}")
+    try:
+        model_list, _resolved_url, _route_kind = fetch_custom_models_by_kind("text", api_url, api_key)
+    except Exception as exc:
+        raise RuntimeError(redact_secrets("所选文本模型不可用，且刷新文本模型池失败：" + str(exc)))
+    candidates = [item for item in preferred_text_models(model_list, model) if item != model]
+    for candidate in candidates:
+        try:
+            return caller(api_url, api_key, candidate, payload), candidate
+        except Exception as exc:
+            errors.append(f"{candidate}: {exc}")
+            if not is_model_unavailable_error(exc):
+                break
+    raise RuntimeError(redact_secrets("文本模型池都不可用：" + " | ".join(errors[:6])))
+
+
+def call_custom_text_model_with_key_pool(
+    api_url: str,
+    api_keys: list[str],
+    model: str,
+    payload: dict,
+    caller,
+) -> tuple[dict, str]:
+    keys = [str(key or "").strip() for key in api_keys if str(key or "").strip()]
+    if not keys:
+        raise RuntimeError("文本模型 API Key 池为空")
+    errors = []
+    model_candidates: list[str] = [model]
+    model_list: list[str] = []
+    for key_index, key in enumerate(keys, 1):
+        for candidate in model_candidates:
+            try:
+                return caller(api_url, key, candidate, payload), candidate
+            except Exception as exc:
+                errors.append(f"Key {key_index} {mask_secret(key)} / {candidate}: {exc}")
+                if key_index == 1 and candidate == model and is_model_unavailable_error(exc):
+                    try:
+                        model_list, _resolved_url, _route_kind = fetch_custom_models_by_kind("text", api_url, "")
+                        model_candidates = preferred_text_models(model_list, model) or [model]
+                    except Exception:
+                        model_candidates = [model]
+                continue
+    for candidate in [item for item in preferred_text_models(model_list, model) if item != model]:
+        for key_index, key in enumerate(keys, 1):
+            try:
+                return caller(api_url, key, candidate, payload), candidate
+            except Exception as exc:
+                errors.append(f"Key {key_index} {mask_secret(key)} / {candidate}: {exc}")
+                if not is_model_unavailable_error(exc):
+                    continue
+    raise RuntimeError(redact_secrets("文本模型 Key 池都不可用：" + " | ".join(errors[:8])))
+
+
+def call_pool_text_model_with_fallback(
+    model: str,
+    messages: list[dict],
+    normalize,
+    payload,
+) -> tuple[dict, str]:
+    errors = []
+    candidates = available_pool_text_models(model)
+    if model and model not in candidates:
+        candidates.insert(0, model)
+    for candidate in candidates:
+        try:
+            return call_pool_text_model_once(candidate, messages, normalize, payload)
+        except Exception as exc:
+            errors.append(f"{candidate}: {exc}")
+            if not is_model_unavailable_error(exc):
+                raise
+    raise RuntimeError(redact_secrets("号池文本模型池都不可用：" + " | ".join(errors[:6])))
 
 
 def call_research_text_model_with_fallback(api_url: str, api_key: str, model: str, payload: dict) -> tuple[dict, str]:
@@ -4101,14 +4269,25 @@ def agent_plan():
                 return pool_error
             if not pool_available_accounts():
                 return jsonify({"ok": False, "error": "本地号池没有可用账号", "detail": "请先到管理后台导入并刷新可用号池账号"}), 200
-            plan = call_agent_text_model_with_pool(model, payload)
+            plan, model = call_pool_text_model_with_fallback(
+                model,
+                build_agent_plan_messages(payload),
+                lambda plan, values: normalize_agent_plan(plan, values.get("values") if isinstance(values.get("values"), dict) else {}),
+                payload,
+            )
         else:
-            api_url, api_key, _used_debug_key, _route_kind = resolve_custom_api_credentials(api_url, api_key, "text")
+            requested_api_key = api_key
+            api_url, api_key, used_debug_key, _route_kind = resolve_custom_api_credentials(api_url, api_key, "text")
             if not api_url:
                 return jsonify({"error": "请先填写文本模型 API URL"}), 400
             if not api_key:
                 return jsonify({"error": "请先填写文本模型 API Key"}), 400
-            plan = call_agent_text_model(api_url, api_key, model, payload)
+            if used_debug_key and not requested_api_key:
+                route_url, route_keys, _route_kind = custom_model_route_key_pool(read_model_config(), "text", include_legacy=True)
+                api_url = route_url or api_url
+                plan, model = call_custom_text_model_with_key_pool(api_url, route_keys or [api_key], model, payload, call_agent_text_model)
+            else:
+                plan, model = call_custom_text_model_with_fallback(api_url, api_key, model, payload, call_agent_text_model)
         return jsonify({"ok": True, "plan": plan, "model": model})
     except Exception as exc:
         return jsonify({"ok": False, "error": "Agent 文本模型生成失败", "detail": redact_secrets(str(exc))}), 200
@@ -4134,30 +4313,28 @@ def agent_mode_plan():
                 return pool_error
             if not pool_available_accounts():
                 return jsonify({"ok": False, "error": "本地号池没有可用账号", "detail": "请先到管理后台导入并刷新可用号池账号"}), 200
-            account = pick_pool_account()
-            token = account["access_token"]
-            try:
-                client = ChatGptImageClient(token)
-                resp = client.start_text_generation(model, build_agent_mode_messages(payload), {"reasoning_effort": "low"})
-                content = collect_pool_text_response(resp)
-                if not content:
-                    raise RuntimeError("号池文本模型没有返回内容")
-                plan = normalize_agent_mode_plan(extract_json_object(content), str(payload.get("prompt") or ""))
-                mark_pool_account_result(token, True)
-            except Exception as exc:
-                mark_pool_account_result(token, False, redact_secrets(str(exc)))
-                raise
+            plan, model = call_pool_text_model_with_fallback(
+                model,
+                build_agent_mode_messages(payload),
+                lambda plan, _payload: normalize_agent_mode_plan(plan, str(payload.get("prompt") or "")),
+                payload,
+            )
         else:
-            api_url, api_key, _used_debug_key, _route_kind = resolve_custom_api_credentials(api_url, api_key, "text")
+            requested_api_key = api_key
+            api_url, api_key, used_debug_key, _route_kind = resolve_custom_api_credentials(api_url, api_key, "text")
             if not api_url:
                 return jsonify({"error": "请先填写文本模型 API URL"}), 400
             if not api_key:
                 return jsonify({"error": "请先填写文本模型 API Key"}), 400
-            plan = call_agent_mode_text_model(api_url, api_key, model, payload)
+            if used_debug_key and not requested_api_key:
+                route_url, route_keys, _route_kind = custom_model_route_key_pool(read_model_config(), "text", include_legacy=True)
+                api_url = route_url or api_url
+                plan, model = call_custom_text_model_with_key_pool(api_url, route_keys or [api_key], model, payload, call_agent_mode_text_model)
+            else:
+                plan, model = call_custom_text_model_with_fallback(api_url, api_key, model, payload, call_agent_mode_text_model)
         return jsonify({"ok": True, "plan": plan, "model": model})
     except Exception as exc:
         return jsonify({"ok": False, "error": "Agent 模式 A 拆解失败", "detail": redact_secrets(str(exc))}), 200
-
 
 @app.post("/api/prompt-analysis")
 def prompt_analysis():
@@ -4179,30 +4356,28 @@ def prompt_analysis():
                 return pool_error
             if not pool_available_accounts():
                 return jsonify({"ok": False, "error": "本地号池没有可用账号", "detail": "请先到管理后台导入并刷新可用号池账号"}), 200
-            account = pick_pool_account()
-            token = account["access_token"]
-            try:
-                client = ChatGptImageClient(token)
-                resp = client.start_text_generation(model, build_prompt_analysis_messages(payload), {"reasoning_effort": "low"})
-                content = collect_pool_text_response(resp)
-                if not content:
-                    raise RuntimeError("号池文本模型没有返回内容")
-                plan = normalize_prompt_analysis_plan(extract_json_object(content), payload)
-                mark_pool_account_result(token, True)
-            except Exception as exc:
-                mark_pool_account_result(token, False, redact_secrets(str(exc)))
-                raise
+            plan, model = call_pool_text_model_with_fallback(
+                model,
+                build_prompt_analysis_messages(payload),
+                normalize_prompt_analysis_plan,
+                payload,
+            )
         else:
-            api_url, api_key, _used_debug_key, _route_kind = resolve_custom_api_credentials(api_url, api_key, "text")
+            requested_api_key = api_key
+            api_url, api_key, used_debug_key, _route_kind = resolve_custom_api_credentials(api_url, api_key, "text")
             if not api_url:
                 return jsonify({"error": "请先填写文本模型 API URL"}), 400
             if not api_key:
                 return jsonify({"error": "请先填写文本模型 API Key"}), 400
-            plan = call_prompt_analysis_text_model(api_url, api_key, model, payload)
+            if used_debug_key and not requested_api_key:
+                route_url, route_keys, _route_kind = custom_model_route_key_pool(read_model_config(), "text", include_legacy=True)
+                api_url = route_url or api_url
+                plan, model = call_custom_text_model_with_key_pool(api_url, route_keys or [api_key], model, payload, call_prompt_analysis_text_model)
+            else:
+                plan, model = call_custom_text_model_with_fallback(api_url, api_key, model, payload, call_prompt_analysis_text_model)
         return jsonify({"ok": True, "plan": plan, "model": model})
     except Exception as exc:
         return jsonify({"ok": False, "error": "文本分析失败", "detail": redact_secrets(str(exc))}), 200
-
 
 @app.post("/api/research-plan")
 def research_plan():
@@ -4228,7 +4403,12 @@ def research_plan():
                 return pool_error
             if not pool_available_accounts():
                 return jsonify({"ok": False, "error": "本地号池没有可用账号", "detail": "请先到管理员后台导入并刷新可用号池账号"}), 200
-            plan = call_research_text_model_with_pool(model, payload)
+            plan, model = call_pool_text_model_with_fallback(
+                model,
+                build_research_plan_messages(payload),
+                normalize_research_plan,
+                payload,
+            )
         else:
             requested_api_key = api_key
             api_url, api_key, used_debug_key, _route_kind = resolve_custom_api_credentials(api_url, api_key, "text")
