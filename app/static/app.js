@@ -1,4 +1,4 @@
-let state = { jobs: [], media: [], subjects: [], references: [], presets: [], models: [] };
+﻿let state = { jobs: [], media: [], subjects: [], references: [], presets: [], models: [] };
 let selectedReferenceIds = new Set();
 let selectedGalleryIds = new Set();
 let selectedHistoryJobId = null;
@@ -7,6 +7,7 @@ let historyExpanded = true;
 const historyDayOpen = new Map();
 const historyIndustryOpen = new Map();
 const NEW_TASK_DRAFT_ID = "__new_task__";
+const MAX_REFERENCE_SELECTION = 4;
 
 const $ = (sel) => document.querySelector(sel);
 const els = {
@@ -2779,6 +2780,13 @@ function galleryItems() {
     ? state.jobs.filter((job) => job.id === selectedHistoryJobId)
     : state.jobs;
   const jobById = new Map(state.jobs.map((job) => [job.id, job]));
+  const referencesById = new Map(state.references.map((ref) => [ref.id, ref]));
+  const jobReferences = (job = {}, media = {}) => {
+    const ids = Array.isArray(media.reference_ids) && media.reference_ids.length
+      ? media.reference_ids
+      : (Array.isArray(job.reference_ids) ? job.reference_ids : []);
+    return ids.map((id) => referencesById.get(id)).filter(Boolean).slice(0, MAX_REFERENCE_SELECTION);
+  };
   const agentInfo = (job = {}) => {
     const enabled = Boolean(job.agent_enabled);
     return {
@@ -2808,6 +2816,8 @@ function galleryItems() {
       size: requestedSize,
       actual_size: actualSize,
       quality: media.quality || job.quality || "auto",
+      references: jobReferences(job, media),
+      editMode: Boolean(media.edit_mode || job.edit_mode),
       ...agentInfo(job),
     };
   });
@@ -2831,6 +2841,8 @@ function galleryItems() {
         resolution: job.resolution || "1K",
         size: job.size || "1024x1024",
         quality: job.quality || "auto",
+        references: jobReferences(job),
+        editMode: Boolean(job.edit_mode),
         ...agentInfo(job),
       }));
     });
@@ -2900,6 +2912,18 @@ function toggleGalleryItem(itemId) {
   renderMedia();
 }
 
+function reuseItemReferences(item) {
+  const refs = Array.isArray(item?.references) ? item.references : [];
+  if (!refs.length) {
+    showReferenceLimitHint("这张图没有可复用的参考图记录");
+    return;
+  }
+  selectedReferenceIds = new Set(refs.slice(0, MAX_REFERENCE_SELECTION).map((ref) => ref.id));
+  renderReferences();
+  showReferenceLimitHint(`已复用 ${selectedReferenceIds.size} 张参考图`);
+  els.prompt?.focus();
+}
+
 function renderMedia() {
   const items = galleryItems();
   selectedGalleryIds = new Set([...selectedGalleryIds].filter((id) => items.some((item) => item.id === id)));
@@ -2943,6 +2967,12 @@ function renderMedia() {
     const preview = item.url
       ? `<img src="${escapeAttr(item.url)}" alt="${escapeAttr(item.prompt)}" loading="lazy">`
       : `<div class="failed-preview"><span>!</span><strong>生成失败</strong><div><button type="button" data-card-action="retry">重试</button><button type="button" data-card-action="details">详情</button></div></div>`;
+    const referenceStrip = item.references?.length ? `
+        <div class="image-reference-strip">
+          <div>${item.references.map((ref) => `<img src="${escapeAttr(ref.url)}" alt="${escapeAttr(ref.name || "参考图")}" title="${escapeAttr(ref.name || "参考图")}">`).join("")}</div>
+          <button type="button" data-card-action="reuse-references">复用参考图</button>
+        </div>
+      ` : "";
     card.innerHTML = `
       <button class="image-select" type="button" aria-label="选择生成记录"><span>${selected ? "✓" : ""}</span></button>
       <span class="image-index">#${escapeHtml(item.index || 1)}</span>
@@ -2960,6 +2990,7 @@ function renderMedia() {
           ${item.quality && item.quality !== "auto" ? `<span>${escapeHtml(item.quality)}</span>` : ""}
         </div>
         ${item.agentName ? `<div class="image-agent-tag">✣ ${escapeHtml(item.agentName)} ${item.agentVariant ? variantLabel(item.agentVariant) : ""}</div>` : ""}
+        ${referenceStrip}
         ${item.status === "error" ? `<div class="image-error">${escapeHtml(item.error || "生成失败")}</div>` : ""}
         <p>${escapeHtml(item.prompt || "暂无提示词")}</p>
         <div class="image-actions">
@@ -2979,8 +3010,13 @@ function renderMedia() {
     });
     card.querySelector('[data-card-action="reuse"]')?.addEventListener("click", () => {
       els.prompt.value = item.prompt || "";
+      if (item.references?.length) {
+        selectedReferenceIds = new Set(item.references.slice(0, MAX_REFERENCE_SELECTION).map((ref) => ref.id));
+        renderReferences();
+      }
       syncSummary();
     });
+    card.querySelector('[data-card-action="reuse-references"]')?.addEventListener("click", () => reuseItemReferences(item));
     card.querySelector('[data-card-action="details"]')?.addEventListener("click", () => {
       alert(item.error || "生成失败");
     });
@@ -3011,8 +3047,10 @@ function renderReferences() {
     btn.addEventListener("click", () => {
       if (selectedReferenceIds.has(ref.id)) {
         selectedReferenceIds.delete(ref.id);
-      } else if (selectedReferenceIds.size < 4) {
+      } else if (selectedReferenceIds.size < MAX_REFERENCE_SELECTION) {
         selectedReferenceIds.add(ref.id);
+      } else {
+        showReferenceLimitHint();
       }
       renderReferences();
     });
@@ -3020,8 +3058,11 @@ function renderReferences() {
   }
   const selectedRefs = state.references.filter((ref) => selectedReferenceIds.has(ref.id));
   if (els.referenceSendSummary) {
-    els.referenceSendSummary.textContent = `将发送参考图 ${selectedRefs.length}/${state.references.length}`;
+    els.referenceSendSummary.textContent = selectedRefs.length
+      ? `将发送参考图 ${selectedRefs.length}/${MAX_REFERENCE_SELECTION}`
+      : "";
     els.referenceSendSummary.classList.toggle("hidden", !selectedRefs.length);
+    els.referenceSendSummary.classList.toggle("limit", selectedRefs.length >= MAX_REFERENCE_SELECTION);
   }
   if (!els.composerReferenceList) return;
   els.composerReferenceList.classList.toggle("hidden", !selectedRefs.length);
@@ -3067,6 +3108,36 @@ function renderState() {
   renderPoolUser();
   syncResearchOutputsFromState();
   syncSummary();
+}
+
+function showReferenceLimitHint(message = `最多同时发送 ${MAX_REFERENCE_SELECTION} 张参考图`) {
+  if (!els.referenceSendSummary) {
+    alert(message);
+    return;
+  }
+  const previous = els.referenceSendSummary.textContent;
+  els.referenceSendSummary.textContent = message;
+  els.referenceSendSummary.classList.remove("hidden");
+  els.referenceSendSummary.classList.add("limit");
+  window.setTimeout(() => {
+    const selectedCount = selectedReferenceIds.size;
+    els.referenceSendSummary.textContent = selectedCount
+      ? `将发送参考图 ${selectedCount}/${MAX_REFERENCE_SELECTION}`
+      : previous;
+    els.referenceSendSummary.classList.toggle("hidden", !selectedCount);
+    els.referenceSendSummary.classList.toggle("limit", selectedCount >= MAX_REFERENCE_SELECTION);
+  }, 1800);
+}
+
+function addSelectedReferenceId(id) {
+  if (!id) return false;
+  if (selectedReferenceIds.has(id)) return true;
+  if (selectedReferenceIds.size >= MAX_REFERENCE_SELECTION) {
+    const first = selectedReferenceIds.values().next().value;
+    if (first) selectedReferenceIds.delete(first);
+  }
+  selectedReferenceIds.add(id);
+  return true;
 }
 
 async function loadState() {
@@ -3148,7 +3219,7 @@ async function performSubmitJob(promptOverride = "") {
         seed: els.seed.value.trim(),
         negative: els.negative.value.trim(),
         variants: buildVariants(),
-        reference_ids: Array.from(selectedReferenceIds),
+        reference_ids: Array.from(selectedReferenceIds).slice(0, MAX_REFERENCE_SELECTION),
         edit_mode: Boolean(els.editMode.checked || selectedReferenceIds.size),
       }),
     });
@@ -3452,24 +3523,50 @@ async function refreshModels({ silent = false } = {}) {
 }
 
 async function uploadReference() {
-  const file = els.referenceUpload.files && els.referenceUpload.files[0];
-  if (!file) return;
-  const form = new FormData();
-  form.append("file", file);
-  form.append("name", file.name);
-  const resp = await fetch("/api/references", {
-    method: "POST",
-    headers: { "X-YY-Client-ID": clientId },
-    body: form,
-  });
-  const data = await resp.json();
-  if (!resp.ok) {
-    alert(data.error || "上传失败");
-    return;
+  const files = Array.from(els.referenceUpload.files || []).filter((file) => file && file.type.startsWith("image/"));
+  if (!files.length) return;
+  const uploadFiles = files.slice(0, MAX_REFERENCE_SELECTION);
+  if (files.length > MAX_REFERENCE_SELECTION) {
+    showReferenceLimitHint(`一次最多上传并选中 ${MAX_REFERENCE_SELECTION} 张参考图，已忽略后 ${files.length - MAX_REFERENCE_SELECTION} 张`);
   }
-  selectedReferenceIds.add(data.reference.id);
-  els.referenceUpload.value = "";
+  const uploaded = [];
+  const originalButtonText = els.referenceUploadButton?.textContent || "↥";
+  if (els.referenceUploadButton) {
+    els.referenceUploadButton.disabled = true;
+    els.referenceUploadButton.textContent = `${uploadFiles.length}`;
+  }
+  try {
+    for (let index = 0; index < uploadFiles.length; index += 1) {
+      const file = uploadFiles[index];
+      if (els.referenceUploadButton) els.referenceUploadButton.textContent = `${index + 1}/${uploadFiles.length}`;
+      const form = new FormData();
+      form.append("file", file);
+      form.append("name", file.name);
+      const resp = await fetch("/api/references", {
+        method: "POST",
+        headers: { "X-YY-Client-ID": clientId },
+        body: form,
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        throw new Error(data.error || `${file.name} 上传失败`);
+      }
+      uploaded.push(data.reference);
+      addSelectedReferenceId(data.reference.id);
+    }
+  } catch (err) {
+    alert(err.message || "参考图上传失败");
+  } finally {
+    els.referenceUpload.value = "";
+    if (els.referenceUploadButton) {
+      els.referenceUploadButton.disabled = false;
+      els.referenceUploadButton.textContent = originalButtonText;
+    }
+  }
   await loadState();
+  if (uploaded.length && files.length > MAX_REFERENCE_SELECTION) {
+    showReferenceLimitHint(`已上传并选中前 ${MAX_REFERENCE_SELECTION} 张参考图`);
+  }
 }
 
 async function clearMedia() {
@@ -4816,7 +4913,7 @@ async function submitResearchGenerationJob(sourceNode = null) {
         variants: buildVariants(),
         prompt_variants: isBatch ? promptVariants : [],
         research_project_signature: projectSignature,
-        reference_ids: Array.from(selectedReferenceIds),
+        reference_ids: Array.from(selectedReferenceIds).slice(0, MAX_REFERENCE_SELECTION),
         edit_mode: Boolean(selectedReferenceIds.size),
       }),
     });

@@ -4912,6 +4912,39 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
   color: var(--muted);
   font-size: 22px;
 }
+.image-reference-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f7faf6;
+}
+.image-reference-strip > div {
+  display: flex;
+  min-width: 0;
+  gap: 5px;
+}
+.image-reference-strip img {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 1px solid #d7ded6;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.image-reference-strip button {
+  min-height: 30px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 880;
+}
 .composer-main {
     grid-template-columns: 36px minmax(56px, auto) minmax(0, 1fr) 36px 36px;
   }

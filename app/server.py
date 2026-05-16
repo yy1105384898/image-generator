@@ -2317,6 +2317,8 @@ def save_image_payload(job_id: str, index: int, image_payload: dict, prompt: str
         "height": height,
         "quality": str(job.get("quality") or "auto"),
         "output_format": str(job.get("output_format") or "png"),
+        "reference_ids": [str(v).strip() for v in job.get("reference_ids", []) if str(v).strip()][:4],
+        "edit_mode": bool(job.get("edit_mode")),
         "created_at": now_ts(),
     }
 
