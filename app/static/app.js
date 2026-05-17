@@ -451,6 +451,14 @@ function roundToMultiple(value, multiple = 16) {
   return Math.max(multiple, Math.round(Number(value || 0) / multiple) * multiple);
 }
 
+function ceilToMultiple(value, multiple = 16) {
+  return Math.max(multiple, Math.ceil(Number(value || 0) / multiple) * multiple);
+}
+
+function floorToMultiple(value, multiple = 16) {
+  return Math.max(multiple, Math.floor(Number(value || 0) / multiple) * multiple);
+}
+
 function gptImage2SizeFor(aspectRatio, resolution) {
   const [rw, rh] = String(aspectRatio || "1:1").split(":").map(Number);
   let ratioW = Number.isFinite(rw) && rw > 0 ? rw : 1;
@@ -473,18 +481,18 @@ function gptImage2SizeFor(aspectRatio, resolution) {
   height = roundToMultiple(height);
   if (width * height < GPT_IMAGE_2_MIN_PIXELS) {
     const scale = Math.sqrt(GPT_IMAGE_2_MIN_PIXELS / Math.max(1, width * height));
-    width = roundToMultiple(width * scale);
-    height = roundToMultiple(height * scale);
+    width = ceilToMultiple(width * scale);
+    height = ceilToMultiple(height * scale);
   }
   if (width * height > GPT_IMAGE_2_MAX_PIXELS || Math.max(width, height) > GPT_IMAGE_2_MAX_EDGE) {
     const scale = Math.min(GPT_IMAGE_2_MAX_EDGE / Math.max(width, height), Math.sqrt(GPT_IMAGE_2_MAX_PIXELS / Math.max(1, width * height)));
-    width = roundToMultiple(width * scale);
-    height = roundToMultiple(height * scale);
+    width = floorToMultiple(width * scale);
+    height = floorToMultiple(height * scale);
   }
   if (Math.max(width, height) > GPT_IMAGE_2_MAX_EDGE || width * height > GPT_IMAGE_2_MAX_PIXELS) {
     const scale = Math.min(GPT_IMAGE_2_MAX_EDGE / Math.max(width, height), Math.sqrt(GPT_IMAGE_2_MAX_PIXELS / (width * height)));
-    width = roundToMultiple(width * scale);
-    height = roundToMultiple(height * scale);
+    width = floorToMultiple(width * scale);
+    height = floorToMultiple(height * scale);
   }
   return `${width}x${height}`;
 }

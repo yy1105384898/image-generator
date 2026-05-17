@@ -2,6 +2,7 @@ import base64
 import hashlib
 import ipaddress
 import json
+import math
 import mimetypes
 import os
 import queue
@@ -1480,6 +1481,14 @@ def round_multiple(value: float, multiple: int = 16) -> int:
     return max(multiple, int(round(float(value) / multiple)) * multiple)
 
 
+def ceil_multiple(value: float, multiple: int = 16) -> int:
+    return max(multiple, int(math.ceil(float(value) / multiple)) * multiple)
+
+
+def floor_multiple(value: float, multiple: int = 16) -> int:
+    return max(multiple, int(math.floor(float(value) / multiple)) * multiple)
+
+
 def legalize_gpt_image_2_size(size: str, aspect_ratio: str = "1:1", resolution: str = "1K") -> str:
     ratio_match = re.match(r"^\s*(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)\s*$", str(aspect_ratio or "1:1"))
     if ratio_match:
@@ -1506,12 +1515,12 @@ def legalize_gpt_image_2_size(size: str, aspect_ratio: str = "1:1", resolution: 
     width = round_multiple(width)
     height = round_multiple(height)
     min_scale = max(1.0, (GPT_IMAGE_2_MIN_PIXELS / max(1, width * height)) ** 0.5)
-    width = round_multiple(width * min_scale)
-    height = round_multiple(height * min_scale)
+    width = ceil_multiple(width * min_scale)
+    height = ceil_multiple(height * min_scale)
     if max(width, height) > GPT_IMAGE_2_MAX_EDGE or width * height > GPT_IMAGE_2_MAX_PIXELS:
         scale = min(GPT_IMAGE_2_MAX_EDGE / max(width, height), (GPT_IMAGE_2_MAX_PIXELS / max(1, width * height)) ** 0.5)
-        width = round_multiple(width * scale)
-        height = round_multiple(height * scale)
+        width = floor_multiple(width * scale)
+        height = floor_multiple(height * scale)
     return f"{width}x{height}"
 
 
