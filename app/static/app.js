@@ -2790,6 +2790,12 @@ function applyAgentVariant(variantId = "stable") {
     els.quality.value = "high";
   }
   els.negative.value = selectedAgent.negative;
+  if (selectedReferenceIds.size) {
+    selectedReferenceIds.clear();
+    referenceAspectAutoValue = "";
+    referenceAspectAutoEnabled = true;
+    renderReferences();
+  }
   agentEnabled = true;
   appliedAgentVariant = variant.id;
   agentComposerExpanded = true;
@@ -3327,6 +3333,7 @@ function renderMedia() {
     const agentLabel = item.agentName
       ? `✣ ${escapeHtml(item.agentName)} ${item.agentVariant ? variantLabel(item.agentVariant) : ""}`
       : (item.references?.length ? "✣ 参考生图" : "✣ 通用生图");
+    const canReuseReferences = Boolean(item.editMode && item.references?.length);
     const card = document.createElement("article");
     card.className = `image-card ${item.status} ${selected ? "selected" : ""}`;
     const preview = item.url
@@ -3355,7 +3362,7 @@ function renderMedia() {
           ${item.url ? `<button type="button" data-card-action="preview">预览</button><a href="${escapeAttr(item.url)}" download>下载</a>` : ""}
           ${item.status === "error" ? `<button type="button" class="retry" data-card-action="retry">重试</button>` : ""}
           <button type="button" data-card-action="reuse">复用</button>
-          ${item.references?.length ? `<button type="button" data-card-action="reuse-with-references" title="连同参考图一起复用">参考图复用</button>` : ""}
+          ${canReuseReferences ? `<button type="button" data-card-action="reuse-with-references" title="连同参考图一起复用">参考图复用</button>` : ""}
         </div>
       </div>
     `;
@@ -6443,6 +6450,9 @@ els.newTask.addEventListener("click", () => {
   els.prompt.value = "";
   els.title.value = "";
   selectedReferenceIds.clear();
+  referenceAspectAutoValue = "";
+  referenceAspectAutoEnabled = true;
+  renderReferences();
   renderState();
   syncSummary();
 });
