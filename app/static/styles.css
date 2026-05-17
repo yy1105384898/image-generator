@@ -1292,9 +1292,9 @@ body.research-active .studio-view {
 }
 .image-card-body {
   display: grid;
-  grid-template-rows: 24px 24px 24px 32px 68px;
+  grid-template-rows: auto auto auto minmax(32px, auto) auto;
   gap: 8px;
-  min-height: 216px;
+  min-height: 232px;
   padding: 10px;
 }
 .image-card-line {
@@ -1329,12 +1329,13 @@ body.research-active .studio-view {
   gap: 5px;
 }
 .image-badges {
-  min-height: 22px;
-  overflow: hidden;
+  min-height: 24px;
+  overflow: visible;
 }
 .image-badges span,
 .image-agent-tag {
   min-height: 22px;
+  max-width: 100%;
   align-items: center;
   padding: 0 6px;
   border-radius: 999px;
@@ -1342,6 +1343,7 @@ body.research-active .studio-view {
   color: var(--muted);
   font-size: 12px;
   font-weight: 820;
+  line-height: 1.15;
 }
 .image-agent-tag {
   grid-row: 3;
@@ -1355,9 +1357,11 @@ body.research-active .studio-view {
   white-space: nowrap;
 }
 .image-error {
-  grid-row: 3;
+  grid-row: auto;
   overflow: hidden;
-  padding: 3px 8px;
+  display: block;
+  min-width: 0;
+  padding: 6px 9px;
   border: 1px solid #ffb8b2;
   border-radius: 8px;
   background: #fff0ef;
@@ -1368,7 +1372,7 @@ body.research-active .studio-view {
   white-space: nowrap;
 }
 .image-card p {
-  grid-row: 4;
+  grid-row: auto;
   overflow: hidden;
   display: -webkit-box;
   min-height: 32px;
@@ -1381,7 +1385,7 @@ body.research-active .studio-view {
 }
 .image-actions {
   display: grid;
-  grid-row: 5;
+  grid-row: auto;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-auto-rows: 30px;
   align-self: end;
@@ -1411,6 +1415,23 @@ body.research-active .studio-view {
   grid-column: 1 / -1;
   min-width: 0;
   margin-top: 2px;
+}
+.image-actions-error {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 34px;
+  min-height: 78px;
+}
+.image-actions-error a,
+.image-actions-error button {
+  min-height: 34px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 840;
+}
+.image-actions-error [data-card-action="reuse-with-references"] {
+  grid-column: 1 / -1;
+  min-height: 36px;
+  margin-top: 0;
 }
 
 .media-preview-modal {

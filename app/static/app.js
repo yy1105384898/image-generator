@@ -3351,7 +3351,7 @@ function renderMedia() {
         <div class="image-agent-tag">${agentLabel}</div>
         ${item.status === "error" ? `<div class="image-error">${escapeHtml(item.error || "生成失败")}</div>` : ""}
         <p>${escapeHtml(item.prompt || "暂无提示词")}</p>
-        <div class="image-actions">
+        <div class="image-actions ${item.status === "error" ? "image-actions-error" : ""}">
           ${item.url ? `<button type="button" data-card-action="preview">预览</button><a href="${escapeAttr(item.url)}" download>下载</a>` : ""}
           ${item.status === "error" ? `<button type="button" class="retry" data-card-action="retry">重试</button>` : ""}
           <button type="button" data-card-action="reuse">复用</button>
