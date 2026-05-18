@@ -240,23 +240,33 @@
         </div>
       </div>
       <form id="bulkMedia" method="post"></form>
-      <div class="admin-image-grid">
-        {% for item in media_items[:80] %}
-          <article class="admin-image-card">
-            <label><input form="bulkMedia" type="checkbox" name="media_id" value="{{ item.id }}"><span>选择</span></label>
-            <a class="admin-image-preview-link" href="{{ item.url }}" data-admin-image-preview data-url="{{ item.url }}" data-title="Job {{ item.job_id }} · #{{ item.index }}" data-meta="{% if item.actual_size %}{{ item.actual_size }} · {% endif %}{{ item.created_at|ctime }}" data-prompt="{{ item.prompt|e }}" title="打开大图预览">
-              <img src="{{ item.url }}" alt="">
-            </a>
-            <div>
-              <b>{{ item.created_at|ctime }}</b>
-              <p>{{ item.prompt }}</p>
-              <small>Job {{ item.job_id }} · #{{ item.index }}{% if item.actual_size %} · {{ item.actual_size }}{% endif %}</small>
-              <div class="admin-image-actions">
-                <button type="button" data-admin-image-preview data-url="{{ item.url }}" data-title="Job {{ item.job_id }} · #{{ item.index }}" data-meta="{% if item.actual_size %}{{ item.actual_size }} · {% endif %}{{ item.created_at|ctime }}" data-prompt="{{ item.prompt|e }}">预览</button>
-                <a href="{{ item.url }}" download>下载</a>
-              </div>
+      <div class="admin-image-archive">
+        {% for group in media_archive_groups %}
+          <details class="admin-image-archive-group">
+            <summary>
+              <strong>{{ group.label }}</strong>
+              <span>{{ group.items|length }} 张</span>
+            </summary>
+            <div class="admin-image-grid" data-admin-lazy-gallery>
+              {% for item in group.items %}
+                <article class="admin-image-card">
+                  <label><input form="bulkMedia" type="checkbox" name="media_id" value="{{ item.id }}"><span>选择</span></label>
+                  <a class="admin-image-preview-link" href="{{ item.url }}" data-admin-image-preview data-url="{{ item.url }}" data-title="Job {{ item.job_id }} · #{{ item.index }}" data-meta="{% if item.actual_size %}{{ item.actual_size }} · {% endif %}{{ item.created_at|ctime }}" data-prompt="{{ item.prompt|e }}" title="打开大图预览">
+                    <img data-src="{{ item.url }}" alt="">
+                  </a>
+                  <div>
+                    <b>{{ item.created_at|ctime }}</b>
+                    <p>{{ item.prompt }}</p>
+                    <small>Job {{ item.job_id }} · #{{ item.index }}{% if item.actual_size %} · {{ item.actual_size }}{% endif %}</small>
+                    <div class="admin-image-actions">
+                      <button type="button" data-admin-image-preview data-url="{{ item.url }}" data-title="Job {{ item.job_id }} · #{{ item.index }}" data-meta="{% if item.actual_size %}{{ item.actual_size }} · {% endif %}{{ item.created_at|ctime }}" data-prompt="{{ item.prompt|e }}">预览</button>
+                      <a href="{{ item.url }}" download>下载</a>
+                    </div>
+                  </div>
+                </article>
+              {% endfor %}
             </div>
-          </article>
+          </details>
         {% else %}
           <div class="admin-empty">暂无图片记录。</div>
         {% endfor %}
@@ -718,6 +728,18 @@
     };
     adminPreviewImageWrap?.addEventListener("pointerup", finishAdminPreviewDrag);
     adminPreviewImageWrap?.addEventListener("pointercancel", finishAdminPreviewDrag);
+
+    const loadAdminArchiveImages = (root) => {
+      root?.querySelectorAll("img[data-src]:not([src])").forEach((img) => {
+        img.src = img.dataset.src || "";
+      });
+    };
+    document.querySelectorAll(".admin-image-archive-group").forEach((group) => {
+      if (group.open) loadAdminArchiveImages(group);
+      group.addEventListener("toggle", () => {
+        if (group.open) loadAdminArchiveImages(group);
+      });
+    });
 
     document.querySelectorAll("[data-check-all]").forEach((box) => {
       const selector = `input[name="${CSS.escape(box.dataset.checkAll)}"]`;

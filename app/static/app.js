@@ -7,6 +7,8 @@ let historyExpanded = true;
 const historyDayOpen = new Map();
 const historyIndustryOpen = new Map();
 const NEW_TASK_DRAFT_ID = "__new_task__";
+const SELECTED_HISTORY_JOB_KEY = "yy-selected-history-job";
+const SHOW_ALL_GENERATED_KEY = "yy-show-all-generated";
 const MAX_REFERENCE_SELECTION = 4;
 
 const $ = (sel) => document.querySelector(sel);
@@ -170,6 +172,39 @@ const els = {
   predictFailure: $("#predictFailure"),
   enhanceStyle: $("#enhanceStyle"),
 };
+
+function persistHistorySelection(showAll = false) {
+  try {
+    if (showAll) {
+      localStorage.setItem(SHOW_ALL_GENERATED_KEY, "1");
+      localStorage.removeItem(SELECTED_HISTORY_JOB_KEY);
+      return;
+    }
+    localStorage.removeItem(SHOW_ALL_GENERATED_KEY);
+    if (selectedHistoryJobId && selectedHistoryJobId !== NEW_TASK_DRAFT_ID) {
+      localStorage.setItem(SELECTED_HISTORY_JOB_KEY, selectedHistoryJobId);
+    } else {
+      localStorage.removeItem(SELECTED_HISTORY_JOB_KEY);
+    }
+  } catch (err) {
+    // localStorage may be blocked by browser privacy settings.
+  }
+}
+
+function restoreHistorySelection() {
+  try {
+    if (selectedHistoryJobId || selectedHistoryDayKey || localStorage.getItem(SHOW_ALL_GENERATED_KEY) === "1") return;
+    const lastJobId = localStorage.getItem(SELECTED_HISTORY_JOB_KEY);
+    if (lastJobId && state.jobs.some((job) => job.id === lastJobId)) {
+      selectedHistoryJobId = lastJobId;
+      return;
+    }
+  } catch (err) {
+    // Fall through to latest task.
+  }
+  selectedHistoryJobId = state.jobs[0]?.id || null;
+}
+
 let verifiedImageModels = [];
 let verifiedTextModels = [];
 let autoModelTimer = 0;
@@ -3024,6 +3059,7 @@ function renderHistory() {
       selectedHistoryDayKey = selectedHistoryDayKey === key ? null : key;
       selectedHistoryJobId = null;
       selectedGalleryIds.clear();
+      persistHistorySelection(false);
       renderState();
     });
     header.append(head, selectDay);
@@ -3075,6 +3111,7 @@ function renderHistory() {
               selectedHistoryJobId = job.id;
               selectedHistoryDayKey = null;
               selectedGalleryIds.clear();
+              persistHistorySelection(false);
               renderState();
             });
             industryList.append(btn);
@@ -3219,6 +3256,7 @@ window.showAllGenerated = function showAllGenerated() {
   selectedHistoryJobId = null;
   selectedHistoryDayKey = null;
   selectedGalleryIds.clear();
+  persistHistorySelection(true);
   renderState();
 };
 
@@ -3487,9 +3525,11 @@ function renderReferences() {
 }
 
 function renderState() {
+  restoreHistorySelection();
   if (selectedHistoryJobId && selectedHistoryJobId !== NEW_TASK_DRAFT_ID && !state.jobs.some((job) => job.id === selectedHistoryJobId)) {
     selectedHistoryJobId = null;
     selectedGalleryIds.clear();
+    persistHistorySelection(false);
   }
   if (selectedHistoryDayKey && !jobsForHistoryDay(selectedHistoryDayKey).length) {
     selectedHistoryDayKey = null;
@@ -3624,6 +3664,7 @@ async function performSubmitJob(promptOverride = "") {
     });
     els.prompt.value = prompt;
     selectedHistoryJobId = created?.job?.id || null;
+    persistHistorySelection(false);
     selectedGalleryIds.clear();
     closePromptAnalysis();
     syncSummary();
@@ -4037,6 +4078,7 @@ async function clearMedia() {
     });
     selectedHistoryJobId = null;
     selectedGalleryIds.clear();
+    persistHistorySelection(false);
     await loadState();
     return;
   }
@@ -4050,6 +4092,7 @@ async function clearMedia() {
     });
     selectedHistoryDayKey = null;
     selectedGalleryIds.clear();
+    persistHistorySelection(false);
     await loadState();
     return;
   }
@@ -4058,6 +4101,7 @@ async function clearMedia() {
   selectedHistoryJobId = null;
   selectedHistoryDayKey = null;
   selectedGalleryIds.clear();
+  persistHistorySelection(false);
   await loadState();
 }
 
@@ -4074,12 +4118,14 @@ async function deleteSelectedGallery() {
     body: JSON.stringify({ media_ids: mediaIds, job_ids: jobIds }),
   });
   selectedGalleryIds.clear();
+  persistHistorySelection(false);
   await loadState();
 }
 
 async function clearFailedGallery() {
   await api("/api/media/clear-failed", { method: "POST", body: "{}" });
   selectedGalleryIds.clear();
+  persistHistorySelection(false);
   await loadState();
 }
 
@@ -4112,7 +4158,10 @@ async function retryJobs(jobIds = []) {
       errors.push(`${jobId}: ${err.message}`);
     }
   }
-  if (lastJobId) selectedHistoryJobId = lastJobId;
+  if (lastJobId) {
+    selectedHistoryJobId = lastJobId;
+    persistHistorySelection(false);
+  }
   selectedGalleryIds.clear();
   await loadState();
   if (errors.length) {
@@ -5425,6 +5474,7 @@ async function submitResearchGenerationJob(sourceNode = null) {
       }),
     });
     selectedHistoryJobId = created?.job?.id || null;
+    persistHistorySelection(false);
     activeResearchJobId = created?.job?.id || "";
     activeResearchProjectSignature = projectSignature;
     const appliedJob = created?.job || { id: activeResearchJobId, count: settings.count, status: "queued", research_project_signature: projectSignature };
@@ -6462,6 +6512,7 @@ els.newTask.addEventListener("click", () => {
   selectedHistoryJobId = NEW_TASK_DRAFT_ID;
   selectedHistoryDayKey = null;
   selectedGalleryIds.clear();
+  persistHistorySelection(false);
   els.prompt.value = "";
   els.title.value = "";
   selectedReferenceIds.clear();

@@ -4169,6 +4169,19 @@ def admin():
         key=lambda x: x.get("created_at", 0),
         reverse=True,
     )
+    media_archive_groups = []
+    media_archive_map = {}
+    for item in media_items:
+        try:
+            day_key = time.strftime("%Y-%m-%d", time.localtime(int(item.get("created_at") or 0)))
+            day_label = time.strftime("%Y年%m月%d日", time.localtime(int(item.get("created_at") or 0)))
+        except (TypeError, ValueError):
+            day_key = "unknown"
+            day_label = "未知日期"
+        if day_key not in media_archive_map:
+            media_archive_map[day_key] = {"key": day_key, "label": day_label, "items": []}
+            media_archive_groups.append(media_archive_map[day_key])
+        media_archive_map[day_key]["items"].append(item)
     jobs = sorted(public_jobs(read_jobs()), key=lambda x: x.get("created_at", 0), reverse=True)
     logs = sorted(redact_secrets(read_json(ADMIN_LOGS_FILE, [])), key=lambda x: x.get("created_at", 0), reverse=True)
     integrations = read_integration_config()
@@ -4199,6 +4212,7 @@ def admin():
         integrations=integrations,
         integration_masks=integration_secret_masks(integrations),
         media_items=media_items,
+        media_archive_groups=media_archive_groups,
         jobs=jobs[:80],
         logs=logs[:120],
         sub2api_remote_accounts=sub2api_remote_accounts,

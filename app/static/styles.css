@@ -4556,6 +4556,49 @@ body:has(.app-shell:not(.settings-open)) .guide-step-compose .onboarding-spotlig
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 12px;
 }
+.admin-image-archive {
+  display: grid;
+  gap: 12px;
+}
+.admin-image-archive-group {
+  border: 1px solid rgba(220,220,216,.9);
+  border-radius: 12px;
+  background: rgba(251,251,250,.92);
+  overflow: hidden;
+}
+.admin-image-archive-group summary {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  cursor: pointer;
+  list-style: none;
+}
+.admin-image-archive-group summary::-webkit-details-marker {
+  display: none;
+}
+.admin-image-archive-group summary strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 920;
+}
+.admin-image-archive-group summary span {
+  display: inline-grid;
+  min-height: 26px;
+  place-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(232, 250, 244, .9);
+  color: #06745e;
+  font-size: 12px;
+  font-weight: 900;
+}
+.admin-image-archive-group .admin-image-grid {
+  padding: 12px;
+  border-top: 1px solid rgba(220,220,216,.72);
+}
 .admin-image-card {
   display: grid;
   gap: 10px;
