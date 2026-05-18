@@ -1153,6 +1153,20 @@ function setQuickConfigPanel(open) {
   els.composer?.classList.toggle("quick-config-open", open);
 }
 
+function syncPromptTextareaSize() {
+  if (!els.prompt) return;
+  const hasPrompt = Boolean(els.prompt.value.trim());
+  const viewport = window.innerHeight || document.documentElement.clientHeight || 720;
+  const maxHeight = Math.max(96, Math.min(hasPrompt ? 220 : 132, Math.round(viewport * (hasPrompt ? 0.24 : 0.18))));
+  els.prompt.style.height = "auto";
+  const nextHeight = hasPrompt
+    ? Math.min(Math.max(els.prompt.scrollHeight, 96), maxHeight)
+    : Math.min(Math.max(els.prompt.scrollHeight, 44), maxHeight);
+  els.prompt.style.height = `${nextHeight}px`;
+  els.prompt.style.overflowY = els.prompt.scrollHeight > nextHeight + 2 ? "auto" : "hidden";
+  els.composer?.classList.toggle("prompt-expanded", hasPrompt && nextHeight >= 128);
+}
+
 function syncSummary() {
   syncReferenceAspectAuto();
   normalizeGenerationNumbers();
@@ -1160,6 +1174,7 @@ function syncSummary() {
   const protocol = protocols[els.protocol.value] || protocols["custom-openai"];
   const hasPrompt = Boolean(els.prompt.value.trim());
   els.composer?.classList.toggle("has-prompt", hasPrompt);
+  syncPromptTextareaSize();
   els.compatLabel.textContent = els.model.value || "未选择";
   els.protocolTitle.textContent = protocol.shortLabel;
   els.protocolDescription.textContent = protocol.description;
@@ -6321,6 +6336,7 @@ function initResearchWorkbench() {
 }
 
 els.prompt.addEventListener("input", syncSummary);
+window.addEventListener("resize", syncPromptTextareaSize);
 ["change", "input"].forEach((eventName) => {
   [els.protocol, els.model, els.apiUrl, els.apiKey, els.rememberApiKey, els.aspectRatio, els.resolution, els.count, els.concurrency, els.retryLimit, els.quality, els.outputFormat, els.seed, els.negative].forEach((el) => el.addEventListener(eventName, () => {
     if (el === els.aspectRatio && !referenceAspectSyncing && referenceAspectCandidate()) {
