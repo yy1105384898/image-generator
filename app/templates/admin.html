@@ -223,12 +223,21 @@
           <h2>图片管理</h2>
           <p>查看最近生成图片、任务来源和提示词，可批量删除本地文件记录。</p>
         </div>
-        {% if media_items %}
-          <label class="admin-check-all">
-            <input type="checkbox" data-check-all="media_id">
-            <span>全选最近 80 张</span>
-          </label>
-        {% endif %}
+        <div class="admin-image-toolbar">
+          <form method="post">
+            <label class="admin-save-switch {% if not admin_settings.save_generated_images %}is-off{% endif %}">
+              <input type="checkbox" name="save_generated_images" {% if admin_settings.save_generated_images %}checked{% endif %} onchange="this.form.submit()">
+              <span>{{ "保存已开启" if admin_settings.save_generated_images else "保存已关闭" }}</span>
+              <button type="submit" name="action" value="toggle_media_archive">{{ "关闭保存" if admin_settings.save_generated_images else "开启保存" }}</button>
+            </label>
+          </form>
+          {% if media_items %}
+            <label class="admin-check-all">
+              <input type="checkbox" data-check-all="media_id">
+              <span>全选最近 80 张</span>
+            </label>
+          {% endif %}
+        </div>
       </div>
       <form id="bulkMedia" method="post"></form>
       <div class="admin-image-grid">

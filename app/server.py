@@ -55,6 +55,7 @@ POOL_USERS_FILE = DATA_DIR / "pool_users.json"
 INTEGRATION_CONFIG_FILE = DATA_DIR / "integration_config.json"
 ADMIN_LOGS_FILE = DATA_DIR / "admin_logs.json"
 ADMIN_AUTH_FILE = DATA_DIR / "admin_auth.json"
+ADMIN_SETTINGS_FILE = DATA_DIR / "admin_settings.json"
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "change-this-secret")
@@ -2088,6 +2089,21 @@ def write_media(items):
     write_json(MEDIA_FILE, items[-MAX_HISTORY * 4:])
 
 
+def read_admin_settings() -> dict:
+    raw = read_json(ADMIN_SETTINGS_FILE, {})
+    return {
+        "save_generated_images": bool(raw.get("save_generated_images", True)),
+    }
+
+
+def write_admin_settings(settings: dict) -> None:
+    current = read_admin_settings()
+    current.update(settings or {})
+    current["save_generated_images"] = bool(current.get("save_generated_images", True))
+    current["updated_at"] = now_ts()
+    write_json(ADMIN_SETTINGS_FILE, current)
+
+
 def read_subjects():
     return read_json(SUBJECTS_FILE, [])
 
@@ -2349,6 +2365,7 @@ def save_image_payload(job_id: str, index: int, image_payload: dict, prompt: str
         "output_format": str(job.get("output_format") or "png"),
         "reference_ids": [str(v).strip() for v in job.get("reference_ids", []) if str(v).strip()][:4],
         "edit_mode": bool(job.get("edit_mode")),
+        "admin_visible": read_admin_settings().get("save_generated_images", True),
         "created_at": now_ts(),
     }
 
@@ -2435,6 +2452,28 @@ def update_job(job_id: str, patch: dict) -> dict | None:
 def get_job(job_id: str) -> dict | None:
     with state_lock:
         return next((j for j in read_jobs() if j.get("id") == job_id), None)
+
+
+def recover_interrupted_jobs() -> None:
+    with state_lock:
+        jobs = read_jobs()
+        changed = False
+        for job in jobs:
+            if job.get("status") not in {"queued", "running"}:
+                continue
+            progress = job.get("progress") if isinstance(job.get("progress"), dict) else {}
+            done = int(progress.get("done") or len(job.get("media_ids") or []) or 0)
+            total = int(progress.get("total") or job.get("count") or 1)
+            job.update({
+                "status": "error",
+                "error": "服务重启后任务中断，请重新提交。",
+                "progress": {"done": done, "total": total, "message": "任务已中断"},
+                "completed_at": now_ts(),
+                "updated_at": now_ts(),
+            })
+            changed = True
+        if changed:
+            write_jobs(jobs)
 
 
 def normalize_api_base(api_url: str) -> str:
@@ -3661,6 +3700,7 @@ def ensure_worker() -> None:
     if worker_started:
         return
     worker_started = True
+    recover_interrupted_jobs()
     threading.Thread(target=worker_loop, daemon=True).start()
 
 
@@ -4078,6 +4118,12 @@ def admin():
                 admin_log("同步 CPA 失败", {"error": str(exc)})
                 message = f"CPA 同步失败：{redact_secrets(str(exc))}"
             saved = True
+        elif action == "toggle_media_archive":
+            enabled = request.form.get("save_generated_images") == "on"
+            write_admin_settings({"save_generated_images": enabled})
+            admin_log("更新图片保存开关", {"save_generated_images": enabled})
+            message = "图片保存已开启。" if enabled else "图片保存已关闭，新生成图片不会进入后台图片管理。"
+            saved = True
         elif action == "delete_media":
             media_ids = set(request.form.getlist("media_id"))
             media_items = read_media()
@@ -4103,7 +4149,12 @@ def admin():
     profile_image_models, profile_text_models = split_model_ids(profile_model_ids)
     accounts = read_account_pool()
     pool_users = read_pool_users()
-    media_items = sorted(read_media(), key=lambda x: x.get("created_at", 0), reverse=True)
+    admin_settings = read_admin_settings()
+    media_items = sorted(
+        [item for item in read_media() if item.get("admin_visible", True)],
+        key=lambda x: x.get("created_at", 0),
+        reverse=True,
+    )
     jobs = sorted(public_jobs(read_jobs()), key=lambda x: x.get("created_at", 0), reverse=True)
     logs = sorted(redact_secrets(read_json(ADMIN_LOGS_FILE, [])), key=lambda x: x.get("created_at", 0), reverse=True)
     integrations = read_integration_config()
@@ -4126,6 +4177,7 @@ def admin():
         saved=saved,
         message=message,
         admin_auth=public_admin_auth(),
+        admin_settings=admin_settings,
         accounts=accounts,
         account_stats=account_stats(accounts),
         pool_users=pool_users,
