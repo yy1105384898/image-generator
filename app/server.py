@@ -2457,20 +2457,34 @@ def get_job(job_id: str) -> dict | None:
 def recover_interrupted_jobs() -> None:
     with state_lock:
         jobs = read_jobs()
+        media_by_job: dict[str, list[dict]] = {}
+        for item in read_media():
+            media_by_job.setdefault(str(item.get("job_id") or ""), []).append(item)
         changed = False
         for job in jobs:
             if job.get("status") not in {"queued", "running"}:
                 continue
+            job_media = media_by_job.get(str(job.get("id") or ""), [])
             progress = job.get("progress") if isinstance(job.get("progress"), dict) else {}
-            done = int(progress.get("done") or len(job.get("media_ids") or []) or 0)
+            done = max(int(progress.get("done") or 0), len(job.get("media_ids") or []), len(job_media))
             total = int(progress.get("total") or job.get("count") or 1)
-            job.update({
-                "status": "error",
-                "error": "服务重启后任务中断，请重新提交。",
-                "progress": {"done": done, "total": total, "message": "任务已中断"},
-                "completed_at": now_ts(),
-                "updated_at": now_ts(),
-            })
+            if job_media:
+                job.update({
+                    "status": "success" if done >= total else "partial",
+                    "error": "" if done >= total else "服务重启后任务中断，已保留已完成图片。",
+                    "media_ids": [str(item.get("id") or "") for item in job_media if item.get("id")],
+                    "progress": {"done": done, "total": total, "message": "已恢复已完成图片" if done >= total else "已保留部分图片"},
+                    "completed_at": now_ts(),
+                    "updated_at": now_ts(),
+                })
+            else:
+                job.update({
+                    "status": "error",
+                    "error": "服务重启后任务中断，请重新提交。",
+                    "progress": {"done": done, "total": total, "message": "任务已中断"},
+                    "completed_at": now_ts(),
+                    "updated_at": now_ts(),
+                })
             changed = True
         if changed:
             write_jobs(jobs)

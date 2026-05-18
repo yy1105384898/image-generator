@@ -3176,6 +3176,7 @@ function renderGalleryHeader(items) {
   const selectedCount = selectedGalleryIds.size;
   const running = state.jobs.filter((job) => job.status === "running").length;
   const queued = state.jobs.filter((job) => job.status === "queued").length;
+  const succeeded = state.jobs.filter((job) => job.status === "success").length;
   const failed = state.jobs.filter((job) => job.status === "error").length;
   const currentJob = currentHistoryJob();
   const retryableFailed = currentJob ? (currentJob.status === "error" ? 1 : 0) : failed;
@@ -3184,7 +3185,7 @@ function renderGalleryHeader(items) {
   els.galleryHeader.innerHTML = `
     <div class="gallery-title">
       <strong>${escapeHtml(title)}</strong>
-      <span>运行中 ${running} / 排队 ${queued} / 成功 ${state.media.length} / 失败 ${failed}</span>
+      <span>运行中 ${running} / 排队 ${queued} / 成功 ${succeeded} / 失败 ${failed} / 图片 ${state.media.length}</span>
     </div>
     ${currentJob && !selectedCount ? `
       <div class="gallery-bulk-actions muted">
