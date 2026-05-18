@@ -233,7 +233,7 @@
           </form>
           {% if media_items %}
             <label class="admin-check-all">
-              <input type="checkbox" data-check-all="media_id">
+              <input type="checkbox" data-check-all="media_id" data-check-open-gallery="true">
               <span>全选最近 80 张</span>
             </label>
           {% endif %}
@@ -738,23 +738,37 @@
       if (group.open) loadAdminArchiveImages(group);
       group.addEventListener("toggle", () => {
         if (group.open) loadAdminArchiveImages(group);
+        document.querySelectorAll("[data-check-open-gallery]").forEach((box) => {
+          box.dispatchEvent(new Event("sync-check-all"));
+        });
       });
     });
 
     document.querySelectorAll("[data-check-all]").forEach((box) => {
       const selector = `input[name="${CSS.escape(box.dataset.checkAll)}"]`;
-      const syncCheckAll = () => {
+      const label = box.closest("label")?.querySelector("span");
+      const scopedItems = () => {
         const items = Array.from(document.querySelectorAll(selector));
+        if (!box.dataset.checkOpenGallery) return items;
+        return items.filter((input) => input.closest(".admin-image-archive-group")?.open);
+      };
+      const syncCheckAll = () => {
+        const items = scopedItems();
         const checked = items.filter((input) => input.checked).length;
         box.checked = items.length > 0 && checked === items.length;
         box.indeterminate = checked > 0 && checked < items.length;
+        box.disabled = Boolean(box.dataset.checkOpenGallery) && items.length === 0;
+        if (label && box.dataset.checkOpenGallery) {
+          label.textContent = items.length ? `全选已展开 ${items.length} 张` : "展开日期后可全选";
+        }
       };
       box.addEventListener("change", () => {
-        document.querySelectorAll(selector).forEach((input) => {
+        scopedItems().forEach((input) => {
           input.checked = box.checked;
         });
         syncCheckAll();
       });
+      box.addEventListener("sync-check-all", syncCheckAll);
       document.querySelectorAll(selector).forEach((input) => {
         input.addEventListener("change", syncCheckAll);
       });
