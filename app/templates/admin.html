@@ -245,10 +245,10 @@
           <details class="admin-image-archive-group">
             <summary>
               <strong>{{ group.label }}</strong>
-              <span>{{ group.items|length }} 张</span>
+              <span>{{ group.media|length }} 张</span>
             </summary>
             <div class="admin-image-grid" data-admin-lazy-gallery>
-              {% for item in group.items %}
+              {% for item in group.media %}
                 <article class="admin-image-card">
                   <label><input form="bulkMedia" type="checkbox" name="media_id" value="{{ item.id }}"><span>选择</span></label>
                   <a class="admin-image-preview-link" href="{{ item.url }}" data-admin-image-preview data-url="{{ item.url }}" data-title="Job {{ item.job_id }} · #{{ item.index }}" data-meta="{% if item.actual_size %}{{ item.actual_size }} · {% endif %}{{ item.created_at|ctime }}" data-prompt="{{ item.prompt|e }}" title="打开大图预览">

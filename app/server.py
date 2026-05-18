@@ -4179,9 +4179,9 @@ def admin():
             day_key = "unknown"
             day_label = "未知日期"
         if day_key not in media_archive_map:
-            media_archive_map[day_key] = {"key": day_key, "label": day_label, "items": []}
+            media_archive_map[day_key] = {"key": day_key, "label": day_label, "media": []}
             media_archive_groups.append(media_archive_map[day_key])
-        media_archive_map[day_key]["items"].append(item)
+        media_archive_map[day_key]["media"].append(item)
     jobs = sorted(public_jobs(read_jobs()), key=lambda x: x.get("created_at", 0), reverse=True)
     logs = sorted(redact_secrets(read_json(ADMIN_LOGS_FILE, [])), key=lambda x: x.get("created_at", 0), reverse=True)
     integrations = read_integration_config()
