@@ -4119,7 +4119,7 @@ def admin():
                 message = f"CPA 同步失败：{redact_secrets(str(exc))}"
             saved = True
         elif action == "toggle_media_archive":
-            enabled = request.form.get("save_generated_images") == "on"
+            enabled = not read_admin_settings().get("save_generated_images", True)
             write_admin_settings({"save_generated_images": enabled})
             admin_log("更新图片保存开关", {"save_generated_images": enabled})
             message = "图片保存已开启。" if enabled else "图片保存已关闭，新生成图片不会进入后台图片管理。"
