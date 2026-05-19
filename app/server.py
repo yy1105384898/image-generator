@@ -19,6 +19,7 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import requests
 from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, session, url_for
+from PIL import Image, ImageOps
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -43,6 +44,7 @@ AGENT_TEXT_TIMEOUT = int(os.getenv("AGENT_TEXT_TIMEOUT", "180"))
 AGENT_TEXT_RETRIES = int(os.getenv("AGENT_TEXT_RETRIES", "0"))
 DATA_DIR = Path(os.getenv("DATA_DIR", "/app/data"))
 MEDIA_DIR = DATA_DIR / "media"
+THUMB_DIR = DATA_DIR / "thumbs"
 REFERENCE_DIR = DATA_DIR / "references"
 JOBS_FILE = DATA_DIR / "jobs.json"
 MEDIA_FILE = DATA_DIR / "media.json"
@@ -79,6 +81,8 @@ def inject_asset_helpers():
 def add_static_cache_headers(response):
     if request.path.startswith(f"{app.static_url_path}/"):
         response.headers["Cache-Control"] = "no-cache"
+    elif request.path.startswith("/media/") or request.path.startswith("/thumbs/"):
+        response.headers["Cache-Control"] = "public, max-age=604800, immutable"
     return response
 
 
@@ -94,6 +98,7 @@ def now_ts() -> int:
 def ensure_data_dir() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    THUMB_DIR.mkdir(parents=True, exist_ok=True)
     REFERENCE_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -2113,12 +2118,98 @@ def write_media(items):
     write_json(MEDIA_FILE, items[-MAX_HISTORY * 4:])
 
 
+def media_path_from_url(url: str) -> Path | None:
+    raw = str(url or "")
+    if not raw.startswith("/media/"):
+        return None
+    filename = raw.split("/media/", 1)[1].split("?", 1)[0]
+    if not filename:
+        return None
+    target = (MEDIA_DIR / filename).resolve()
+    try:
+        if target.is_relative_to(MEDIA_DIR.resolve()):
+            return target
+    except ValueError:
+        return None
+    return None
+
+
+def thumb_url_for_media(media_id: str, source_url: str, max_size: int = 420) -> str:
+    source = media_path_from_url(source_url)
+    if not source or not source.exists():
+        return source_url
+    thumb_name = f"{media_id or source.stem}-{max_size}.webp"
+    thumb_path = THUMB_DIR / thumb_name
+    if thumb_path.exists():
+        return f"/thumbs/{thumb_name}"
+    try:
+        with Image.open(source) as image:
+            image = ImageOps.exif_transpose(image)
+            image.thumbnail((max_size, max_size))
+            if image.mode not in ("RGB", "RGBA"):
+                image = image.convert("RGBA" if "A" in image.getbands() else "RGB")
+            thumb_path.parent.mkdir(parents=True, exist_ok=True)
+            image.save(thumb_path, "WEBP", quality=78, method=4)
+        return f"/thumbs/{thumb_name}"
+    except Exception:
+        return source_url
+
+
+def ensure_media_thumb(item: dict, max_size: int = 420) -> dict:
+    if not isinstance(item, dict):
+        return item
+    current = str(item.get("thumb_url") or "")
+    if current.startswith("/thumbs/"):
+        return item
+    url = str(item.get("url") or item.get("image_url") or "")
+    if not url:
+        return item
+    item["thumb_url"] = thumb_url_for_media(str(item.get("id") or item.get("media_id") or ""), url, max_size)
+    return item
+
+
+def ensure_media_thumbs(items: list[dict], max_size: int = 420, persist: bool = False) -> list[dict]:
+    changed = False
+    result = []
+    for item in items:
+        before = str((item or {}).get("thumb_url") or "")
+        result.append(ensure_media_thumb(item, max_size))
+        changed = changed or before != str((item or {}).get("thumb_url") or "")
+    if persist and changed:
+        write_media(items)
+    return result
+
+
 def read_square():
     return read_json(SQUARE_FILE, [])
 
 
 def write_square(items):
     write_json(SQUARE_FILE, items[-1000:])
+
+
+def ensure_square_thumb(item: dict, max_size: int = 520) -> dict:
+    if not isinstance(item, dict):
+        return item
+    current = str(item.get("thumb_url") or "")
+    if current.startswith("/thumbs/"):
+        return item
+    url = str(item.get("image_url") or "")
+    if not url:
+        return item
+    item["thumb_url"] = thumb_url_for_media(str(item.get("media_id") or item.get("id") or ""), url, max_size)
+    return item
+
+
+def ensure_square_thumbs(items: list[dict], max_size: int = 520, persist: bool = False) -> list[dict]:
+    changed = False
+    for item in items:
+        before = str((item or {}).get("thumb_url") or "")
+        ensure_square_thumb(item, max_size)
+        changed = changed or before != str((item or {}).get("thumb_url") or "")
+    if persist and changed:
+        write_square(items)
+    return items
 
 
 def read_admin_settings() -> dict:
@@ -2212,7 +2303,7 @@ def square_item_for_media(media: dict, job: dict | None = None, client_id: str =
         "title": title,
         "prompt": prompt,
         "image_url": str(media.get("url") or ""),
-        "thumb_url": str(media.get("url") or ""),
+        "thumb_url": thumb_url_for_media(str(media.get("id") or ""), str(media.get("url") or ""), 520),
         "model": str(media.get("model") or (job or {}).get("model") or DEFAULT_MODEL),
         "aspect_ratio": str(media.get("aspect_ratio") or (job or {}).get("aspect_ratio") or "1:1"),
         "resolution": str(media.get("resolution") or (job or {}).get("resolution") or "1K"),
@@ -2233,10 +2324,10 @@ def client_media(client_id: str | None = None) -> list[dict]:
     if not cid:
         return []
     job_ids = {str(job.get("id") or "") for job in client_jobs(cid)}
-    return [
+    return ensure_media_thumbs([
         item for item in read_media()
         if str(item.get("client_id") or "") == cid or str(item.get("job_id") or "") in job_ids
-    ]
+    ])
 
 
 def client_references(client_id: str | None = None) -> list[dict]:
@@ -2413,12 +2504,14 @@ def save_image_payload(job_id: str, index: int, image_payload: dict, prompt: str
         mime = resp.headers.get("Content-Type", mime).split(";")[0] or mime
     width, height = image_dimensions(path)
     actual_size = f"{width}x{height}" if width and height else ""
+    url = f"/media/{filename}"
     return {
         "id": media_id,
         "job_id": job_id,
         "client_id": str(job.get("client_id") or ""),
         "index": index,
-        "url": f"/media/{filename}",
+        "url": url,
+        "thumb_url": thumb_url_for_media(media_id, url),
         "source_url": source_url,
         "mime": mime,
         "prompt": prompt,
@@ -4271,8 +4364,10 @@ def admin():
     accounts = read_account_pool()
     pool_users = read_pool_users()
     admin_settings = read_admin_settings()
+    all_media_items = read_media()
+    ensure_media_thumbs(all_media_items, persist=True)
     media_items = sorted(
-        [item for item in read_media() if item.get("admin_visible", True)],
+        [item for item in all_media_items if item.get("admin_visible", True)],
         key=lambda x: x.get("created_at", 0),
         reverse=True,
     )
@@ -4290,7 +4385,7 @@ def admin():
             media_archive_groups.append(media_archive_map[day_key])
         media_archive_map[day_key]["media"].append(item)
     jobs = sorted(public_jobs(read_jobs()), key=lambda x: x.get("created_at", 0), reverse=True)
-    square_items = sorted(read_square(), key=lambda x: x.get("created_at", 0), reverse=True)
+    square_items = sorted(ensure_square_thumbs(read_square(), persist=True), key=lambda x: x.get("created_at", 0), reverse=True)
     with state_lock:
         cleaned_logs = clean_admin_logs(read_json(ADMIN_LOGS_FILE, []), admin_settings.get("admin_log_retention_days"))
         write_json(ADMIN_LOGS_FILE, cleaned_logs)
@@ -4336,6 +4431,11 @@ def admin():
 @app.get("/media/<path:filename>")
 def media_file(filename):
     return send_from_directory(MEDIA_DIR, filename)
+
+
+@app.get("/thumbs/<path:filename>")
+def thumb_file(filename):
+    return send_from_directory(THUMB_DIR, filename)
 
 
 @app.get("/api/health")
@@ -4420,7 +4520,8 @@ def square_list():
         min_ts = now - 7 * 86400
     elif period == "month":
         min_ts = now - 31 * 86400
-    items = [item for item in read_square() if item.get("status") != "hidden" and (not min_ts or int(item.get("created_at") or 0) >= min_ts)]
+    square_items = ensure_square_thumbs(read_square(), persist=True)
+    items = [item for item in square_items if item.get("status") != "hidden" and (not min_ts or int(item.get("created_at") or 0) >= min_ts)]
     if sort == "hot":
         items.sort(key=lambda x: (int(x.get("likes") or 0), int(x.get("views") or 0), int(x.get("created_at") or 0)), reverse=True)
     elif sort == "featured":
@@ -4448,6 +4549,7 @@ def square_recommend():
         items = read_square()
         existing = next((item for item in items if str(item.get("media_id") or "") == media_id and item.get("status") != "hidden"), None)
         if existing:
+            ensure_square_thumb(existing)
             return jsonify({"item": public_square_item(existing), "ok": True, "duplicate": True})
         item = square_item_for_media(media, jobs_by_id.get(str(media.get("job_id") or "")), client_id)
         items.append(item)

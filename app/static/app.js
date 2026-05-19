@@ -3172,6 +3172,7 @@ function galleryItems() {
       title: media.model || "生成图片",
       prompt: media.prompt || "",
       url: media.url,
+      thumbUrl: media.thumb_url || media.url,
       index: media.index,
       created_at: media.created_at,
       aspect_ratio: aspectRatio,
@@ -3493,7 +3494,7 @@ function renderMedia() {
     const card = document.createElement("article");
     card.className = `image-card ${item.status} ${selected ? "selected" : ""}`;
     const preview = item.url
-      ? `<div class="image-preview-frame"><img src="${escapeAttr(item.url)}" alt="${escapeAttr(item.prompt)}" loading="lazy"></div>`
+      ? `<div class="image-preview-frame"><img src="${escapeAttr(item.thumbUrl || item.url)}" alt="${escapeAttr(item.prompt)}" loading="lazy" decoding="async"></div>`
       : `<div class="image-preview-frame"><div class="failed-preview"><span>!</span><strong>生成失败</strong><div><button type="button" data-card-action="retry">重试</button><button type="button" data-card-action="details">详情</button></div></div></div>`;
     card.innerHTML = `
       <button class="image-select" type="button" aria-label="选择生成记录"><span>${selected ? "✓" : ""}</span></button>
