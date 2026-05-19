@@ -3346,14 +3346,9 @@ function renderSquare(items = []) {
       <button class="square-card-image square-image-button" type="button" data-square-action="open">
         <img src="${escapeAttr(item.thumb_url || item.image_url || "")}" alt="${escapeAttr(item.title || "广场作品")}" loading="lazy">
       </button>
-      <div class="square-card-body">
-        <strong>${escapeHtml(item.title || "广场作品")}</strong>
-        <p>${escapeHtml(item.prompt || "暂无提示词")}</p>
-        <div class="square-card-meta">
-          <span>${escapeHtml(item.aspect_ratio || "")}</span>
-          <span>${escapeHtml(item.size || "")}</span>
-          <button type="button" data-square-action="like">♥ ${Number(item.likes || 0)}</button>
-        </div>
+      <div class="square-card-overlay">
+        <span>${escapeHtml(item.aspect_ratio || "作品")}</span>
+        <button type="button" data-square-action="like">♥ ${Number(item.likes || 0)}</button>
       </div>
     </article>
   `).join("");
@@ -3387,6 +3382,20 @@ async function likeSquareItem(id) {
   } catch (err) {
     alert(err.message || "点赞失败");
   }
+}
+
+function previewSquareItem(id) {
+  const card = squareEls.grid?.querySelector(`[data-square-id="${CSS.escape(id)}"]`);
+  const image = card?.querySelector("img");
+  if (!image?.src) return;
+  setMediaPreview(true, {
+    title: "广场作品",
+    prompt: image.alt || "广场作品",
+    url: image.src,
+    aspect_ratio: card?.querySelector(".square-card-overlay span")?.textContent || "",
+    resolution: "",
+    size: "",
+  });
 }
 
 function clampMediaPreviewScale(value) {
@@ -6549,8 +6558,7 @@ squareEls.grid?.addEventListener("click", (event) => {
   if (action === "like") {
     likeSquareItem(id);
   } else if (action === "open") {
-    const image = button.querySelector("img");
-    if (image?.src) window.open(image.src, "_blank", "noopener");
+    previewSquareItem(id);
   }
 });
 els.closeMediaPreview?.addEventListener("click", () => setMediaPreview(false));

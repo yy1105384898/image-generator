@@ -595,23 +595,24 @@ body.research-active .home-page > section:not(.research-workbench) {
 }
 .square-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 256px), 256px));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 172px));
+  gap: 12px;
   width: min(1336px, calc(100% - 48px));
   margin: 0 auto;
 }
 .square-card {
-  display: grid;
+  position: relative;
+  display: block;
   overflow: hidden;
-  width: 256px;
+  width: 100%;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 14px;
   background: #fff;
   box-shadow: var(--shadow);
 }
 .square-card-image {
-  aspect-ratio: 1 / 1;
-  border-bottom: 1px solid var(--border);
+  aspect-ratio: 4 / 5;
+  border-bottom: 0;
   background:
     linear-gradient(45deg, rgba(17,17,17,.045) 25%, transparent 25% 75%, rgba(17,17,17,.045) 75%),
     linear-gradient(45deg, rgba(17,17,17,.045) 25%, transparent 25% 75%, rgba(17,17,17,.045) 75%),
@@ -634,6 +635,9 @@ body.research-active .home-page > section:not(.research-workbench) {
 }
 .square-empty-card {
   width: min(420px, 100%);
+}
+.square-empty-card .square-card-image {
+  aspect-ratio: 16 / 10;
 }
 .square-card-body {
   display: grid;
@@ -671,6 +675,39 @@ body.research-active .home-page > section:not(.research-workbench) {
   font-weight: 820;
 }
 .square-card-meta button {
+  cursor: pointer;
+}
+.square-card-overlay {
+  position: absolute;
+  inset: auto 8px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.square-card:hover .square-card-overlay,
+.square-card:focus-within .square-card-overlay {
+  opacity: 1;
+  transform: translateY(0);
+}
+.square-card-overlay span,
+.square-card-overlay button {
+  min-height: 26px;
+  padding: 0 9px;
+  border: 1px solid rgba(255,255,255,.34);
+  border-radius: 999px;
+  background: rgba(13, 16, 15, .68);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 860;
+  backdrop-filter: blur(12px);
+}
+.square-card-overlay button {
   cursor: pointer;
 }
 .square-grid.loading {
