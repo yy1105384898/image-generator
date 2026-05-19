@@ -4435,7 +4435,7 @@ def media_file(filename):
 
 @app.get("/thumbs/<path:filename>")
 def thumb_file(filename):
-    return send_from_directory(THUMB_DIR, filename)
+    return send_from_directory(THUMB_DIR, filename, mimetype="image/webp" if filename.endswith(".webp") else None)
 
 
 @app.get("/api/health")
