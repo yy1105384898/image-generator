@@ -1266,6 +1266,19 @@ body.research-active .studio-view {
   font-size: 14px;
   font-weight: 780;
 }
+.gallery-title small {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid rgba(16, 163, 127, .18);
+  border-radius: 999px;
+  background: var(--green-soft);
+  color: #0f6f5a;
+  font-size: 12px;
+  font-weight: 820;
+  white-space: nowrap;
+}
 .gallery-bulk-actions {
   display: flex;
   flex-wrap: wrap;
