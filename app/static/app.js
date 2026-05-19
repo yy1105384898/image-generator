@@ -3345,7 +3345,7 @@ function renderSquare(items = []) {
   squareEls.grid.innerHTML = items.map((item) => `
     <article class="square-card" data-square-id="${escapeAttr(item.id)}">
       <button class="square-card-image square-image-button" type="button" data-square-action="open">
-        <img src="${escapeAttr(item.thumb_url || item.image_url || "")}" alt="${escapeAttr(item.title || "广场作品")}" loading="lazy">
+        <img src="${escapeAttr(item.thumb_url || item.image_url || "")}" data-full-url="${escapeAttr(item.image_url || item.thumb_url || "")}" data-prompt="${escapeAttr(item.prompt || "")}" alt="${escapeAttr(item.title || "广场作品")}" loading="lazy">
       </button>
       <div class="square-card-overlay">
         <span>${escapeHtml(item.aspect_ratio || "作品")}</span>
@@ -3388,11 +3388,12 @@ async function likeSquareItem(id) {
 function previewSquareItem(id) {
   const card = squareEls.grid?.querySelector(`[data-square-id="${CSS.escape(id)}"]`);
   const image = card?.querySelector("img");
-  if (!image?.src) return;
+  const fullUrl = image?.dataset.fullUrl || image?.src || "";
+  if (!fullUrl) return;
   setMediaPreview(true, {
     title: "广场作品",
-    prompt: image.alt || "广场作品",
-    url: image.src,
+    prompt: image.dataset.prompt || image.alt || "广场作品",
+    url: fullUrl,
     aspect_ratio: card?.querySelector(".square-card-overlay span")?.textContent || "",
     resolution: "",
     size: "",
