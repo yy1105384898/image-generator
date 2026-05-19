@@ -4,6 +4,7 @@ let selectedGalleryIds = new Set();
 let selectedHistoryJobId = null;
 let selectedHistoryDayKey = null;
 let historyExpanded = true;
+let squareSort = "latest";
 const historyDayOpen = new Map();
 const historyIndustryOpen = new Map();
 const NEW_TASK_DRAFT_ID = "__new_task__";
@@ -171,6 +172,13 @@ const els = {
   recommendParams: $("#recommendParams"),
   predictFailure: $("#predictFailure"),
   enhanceStyle: $("#enhanceStyle"),
+};
+
+const squareEls = {
+  grid: document.querySelector(".square-grid"),
+  tabs: document.querySelectorAll(".square-tabs button"),
+  refresh: document.querySelector(".square-refresh-button"),
+  quota: document.querySelector(".square-quota-strip"),
 };
 
 function persistHistorySelection(showAll = false) {
@@ -3252,6 +3260,24 @@ function renderGalleryHeader(items) {
   `;
 }
 
+async function recommendGalleryItem(item) {
+  if (!item?.rawId || item.status !== "success") return;
+  try {
+    const result = await api("/api/square/recommend", {
+      method: "POST",
+      body: JSON.stringify({ media_id: item.rawId }),
+    });
+    if (result.duplicate) {
+      showReferenceLimitHint("这张图已经在广场里");
+    } else {
+      showReferenceLimitHint("已推荐到广场");
+    }
+    await loadSquare();
+  } catch (err) {
+    alert(err.message || "推荐到广场失败");
+  }
+}
+
 window.showAllGenerated = function showAllGenerated() {
   selectedHistoryJobId = null;
   selectedHistoryDayKey = null;
@@ -3292,6 +3318,75 @@ function applyGalleryItemToPrompt(item, withReferences = false) {
     renderReferences();
   }
   syncSummary();
+}
+
+function squareSortFromButton(button) {
+  const text = button?.textContent || "";
+  if (text.includes("热门")) return "hot";
+  if (text.includes("精选")) return "featured";
+  return "latest";
+}
+
+function renderSquare(items = []) {
+  if (!squareEls.grid) return;
+  if (!items.length) {
+    squareEls.grid.innerHTML = `
+      <article class="square-card square-empty-card">
+        <div class="square-card-image"></div>
+        <div class="square-card-body">
+          <strong>等待推荐作品</strong>
+          <p>在工作台生成成功图片后，点击“推荐广场”即可公开展示到这里。</p>
+        </div>
+      </article>
+    `;
+    return;
+  }
+  squareEls.grid.innerHTML = items.map((item) => `
+    <article class="square-card" data-square-id="${escapeAttr(item.id)}">
+      <button class="square-card-image square-image-button" type="button" data-square-action="open">
+        <img src="${escapeAttr(item.thumb_url || item.image_url || "")}" alt="${escapeAttr(item.title || "广场作品")}" loading="lazy">
+      </button>
+      <div class="square-card-body">
+        <strong>${escapeHtml(item.title || "广场作品")}</strong>
+        <p>${escapeHtml(item.prompt || "暂无提示词")}</p>
+        <div class="square-card-meta">
+          <span>${escapeHtml(item.aspect_ratio || "")}</span>
+          <span>${escapeHtml(item.size || "")}</span>
+          <button type="button" data-square-action="like">♥ ${Number(item.likes || 0)}</button>
+        </div>
+      </div>
+    </article>
+  `).join("");
+}
+
+async function loadSquare() {
+  if (!squareEls.grid) return;
+  squareEls.grid.classList.add("loading");
+  try {
+    const data = await api(`/api/square?sort=${encodeURIComponent(squareSort)}`);
+    renderSquare(data.items || []);
+    if (squareEls.quota) {
+      const label = squareEls.quota.querySelector("span");
+      if (label) label.textContent = data.total ? `公开作品 ${data.total} 张` : "暂无公开作品";
+    }
+  } catch (err) {
+    squareEls.grid.innerHTML = `<div class="admin-empty">广场读取失败：${escapeHtml(err.message || "请求失败")}</div>`;
+  } finally {
+    squareEls.grid.classList.remove("loading");
+  }
+}
+
+async function likeSquareItem(id) {
+  if (!id) return;
+  try {
+    await api("/api/square/like", {
+      method: "POST",
+      body: JSON.stringify({ id }),
+    });
+    await loadSquare();
+  } catch (err) {
+    alert(err.message || "点赞失败");
+  }
 }
 
 function clampMediaPreviewScale(value) {
@@ -3412,6 +3507,7 @@ function renderMedia() {
         <p>${escapeHtml(item.prompt || "暂无提示词")}</p>
         <div class="image-actions ${item.status === "error" ? "image-actions-error" : ""}">
           ${item.url ? `<button type="button" data-card-action="preview">预览</button><a href="${escapeAttr(item.url)}" download>下载</a>` : ""}
+          ${item.url ? `<button type="button" data-card-action="square">推荐广场</button>` : ""}
           ${item.status === "error" ? `<button type="button" class="retry" data-card-action="retry">重试</button>` : ""}
           <button type="button" data-card-action="reuse">复用</button>
           ${canReuseReferences ? `<button type="button" data-card-action="reuse-with-references" title="连同参考图一起复用">参考图复用</button>` : ""}
@@ -3435,6 +3531,9 @@ function renderMedia() {
     });
     card.querySelector('[data-card-action="reuse"]')?.addEventListener("click", () => {
       applyGalleryItemToPrompt(item, false);
+    });
+    card.querySelector('[data-card-action="square"]')?.addEventListener("click", () => {
+      recommendGalleryItem(item);
     });
     card.querySelector('[data-card-action="reuse-with-references"]')?.addEventListener("click", () => {
       applyGalleryItemToPrompt(item, true);
@@ -3598,6 +3697,7 @@ async function loadState() {
   debugCustomApi.hasApiKey = debugCustomApi.image.hasApiKey;
   renderDebugApiState();
   renderState();
+  loadSquare();
 }
 
 function buildVariants() {
@@ -6431,6 +6531,27 @@ document.addEventListener("click", (event) => {
 });
 els.showAllMedia?.addEventListener("click", () => {
   window.showAllGenerated?.();
+});
+squareEls.refresh?.addEventListener("click", loadSquare);
+squareEls.tabs.forEach((button) => {
+  button.addEventListener("click", () => {
+    squareEls.tabs.forEach((item) => item.classList.toggle("active", item === button));
+    squareSort = squareSortFromButton(button);
+    loadSquare();
+  });
+});
+squareEls.grid?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-square-action]");
+  if (!button) return;
+  const card = button.closest("[data-square-id]");
+  const id = card?.dataset.squareId || "";
+  const action = button.dataset.squareAction;
+  if (action === "like") {
+    likeSquareItem(id);
+  } else if (action === "open") {
+    const image = button.querySelector("img");
+    if (image?.src) window.open(image.src, "_blank", "noopener");
+  }
 });
 els.closeMediaPreview?.addEventListener("click", () => setMediaPreview(false));
 els.mediaPreviewModal?.addEventListener("click", (event) => {

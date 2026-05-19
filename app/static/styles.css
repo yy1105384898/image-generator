@@ -619,8 +619,21 @@ body.research-active .home-page > section:not(.research-workbench) {
   background-position: 0 0, 8px 8px;
   background-size: 16px 16px;
 }
-.square-grid .square-card:nth-child(n+2) {
-  display: none;
+.square-image-button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  cursor: zoom-in;
+}
+.square-image-button img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.square-empty-card {
+  width: min(420px, 100%);
 }
 .square-card-body {
   display: grid;
@@ -637,6 +650,31 @@ body.research-active .home-page > section:not(.research-workbench) {
   color: #484a45;
   font-size: 12px;
   line-height: 1.45;
+}
+.square-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.square-card-meta span,
+.square-card-meta button {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid rgba(17,17,17,.08);
+  border-radius: 999px;
+  background: #f6fffb;
+  color: #00665f;
+  font-size: 11px;
+  font-weight: 820;
+}
+.square-card-meta button {
+  cursor: pointer;
+}
+.square-grid.loading {
+  opacity: .62;
 }
 .home-primary.dark {
   border: 1px solid rgba(17,17,17,.14);

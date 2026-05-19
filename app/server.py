@@ -46,6 +46,7 @@ MEDIA_DIR = DATA_DIR / "media"
 REFERENCE_DIR = DATA_DIR / "references"
 JOBS_FILE = DATA_DIR / "jobs.json"
 MEDIA_FILE = DATA_DIR / "media.json"
+SQUARE_FILE = DATA_DIR / "square.json"
 SUBJECTS_FILE = DATA_DIR / "subjects.json"
 PRESETS_FILE = DATA_DIR / "presets.json"
 REFERENCES_FILE = DATA_DIR / "references.json"
@@ -2089,6 +2090,14 @@ def write_media(items):
     write_json(MEDIA_FILE, items[-MAX_HISTORY * 4:])
 
 
+def read_square():
+    return read_json(SQUARE_FILE, [])
+
+
+def write_square(items):
+    write_json(SQUARE_FILE, items[-1000:])
+
+
 def read_admin_settings() -> dict:
     raw = read_json(ADMIN_SETTINGS_FILE, {})
     return {
@@ -2158,6 +2167,40 @@ def public_job(job: dict) -> dict:
 
 def public_jobs(items: list[dict]) -> list[dict]:
     return [public_job(item) for item in items]
+
+
+def public_square_item(item: dict) -> dict:
+    public = dict(item or {})
+    public.pop("liked_by", None)
+    return public
+
+
+def square_item_for_media(media: dict, job: dict | None = None, client_id: str = "") -> dict:
+    prompt = str(media.get("prompt") or (job or {}).get("prompt") or "").strip()
+    title = str((job or {}).get("title") or "").strip() or (prompt[:24] if prompt else "广场作品")
+    title = title[:40]
+    now = now_ts()
+    return {
+        "id": uuid.uuid4().hex,
+        "media_id": str(media.get("id") or ""),
+        "job_id": str(media.get("job_id") or ""),
+        "title": title,
+        "prompt": prompt,
+        "image_url": str(media.get("url") or ""),
+        "thumb_url": str(media.get("url") or ""),
+        "model": str(media.get("model") or (job or {}).get("model") or DEFAULT_MODEL),
+        "aspect_ratio": str(media.get("aspect_ratio") or (job or {}).get("aspect_ratio") or "1:1"),
+        "resolution": str(media.get("resolution") or (job or {}).get("resolution") or "1K"),
+        "size": str(media.get("actual_size") or media.get("size") or (job or {}).get("size") or ""),
+        "quality": str(media.get("quality") or (job or {}).get("quality") or "auto"),
+        "likes": 0,
+        "views": 0,
+        "featured": False,
+        "status": "visible",
+        "recommended_by": client_id,
+        "created_at": now,
+        "updated_at": now,
+    }
 
 
 def client_media(client_id: str | None = None) -> list[dict]:
@@ -4296,6 +4339,75 @@ def state():
         "pool_user": public_pool_user(current_pool_user()),
         "pool_users": pool_user_stats(read_pool_users()),
     })
+
+
+@app.get("/api/square")
+def square_list():
+    sort = str(request.args.get("sort") or "latest").strip().lower()
+    period = str(request.args.get("period") or "").strip().lower()
+    now = now_ts()
+    min_ts = 0
+    if period == "week":
+        min_ts = now - 7 * 86400
+    elif period == "month":
+        min_ts = now - 31 * 86400
+    items = [item for item in read_square() if item.get("status") != "hidden" and (not min_ts or int(item.get("created_at") or 0) >= min_ts)]
+    if sort == "hot":
+        items.sort(key=lambda x: (int(x.get("likes") or 0), int(x.get("views") or 0), int(x.get("created_at") or 0)), reverse=True)
+    elif sort == "featured":
+        items.sort(key=lambda x: (bool(x.get("featured")), int(x.get("likes") or 0), int(x.get("created_at") or 0)), reverse=True)
+    else:
+        items.sort(key=lambda x: int(x.get("created_at") or 0), reverse=True)
+    return jsonify({"items": [public_square_item(item) for item in items[:80]], "total": len(items)})
+
+
+@app.post("/api/square/recommend")
+def square_recommend():
+    auth = login_required_json()
+    if auth:
+        return auth
+    payload = request.get_json(silent=True) or {}
+    media_id = str(payload.get("media_id") or "").strip()
+    if not media_id:
+        return jsonify({"error": "缺少图片 ID"}), 400
+    client_id = current_client_id()
+    media = next((item for item in client_media(client_id) if str(item.get("id") or "") == media_id), None)
+    if not media or not media.get("url"):
+        return jsonify({"error": "只能推荐当前工作台中已成功保存的图片"}), 404
+    jobs_by_id = {str(job.get("id") or ""): job for job in client_jobs(client_id)}
+    with state_lock:
+        items = read_square()
+        existing = next((item for item in items if str(item.get("media_id") or "") == media_id and item.get("status") != "hidden"), None)
+        if existing:
+            return jsonify({"item": public_square_item(existing), "ok": True, "duplicate": True})
+        item = square_item_for_media(media, jobs_by_id.get(str(media.get("job_id") or "")), client_id)
+        items.append(item)
+        write_square(items)
+    return jsonify({"item": public_square_item(item), "ok": True})
+
+
+@app.post("/api/square/like")
+def square_like():
+    payload = request.get_json(silent=True) or {}
+    item_id = str(payload.get("id") or "").strip()
+    if not item_id:
+        return jsonify({"error": "缺少作品 ID"}), 400
+    client_id = current_client_id()
+    with state_lock:
+        items = read_square()
+        target = next((item for item in items if str(item.get("id") or "") == item_id and item.get("status") != "hidden"), None)
+        if not target:
+            return jsonify({"error": "作品不存在"}), 404
+        liked_by = set(target.get("liked_by") if isinstance(target.get("liked_by"), list) else [])
+        if client_id in liked_by:
+            liked_by.remove(client_id)
+        else:
+            liked_by.add(client_id)
+        target["liked_by"] = sorted(liked_by)
+        target["likes"] = len(liked_by)
+        target["updated_at"] = now_ts()
+        write_square(items)
+    return jsonify({"item": public_square_item(target), "liked": client_id in liked_by})
 
 
 @app.post("/api/models")
