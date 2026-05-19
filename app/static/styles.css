@@ -468,8 +468,8 @@ body.research-active .home-page > section:not(.research-workbench) {
   scroll-margin-top: 0;
 }
 .home-market-section {
-  min-height: 100vh;
-  padding: 68px 0 44px;
+  min-height: auto;
+  padding: 60px 0 36px;
   background:
     linear-gradient(90deg, rgba(16,163,127,.07) 1px, transparent 1px),
     linear-gradient(180deg, rgba(16,163,127,.055) 1px, transparent 1px),
@@ -504,11 +504,17 @@ body.research-active .home-page > section:not(.research-workbench) {
 .square-hero-inline {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(420px, 464px);
+  grid-template-areas:
+    "copy quota"
+    "copy refresh";
   align-items: end;
-  gap: 48px;
+  gap: 14px 48px;
   width: min(1336px, calc(100% - 48px));
   margin: 0 auto;
-  padding: 32px 0 24px;
+  padding: 26px 0 18px;
+}
+.square-hero-inline > div:first-child {
+  grid-area: copy;
 }
 .square-hero-inline h2 {
   margin: 9px 0 0;
@@ -525,6 +531,7 @@ body.research-active .home-page > section:not(.research-workbench) {
   line-height: 1.65;
 }
 .square-quota-strip {
+  grid-area: quota;
   display: grid;
   grid-template-columns: minmax(0,1.1fr) auto auto auto auto auto auto;
   align-items: center;
@@ -552,12 +559,13 @@ body.research-active .home-page > section:not(.research-workbench) {
   font-weight: 840;
 }
 .square-refresh-button {
+  grid-area: refresh;
   display: inline-flex;
   min-height: 36px;
   align-items: center;
   justify-content: center;
   justify-self: end;
-  margin-top: 28px;
+  margin-top: 0;
   padding: 0 16px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -717,6 +725,23 @@ body.research-active .home-page > section:not(.research-workbench) {
 }
 .square-grid.loading {
   opacity: .62;
+}
+
+@media (max-width: 900px) {
+  .square-hero-inline {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "copy"
+      "quota"
+      "refresh";
+    gap: 14px;
+  }
+  .square-quota-strip {
+    width: 100%;
+  }
+  .square-refresh-button {
+    justify-self: start;
+  }
 }
 .home-primary.dark {
   border: 1px solid rgba(17,17,17,.14);
