@@ -38,6 +38,10 @@
         <span>Assets</span>
         <b>图片管理</b>
       </button>
+      <button type="button" class="admin-tab" data-admin-tab="square">
+        <span>Square</span>
+        <b>广场管理</b>
+      </button>
       <button type="button" class="admin-tab" data-admin-tab="logs">
         <span>Runtime</span>
         <b>日志管理</b>
@@ -276,6 +280,65 @@
       </div>
     </section>
 
+    <section class="admin-card admin-section admin-tab-panel" id="square" data-admin-panel="square">
+      <div class="admin-card-head">
+        <div>
+          <span class="admin-kicker">Square</span>
+          <h2>广场管理</h2>
+          <p>管理首页广场照片。隐藏只下架展示，删除只删广场记录，不删除原图文件。</p>
+        </div>
+        {% if square_items %}
+          <label class="admin-check-all">
+            <input type="checkbox" data-check-all="square_id">
+            <span>全选当前 {{ square_items|length }} 张</span>
+          </label>
+        {% endif %}
+      </div>
+      <form id="bulkSquare" method="post"></form>
+      <div class="admin-square-grid">
+        {% for item in square_items %}
+          <article class="admin-square-card {% if item.status == 'hidden' %}is-hidden{% endif %}">
+            <label class="admin-square-check">
+              <input form="bulkSquare" type="checkbox" name="square_id" value="{{ item.id }}">
+              <span>选择</span>
+            </label>
+            <button class="admin-square-preview" type="button" data-admin-image-preview data-url="{{ item.image_url or item.thumb_url }}" data-title="{{ item.title or 'Square' }}" data-meta="{{ item.created_at|ctime }} · {{ item.aspect_ratio or '-' }} · {{ item.resolution or item.size or '-' }}" data-prompt="{{ item.prompt|e }}">
+              <img src="{{ item.thumb_url or item.image_url }}" alt="">
+            </button>
+            <div class="admin-square-body">
+              <div class="admin-square-title">
+                <strong>{{ item.title or "未命名" }}</strong>
+                <span>{{ "精选" if item.featured else "普通" }} · {{ "隐藏" if item.status == "hidden" else "展示" }}</span>
+              </div>
+              <p>{{ item.prompt }}</p>
+              <small>点赞 {{ item.likes or 0 }} · 浏览 {{ item.views or 0 }} · {{ item.model or "-" }}</small>
+              <div class="admin-image-actions">
+                <form method="post">
+                  <input type="hidden" name="target_square_id" value="{{ item.id }}">
+                  <button type="submit" name="action" value="toggle_square_featured">{{ "取消精选" if item.featured else "设为精选" }}</button>
+                </form>
+                <form method="post">
+                  <input type="hidden" name="target_square_id" value="{{ item.id }}">
+                  <button type="submit" name="action" value="{{ 'restore_square_items' if item.status == 'hidden' else 'hide_square_items' }}">{{ "恢复展示" if item.status == "hidden" else "隐藏" }}</button>
+                </form>
+                <form method="post">
+                  <input type="hidden" name="target_square_id" value="{{ item.id }}">
+                  <button class="admin-danger-inline" type="submit" name="action" value="delete_square_items">删除记录</button>
+                </form>
+              </div>
+            </div>
+          </article>
+        {% else %}
+          <div class="admin-empty">暂无广场照片。</div>
+        {% endfor %}
+      </div>
+      <div class="admin-form-actions">
+        <button form="bulkSquare" type="submit" name="action" value="hide_square_items">隐藏选中</button>
+        <button form="bulkSquare" type="submit" name="action" value="restore_square_items">恢复选中</button>
+        <button form="bulkSquare" class="admin-danger-button" type="submit" name="action" value="delete_square_items">删除选中记录</button>
+      </div>
+    </section>
+
     <section class="admin-card admin-section admin-tab-panel" id="logs" data-admin-panel="logs">
       <div class="admin-card-head">
         <div>
@@ -284,6 +347,13 @@
           <p>左侧为后台操作日志，右侧为最近生图任务状态。</p>
         </div>
       </div>
+      <form method="post" class="admin-retention-form">
+        <label>日志保留天数
+          <input name="admin_log_retention_days" type="number" min="0" max="3650" value="{{ admin_settings.admin_log_retention_days }}">
+        </label>
+        <button type="submit" name="action" value="save_log_retention">保存</button>
+        <small>0 表示只按最近 300 条清理。</small>
+      </form>
       <div class="admin-log-grid">
         <div class="admin-log-list">
           {% for log in logs %}

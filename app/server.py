@@ -715,10 +715,33 @@ def redact_secrets(value):
     return text
 
 
+def normalize_admin_log_retention_days(value) -> int:
+    try:
+        days = int(value)
+    except (TypeError, ValueError):
+        days = 30
+    return max(0, min(days, 3650))
+
+
+def clean_admin_logs(logs: list[dict], retention_days=None, max_items: int = 300) -> list[dict]:
+    days = normalize_admin_log_retention_days(retention_days)
+    cutoff = now_ts() - days * 86400 if days else 0
+    cleaned = []
+    for item in logs if isinstance(logs, list) else []:
+        if not isinstance(item, dict):
+            continue
+        created_at = int(item.get("created_at") or 0)
+        if cutoff and created_at and created_at < cutoff:
+            continue
+        cleaned.append(item)
+    cleaned.sort(key=lambda item: int(item.get("created_at") or 0))
+    return cleaned[-max_items:]
+
+
 def admin_log(action: str, detail: dict | None = None) -> None:
     logs = read_json(ADMIN_LOGS_FILE, [])
     logs.append({"id": uuid.uuid4().hex, "action": action, "detail": redact_secrets(detail or {}), "created_at": now_ts()})
-    write_json(ADMIN_LOGS_FILE, logs[-300:])
+    write_json(ADMIN_LOGS_FILE, clean_admin_logs(logs, read_admin_settings().get("admin_log_retention_days")))
 
 
 def normalize_account_status(value) -> str:
@@ -2102,6 +2125,7 @@ def read_admin_settings() -> dict:
     raw = read_json(ADMIN_SETTINGS_FILE, {})
     return {
         "save_generated_images": bool(raw.get("save_generated_images", True)),
+        "admin_log_retention_days": normalize_admin_log_retention_days(raw.get("admin_log_retention_days", 30)),
     }
 
 
@@ -2109,6 +2133,7 @@ def write_admin_settings(settings: dict) -> None:
     current = read_admin_settings()
     current.update(settings or {})
     current["save_generated_images"] = bool(current.get("save_generated_images", True))
+    current["admin_log_retention_days"] = normalize_admin_log_retention_days(current.get("admin_log_retention_days", 30))
     current["updated_at"] = now_ts()
     write_json(ADMIN_SETTINGS_FILE, current)
 
@@ -4181,6 +4206,45 @@ def admin():
             admin_log("更新图片保存开关", {"save_generated_images": enabled})
             message = "图片保存已开启。" if enabled else "图片保存已关闭，新生成图片不会进入后台图片管理。"
             saved = True
+        elif action == "save_log_retention":
+            days = normalize_admin_log_retention_days(request.form.get("admin_log_retention_days"))
+            write_admin_settings({"admin_log_retention_days": days})
+            with state_lock:
+                write_json(ADMIN_LOGS_FILE, clean_admin_logs(read_json(ADMIN_LOGS_FILE, []), days))
+            admin_log("update admin log retention", {"days": days})
+            message = f"日志保留时间已更新为 {days} 天。" if days else "日志已关闭按时间清理，仅保留最近 300 条。"
+            saved = True
+        elif action in {"hide_square_items", "delete_square_items", "restore_square_items", "toggle_square_featured"}:
+            target_id = request.form.get("target_square_id", "").strip()
+            square_ids = set(request.form.getlist("square_id"))
+            if target_id:
+                square_ids.add(target_id)
+            if not square_ids:
+                message = "没有选择广场图片。"
+            else:
+                with state_lock:
+                    square_items = read_square()
+                    changed = 0
+                    if action == "delete_square_items":
+                        before = len(square_items)
+                        square_items = [item for item in square_items if str(item.get("id") or "") not in square_ids]
+                        changed = before - len(square_items)
+                    else:
+                        for item in square_items:
+                            if str(item.get("id") or "") not in square_ids:
+                                continue
+                            if action == "toggle_square_featured":
+                                item["featured"] = not bool(item.get("featured"))
+                            elif action == "restore_square_items":
+                                item["status"] = "visible"
+                            elif action == "hide_square_items":
+                                item["status"] = "hidden"
+                            item["updated_at"] = now_ts()
+                            changed += 1
+                    write_square(square_items)
+                admin_log("update square items", {"action": action, "count": changed})
+                message = f"广场图片已处理 {changed} 条。"
+            saved = True
         elif action == "delete_media":
             media_ids = set(request.form.getlist("media_id"))
             media_items = read_media()
@@ -4226,7 +4290,11 @@ def admin():
             media_archive_groups.append(media_archive_map[day_key])
         media_archive_map[day_key]["media"].append(item)
     jobs = sorted(public_jobs(read_jobs()), key=lambda x: x.get("created_at", 0), reverse=True)
-    logs = sorted(redact_secrets(read_json(ADMIN_LOGS_FILE, [])), key=lambda x: x.get("created_at", 0), reverse=True)
+    square_items = sorted(read_square(), key=lambda x: x.get("created_at", 0), reverse=True)
+    with state_lock:
+        cleaned_logs = clean_admin_logs(read_json(ADMIN_LOGS_FILE, []), admin_settings.get("admin_log_retention_days"))
+        write_json(ADMIN_LOGS_FILE, cleaned_logs)
+    logs = sorted(redact_secrets(cleaned_logs), key=lambda x: x.get("created_at", 0), reverse=True)
     integrations = read_integration_config()
     return render_template(
         "admin.html",
@@ -4256,6 +4324,7 @@ def admin():
         integration_masks=integration_secret_masks(integrations),
         media_items=media_items,
         media_archive_groups=media_archive_groups,
+        square_items=square_items,
         jobs=jobs[:80],
         logs=logs[:120],
         sub2api_remote_accounts=sub2api_remote_accounts,
