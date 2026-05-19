@@ -284,10 +284,19 @@ body.research-active .home-page > section:not(.research-workbench) {
 }
 .home-product-showcase {
   display: grid;
-  gap: 34px;
-  padding: 86px clamp(20px, 5vw, 72px);
-  background: #111;
+  gap: 30px;
+  width: min(1220px, calc(100% - 40px));
+  margin: 42px auto 54px;
+  padding: clamp(34px, 5vw, 64px);
+  border: 1px solid rgba(255, 255, 255, .09);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(34, 189, 151, .18), transparent 34%),
+    linear-gradient(145deg, #151817 0%, #0f1211 56%, #171413 100%);
   color: #fff;
+  box-shadow:
+    0 2px 4px rgba(17,17,17,.05),
+    0 24px 70px rgba(17,17,17,.13);
 }
 .home-product-showcase .home-showcase-copy {
   width: min(920px, 100%);
@@ -296,11 +305,11 @@ body.research-active .home-page > section:not(.research-workbench) {
   color: #85d8c1;
 }
 .home-product-showcase h2 {
-  color: #fff;
+  color: rgba(255,255,255,.94);
 }
 .home-product-showcase p {
   width: min(760px, 100%);
-  color: rgba(255,255,255,.72);
+  color: rgba(255,255,255,.68);
 }
 .home-preview-frame,
 .home-analysis-media {
@@ -320,6 +329,7 @@ body.research-active .home-page > section:not(.research-workbench) {
   max-height: 680px;
   margin: 0;
   border-color: rgba(255,255,255,.2);
+  border-radius: 18px;
 }
 .home-preview-frame-wide img {
   object-fit: cover;
@@ -457,7 +467,7 @@ body.research-active .home-page > section:not(.research-workbench) {
 }
 .home-market-section {
   min-height: 100vh;
-  padding: 0 0 44px;
+  padding: 68px 0 44px;
   background:
     linear-gradient(90deg, rgba(16,163,127,.07) 1px, transparent 1px),
     linear-gradient(180deg, rgba(16,163,127,.055) 1px, transparent 1px),
@@ -465,6 +475,7 @@ body.research-active .home-page > section:not(.research-workbench) {
   background-size: 64px 64px, 64px 64px, auto;
 }
 .square-topbar-inline {
+  display: none !important;
   position: sticky;
   top: 0;
   z-index: 8;
@@ -495,7 +506,7 @@ body.research-active .home-page > section:not(.research-workbench) {
   gap: 48px;
   width: min(1336px, calc(100% - 48px));
   margin: 0 auto;
-  padding: 96px 0 24px;
+  padding: 32px 0 24px;
 }
 .square-hero-inline h2 {
   margin: 9px 0 0;
