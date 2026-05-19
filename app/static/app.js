@@ -3519,10 +3519,10 @@ function renderMedia() {
         <p>${escapeHtml(item.prompt || "暂无提示词")}</p>
         <div class="image-actions ${item.status === "error" ? "image-actions-error" : ""}">
           ${item.url ? `<button type="button" data-card-action="preview">预览</button><a href="${escapeAttr(item.url)}" download>下载</a>` : ""}
-          ${item.url ? `<button type="button" data-card-action="square">推荐广场</button>` : ""}
           ${item.status === "error" ? `<button type="button" class="retry" data-card-action="retry">重试</button>` : ""}
           <button type="button" data-card-action="reuse">复用</button>
           ${canReuseReferences ? `<button type="button" data-card-action="reuse-with-references" title="连同参考图一起复用">参考图复用</button>` : ""}
+          ${item.url ? `<button type="button" data-card-action="square">推荐广场</button>` : ""}
         </div>
       </div>
     `;
