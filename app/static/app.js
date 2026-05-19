@@ -3232,7 +3232,7 @@ function renderGalleryHeader(items) {
     <div class="gallery-title">
       <strong>${escapeHtml(title)}</strong>
       <span>运行中 ${running} / 排队 ${queued} / 成功 ${succeeded} / 失败 ${failed} / 图片 ${state.media.length}</span>
-      <small>列表为加速缩略图，点击预览查看原图</small>
+      <small>列表为缩略图，点击预览查看原图</small>
     </div>
     ${currentJob && !selectedCount ? `
       <div class="gallery-bulk-actions muted">
