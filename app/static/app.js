@@ -213,6 +213,12 @@ function restoreHistorySelection() {
   selectedHistoryJobId = state.jobs[0]?.id || null;
 }
 
+function clearLegacyDefaultNegative() {
+  if (els.negative?.value.trim() === LEGACY_DEFAULT_NEGATIVE) {
+    els.negative.value = "";
+  }
+}
+
 let verifiedImageModels = [];
 let verifiedTextModels = [];
 let autoModelTimer = 0;
@@ -254,6 +260,7 @@ let activeResearchJobId = "";
 let activeResearchProjectSignature = "";
 const RESEARCH_PROJECT_STORAGE_KEY = "yy-research-project";
 const RESEARCH_ACTIVE_JOB_STORAGE_KEY = "yy-research-active-job";
+const LEGACY_DEFAULT_NEGATIVE = "低清晰度，畸形结构，错误文字，重复肢体，低质量，过度锐化";
 
 function currentHistoryJob() {
   if (!selectedHistoryJobId || selectedHistoryJobId === NEW_TASK_DRAFT_ID) return null;
@@ -6895,6 +6902,7 @@ window.addEventListener("resize", () => {
   if (!els.guideOverlay?.classList.contains("hidden")) alignGuideTarget();
 });
 loadApiKeyPreference();
+clearLegacyDefaultNegative();
 applyModelConfigToUi();
 setConnectionMode(localStorage.getItem(CONNECTION_MODE_STORAGE_KEY) || "custom");
 replaceTextModelOptions([]);
