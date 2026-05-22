@@ -239,6 +239,8 @@ const GUIDE_STORAGE_KEY = "yangyangapi:onboarding:v1:completed";
 const CUSTOM_INDUSTRY_AGENTS_KEY = "yangyangapi:custom-industry-agents:v1";
 let submitInFlight = false;
 let activeSubmitRequestId = "";
+let stateRefreshTimer = 0;
+let stateRefreshInFlight = false;
 let preflightAnalysisInFlight = false;
 let preflightCancelled = false;
 let activeMediaPreviewItem = null;
@@ -1143,17 +1145,23 @@ function clampNumberInput(input, fallback, min, max) {
   return next;
 }
 
+function readNumberInput(input, fallback, min, max) {
+  const value = Number.parseInt(input?.value, 10);
+  return Math.max(min, Math.min(max, Number.isFinite(value) ? value : fallback));
+}
+
 function recommendedConcurrency(count) {
   const value = Number.parseInt(count, 10);
   if (!Number.isFinite(value)) return 1;
   return Math.max(1, Math.min(value, 20));
 }
 
-function syncConcurrencyToCount() {
+function syncConcurrencyToCount({ commit = false } = {}) {
   if (!els.count || !els.concurrency) return;
-  const count = clampNumberInput(els.count, 1, 1, 20);
+  const count = commit ? clampNumberInput(els.count, 1, 1, 20) : readNumberInput(els.count, 1, 1, 20);
   const next = recommendedConcurrency(count);
   els.concurrency.value = String(next);
+  if (commit && els.quickCount) els.quickCount.value = String(count);
   if (els.quickConcurrency) els.quickConcurrency.value = String(next);
 }
 
@@ -1168,7 +1176,7 @@ function normalizeGenerationNumbers() {
 }
 
 function quickConfigTitle() {
-  return `打开生成配置：${els.count.value}张 · ${els.aspectRatio.value} · ${els.resolution.value} · ${requestSize()} · ${els.outputFormat.value.toUpperCase()} · 并发 ${els.concurrency.value}`;
+  return `打开生成配置：${readNumberInput(els.count, 1, 1, 20)}张 · ${els.aspectRatio.value} · ${els.resolution.value} · ${requestSize()} · ${els.outputFormat.value.toUpperCase()} · 并发 ${els.concurrency.value}`;
 }
 
 function applyModelConfigToUi() {
@@ -1212,7 +1220,7 @@ function syncPromptTextareaSize() {
 
 function syncSummary() {
   syncReferenceAspectAuto();
-  normalizeGenerationNumbers();
+  syncConcurrencyToCount({ commit: false });
   syncQualityOptionsForModel();
   const protocol = protocols[els.protocol.value] || protocols["custom-openai"];
   const hasPrompt = Boolean(els.prompt.value.trim());
@@ -1224,9 +1232,10 @@ function syncSummary() {
   els.protocolSupport.textContent = protocol.support;
   els.connectionNote.textContent = connectionNotes[els.connectionMode.value] || connectionNotes.custom;
   els.protocolSummary.textContent = `${protocol.shortLabel} · ${requestSize()}`;
-  els.countSummary.textContent = `${els.count.value}张 · ${els.aspectRatio.value} · ${els.resolution.value} · ${els.outputFormat.value.toUpperCase()}`;
+  const displayCount = String(readNumberInput(els.count, 1, 1, 20));
+  els.countSummary.textContent = `${displayCount}张 · ${els.aspectRatio.value} · ${els.resolution.value} · ${els.outputFormat.value.toUpperCase()}`;
   if (els.quickConfigButton) {
-    els.quickConfigButton.textContent = `☷ ${els.count.value}张 ${els.aspectRatio.value} ${els.resolution.value}`;
+    els.quickConfigButton.textContent = `☷ ${displayCount}张 ${els.aspectRatio.value} ${els.resolution.value}`;
     els.quickConfigButton.title = quickConfigTitle();
     els.quickConfigButton.setAttribute("aria-label", quickConfigTitle());
   }
@@ -2523,7 +2532,7 @@ function applyAgentModePlan(plan) {
   }
   if (plan.count) {
     els.count.value = String(Math.max(1, Math.min(Number(plan.count) || 1, 20)));
-    syncConcurrencyToCount();
+    syncConcurrencyToCount({ commit: true });
   }
   if (plan.negative) {
     els.negative.value = String(plan.negative).trim();
@@ -3712,6 +3721,31 @@ async function loadState() {
   loadSquare();
 }
 
+function hasActiveGenerationJobs() {
+  return submitInFlight || state.jobs.some((job) => ["queued", "running"].includes(job.status));
+}
+
+function scheduleStateRefresh(delay = (hasActiveGenerationJobs() ? 1500 : 5000)) {
+  window.clearTimeout(stateRefreshTimer);
+  stateRefreshTimer = window.setTimeout(refreshStateLoop, delay);
+}
+
+async function refreshStateLoop() {
+  if (stateRefreshInFlight) {
+    scheduleStateRefresh(1000);
+    return;
+  }
+  stateRefreshInFlight = true;
+  try {
+    await loadState();
+  } catch (err) {
+    console.warn("state refresh failed", err);
+  } finally {
+    stateRefreshInFlight = false;
+    scheduleStateRefresh();
+  }
+}
+
 function buildVariants() {
   return [];
 }
@@ -3781,6 +3815,7 @@ async function performSubmitJob(promptOverride = "") {
     closePromptAnalysis();
     syncSummary();
     await loadState();
+    scheduleStateRefresh(800);
   } catch (err) {
     alert(err.message);
   } finally {
@@ -4457,7 +4492,7 @@ function setRecommendedParams({ quality = "auto", applyNow = false } = {}) {
   if (selectedAgent?.count && agentEnabled) {
     els.count.value = String(selectedAgent.count);
   }
-  syncConcurrencyToCount();
+  syncConcurrencyToCount({ commit: true });
   if ([...els.quality.options].some((option) => option.value === quality)) {
     els.quality.value = quality;
   }
@@ -4621,7 +4656,7 @@ function applyRecommendedParams() {
     }
     if (promptAnalysisPlan.count) {
       els.count.value = String(Math.max(1, Math.min(Number(promptAnalysisPlan.count) || 1, 20)));
-      syncConcurrencyToCount();
+      syncConcurrencyToCount({ commit: true });
     }
     if (promptAnalysisPlan.negative) {
       els.negative.value = String(promptAnalysisPlan.negative).trim();
@@ -6506,9 +6541,13 @@ window.addEventListener("resize", syncPromptTextareaSize);
       referenceAspectAutoEnabled = false;
       referenceAspectAutoValue = "";
     }
-    if (el === els.count || el === els.concurrency) syncConcurrencyToCount();
+    if (el === els.count || el === els.concurrency) syncConcurrencyToCount({ commit: eventName === "change" });
     syncSummary();
   }));
+});
+els.count?.addEventListener("blur", () => {
+  syncConcurrencyToCount({ commit: true });
+  syncSummary();
 });
 els.connectionButtons.forEach((button) => button.addEventListener("click", () => {
   setConnectionMode(button.dataset.connectionMode, { persist: true });
@@ -6691,24 +6730,23 @@ els.closeQuickConfig?.addEventListener("click", () => setQuickConfigPanel(false)
   [els.quickQuality, els.quality],
   [els.quickFormat, els.outputFormat],
 ].forEach(([quick, source]) => {
-  quick?.addEventListener("input", () => {
+  const syncQuickValue = (commit = false) => {
     if (quick === els.quickAspect && !referenceAspectSyncing && referenceAspectCandidate()) {
       referenceAspectAutoEnabled = false;
       referenceAspectAutoValue = "";
     }
     source.value = quick.value;
-    if (source === els.count) syncConcurrencyToCount();
-    syncSummary();
-  });
-  quick?.addEventListener("change", () => {
-    if (quick === els.quickAspect && !referenceAspectSyncing && referenceAspectCandidate()) {
-      referenceAspectAutoEnabled = false;
-      referenceAspectAutoValue = "";
+    if (source === els.count) {
+      syncConcurrencyToCount({ commit });
+      if (commit) quick.value = source.value;
     }
-    source.value = quick.value;
-    if (source === els.count) syncConcurrencyToCount();
     syncSummary();
-  });
+  };
+  quick?.addEventListener("input", () => syncQuickValue(false));
+  quick?.addEventListener("change", () => syncQuickValue(true));
+  if (source === els.count) {
+    quick?.addEventListener("blur", () => syncQuickValue(true));
+  }
 });
 els.optimizePrompt?.addEventListener("click", optimizePromptLocal);
 els.recommendParams?.addEventListener("click", recommendParamsLocal);
@@ -6878,7 +6916,8 @@ loadState().then(() => {
   }
 }).catch((err) => {
   setModelStatus(`加载状态失败：${err.message}`, "error");
+}).finally(() => {
+  scheduleStateRefresh();
 });
 syncSummary();
 window.setTimeout(() => maybeAutoShowGuide(location.hash || "#home"), 650);
-setInterval(loadState, 5000);
