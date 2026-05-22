@@ -2502,6 +2502,20 @@ def save_image_payload(job_id: str, index: int, image_payload: dict, prompt: str
         resp.raise_for_status()
         path.write_bytes(resp.content)
         mime = resp.headers.get("Content-Type", mime).split(";")[0] or mime
+    local_upscale = str(job.get("local_upscale") or "none").strip().lower()
+    if local_upscale == "2x":
+        try:
+            with Image.open(path) as image:
+                image = ImageOps.exif_transpose(image)
+                target_size = (max(1, image.width * 2), max(1, image.height * 2))
+                resample_root = getattr(Image, "Resampling", Image)
+                resample = getattr(resample_root, "LANCZOS", 1)
+                image = image.resize(target_size, resample)
+                if path.suffix.lower() in {".jpg", ".jpeg"} and image.mode != "RGB":
+                    image = image.convert("RGB")
+                image.save(path)
+        except Exception:
+            local_upscale = "failed"
     width, height = image_dimensions(path)
     actual_size = f"{width}x{height}" if width and height else ""
     url = f"/media/{filename}"
@@ -2524,6 +2538,8 @@ def save_image_payload(job_id: str, index: int, image_payload: dict, prompt: str
         "height": height,
         "quality": str(job.get("quality") or "auto"),
         "output_format": str(job.get("output_format") or "png"),
+        "background": str(job.get("background") or "auto"),
+        "local_upscale": local_upscale,
         "reference_ids": [str(v).strip() for v in job.get("reference_ids", []) if str(v).strip()][:4],
         "edit_mode": bool(job.get("edit_mode")),
         "admin_visible": read_admin_settings().get("save_generated_images", True),
@@ -4904,6 +4920,7 @@ def create_job():
         "background": str(payload.get("background") or "auto").strip(),
         "moderation": str(payload.get("moderation") or "auto").strip(),
         "output_compression": payload.get("output_compression") or "",
+        "local_upscale": str(payload.get("local_upscale") or "none").strip(),
     }
     normalized_options, _normalized_meta = normalize_image_request_options(requested_job_options)
     job = {
@@ -4940,6 +4957,7 @@ def create_job():
         "background": str(normalized_options.get("background") or requested_job_options["background"]),
         "moderation": str(normalized_options.get("moderation") or requested_job_options["moderation"]),
         "output_compression": str(normalized_options.get("output_compression") or requested_job_options["output_compression"]),
+        "local_upscale": requested_job_options["local_upscale"],
         "count": count,
         "concurrency": count,
         "retry_limit": max(0, min(int(payload.get("retry_limit") or 2), 5)),
@@ -5008,6 +5026,7 @@ def retry_job(job_id):
         "background": str(source.get("background") or "auto").strip(),
         "moderation": str(source.get("moderation") or "auto").strip(),
         "output_compression": source.get("output_compression") or "",
+        "local_upscale": str(source.get("local_upscale") or "none").strip(),
     }
     normalized_retry_options, _retry_meta = normalize_image_request_options(retry_options)
     retry_count = int(source.get("retry_count") or 0) + 1
@@ -5045,6 +5064,7 @@ def retry_job(job_id):
         "background": str(normalized_retry_options.get("background") or retry_options["background"]),
         "moderation": str(normalized_retry_options.get("moderation") or retry_options["moderation"]),
         "output_compression": str(normalized_retry_options.get("output_compression") or retry_options["output_compression"]),
+        "local_upscale": retry_options["local_upscale"],
         "count": retry_count_total,
         "concurrency": retry_count_total,
         "retry_limit": max(0, min(int(payload.get("retry_limit") or source.get("retry_limit") or 2), 5)),

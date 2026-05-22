@@ -22,7 +22,8 @@
           <a href="#home-api">API 接入</a>
         </nav>
         <div class="home-nav-actions">
-          <a class="home-nav-action" href="#studio">商业生图台</a>
+          <a class="home-nav-action commerce-action" href="#commerce">简洁生图台</a>
+          <a class="home-nav-action" href="#studio">专业生图台</a>
           <a class="home-nav-action research-action" href="#research">科研工作台</a>
           <a class="home-nav-action" href="#market">进入广场</a>
           <a class="home-admin-link" href="{{ url_for('admin') }}">管理后台</a>
@@ -36,7 +37,8 @@
         <h1>YANGYANGAPI<br>生图<br>工作台</h1>
         <p>从一句提示词，到一组可复用的视觉资产。把智能分析、批量生成、并行队列和本地图库，放进一个安静、清晰、反应迅速的创作空间。</p>
         <div class="home-hero-actions">
-          <a class="home-primary" href="#studio">商业生图台 <span>→</span></a>
+          <a class="home-primary" href="#commerce">简洁生图台 <span>→</span></a>
+          <a class="home-secondary" href="#studio">专业生图台</a>
           <a class="home-secondary research-secondary" href="#research">科研工作台</a>
           <a class="home-secondary" href="#home-flow">了解流程</a>
           <a class="home-secondary" href="#market">浏览广场</a>
@@ -199,7 +201,264 @@
         <h2>自定义 API 优先。本地号池备用。</h2>
       </div>
       <p>工作台默认走后台配置的云端 OpenAI 兼容 API；需要账号池时再切换到本地号池。图片、任务和历史记录保存在当前服务的数据目录里，方便继续查看和管理。</p>
-      <a class="home-primary dark" href="#studio">进入商业生图台 →</a>
+      <a class="home-primary dark" href="#studio">进入专业生图台 →</a>
+    </section>
+
+    <section class="commerce-workbench" id="commerce">
+      <header class="commerce-topbar">
+        <a class="home-brand" href="#home">
+          <span class="brand-mark"><img src="{{ url_for('static', filename='v20260510151225993-sumapi-logo-C29H2E54.svg') }}" alt=""></span>
+          <strong>简洁生图台</strong>
+        </a>
+        <nav>
+          <a href="#home">首页</a>
+          <a href="#studio">专业生图台</a>
+          <a href="#market">广场</a>
+        </nav>
+      </header>
+
+      <div class="commerce-shell">
+        <aside class="commerce-connect-panel">
+          <div class="commerce-panel-kicker">自定义接入模型</div>
+          <h2>填入 API，即可生成图片。</h2>
+          <p>使用 OpenAI 兼容接口。API Key 默认只保存在本机缓存，清理缓存后失效。</p>
+
+          <label class="commerce-field">
+            <span>API 地址</span>
+            <input id="commerceApiUrl" placeholder="https://your-api.example.com/v1" autocomplete="off">
+          </label>
+          <label class="commerce-field">
+            <span>API Key</span>
+            <input id="commerceApiKey" type="password" placeholder="sk-... 或 New API Token" autocomplete="off">
+          </label>
+          <label class="commerce-check">
+            <input id="commerceRememberKey" type="checkbox" checked>
+            <span>本地保存接入信息</span>
+          </label>
+          <label class="commerce-field">
+            <span>绘图模型</span>
+            <select id="commerceModel">
+              <option value="">填写 Key 后自动读取</option>
+            </select>
+          </label>
+          <div id="commerceModelStatus" class="commerce-status">等待填写 API Key</div>
+        </aside>
+
+        <main class="commerce-main">
+          <section class="commerce-hero-card">
+            <div>
+              <span>Product Image Studio</span>
+              <h1>简洁生图台</h1>
+              <p>复刻参考工作台的模板、图库、历史和参数能力，入口更直接。</p>
+            </div>
+            <button id="commerceGenerate" class="commerce-generate-main" type="button">生成图片</button>
+          </section>
+
+          <div class="commerce-notice">PNG 遇到上游 server_error 时，系统会按现有队列策略重试；点击缩略图可查看原图。</div>
+          <nav class="commerce-tabs" id="commerceTabs">
+            <button class="active" data-commerce-tab="workspace" type="button">工作台</button>
+            <button data-commerce-tab="prompts" type="button">提示词管理</button>
+            <button data-commerce-tab="gallery" type="button">图库</button>
+            <button data-commerce-tab="history" type="button">历史任务</button>
+          </nav>
+
+          <div class="commerce-grid commerce-tab-panel active" data-commerce-panel="workspace">
+            <section class="commerce-form-card">
+              <div class="commerce-section-head">
+                <strong>生成内容</strong>
+                <span>按信息自动组装提示词</span>
+              </div>
+              <label class="commerce-field">
+                <span>选择模板</span>
+                <select id="commerceTemplateSelect">
+                  <option value="">暂无模板</option>
+                </select>
+              </label>
+              <div class="commerce-field">
+                <span>生成模式</span>
+                <div class="commerce-chip-row" id="commerceModeChips">
+                  <button class="active" data-commerce-mode="text" type="button">文生图</button>
+                  <button data-commerce-mode="image" type="button">图生图</button>
+                </div>
+              </div>
+              <button id="commerceReferenceUpload" class="commerce-upload-line" type="button">上传参考图</button>
+              <label class="commerce-field">
+                <span>标题 / 对象</span>
+                <input id="commerceProductName" placeholder="例如：便携榨汁杯、科技海报、节日主视觉">
+              </label>
+              <label class="commerce-field">
+                <span>细节 / 卖点 / 画面要求</span>
+                <textarea id="commerceSellingPoints" rows="4" placeholder="写主体细节、材质、用途、人群、希望突出的画面"></textarea>
+              </label>
+              <div class="commerce-field">
+                <span>风格预设</span>
+                <div class="commerce-chip-row" id="commerceSceneChips">
+                  <button data-commerce-scene="电影感写实" type="button">电影感写实</button>
+                  <button class="active" data-commerce-scene="商品主图" type="button">商品主图</button>
+                  <button data-commerce-scene="透明贴纸" type="button">透明贴纸</button>
+                  <button data-commerce-scene="3D 潮玩" type="button">3D 潮玩</button>
+                  <button data-commerce-scene="扁平图标" type="button">扁平图标</button>
+                  <button data-commerce-scene="复古海报" type="button">复古海报</button>
+                  <button data-commerce-scene="动漫插画" type="button">动漫插画</button>
+                  <button data-commerce-scene="极简壁纸" type="button">极简壁纸</button>
+                </div>
+              </div>
+              <label class="commerce-field">
+                <span>风格补充</span>
+                <input id="commerceStyle" placeholder="例如：高级、干净、科技感、奶油风、奢华">
+              </label>
+              <div class="commerce-param-row">
+                <label class="commerce-field">
+                  <span>张数</span>
+                  <input id="commerceCount" type="number" min="1" max="20" value="1">
+                </label>
+                <label class="commerce-field">
+                  <span>尺寸</span>
+                  <select id="commerceSize">
+                    <option value="auto">Auto</option>
+                    <option value="1:1">1024x1024</option>
+                    <option value="4:5">1024x1280</option>
+                    <option value="16:9">1920x1080</option>
+                    <option value="9:16">1024x1792</option>
+                  </select>
+                </label>
+              </div>
+              <div class="commerce-field">
+                <span>比例</span>
+                <div class="commerce-chip-row" id="commerceRatioChips">
+                  <button class="active" data-commerce-ratio="1:1" type="button">1:1 主图</button>
+                  <button data-commerce-ratio="4:5" type="button">4:5 竖版</button>
+                  <button data-commerce-ratio="16:9" type="button">16:9 横屏</button>
+                  <button data-commerce-ratio="9:16" type="button">9:16 手机</button>
+                </div>
+              </div>
+              <details class="commerce-advanced">
+                <summary>高级设置</summary>
+                <div class="commerce-param-row">
+                  <label class="commerce-field">
+                    <span>分辨率</span>
+                    <select id="commerceResolution">
+                      <option value="1K">1K 标准</option>
+                      <option value="2K">2K 高清</option>
+                      <option value="4K">4K 超清</option>
+                    </select>
+                  </label>
+                  <label class="commerce-field">
+                    <span>质量</span>
+                    <select id="commerceQuality">
+                      <option value="auto">auto</option>
+                      <option value="medium">medium</option>
+                      <option value="high">high</option>
+                      <option value="low">low</option>
+                    </select>
+                  </label>
+                  <label class="commerce-field">
+                    <span>格式</span>
+                    <select id="commerceFormat">
+                      <option value="png">PNG</option>
+                      <option value="jpeg">JPEG</option>
+                      <option value="webp">WebP</option>
+                    </select>
+                  </label>
+                  <label class="commerce-field">
+                    <span>背景</span>
+                    <select id="commerceBackground">
+                      <option value="auto">自动</option>
+                      <option value="transparent">透明</option>
+                      <option value="opaque">不透明</option>
+                    </select>
+                  </label>
+                  <label class="commerce-field">
+                    <span>本地放大</span>
+                    <select id="commerceUpscale">
+                      <option value="none">不放大</option>
+                      <option value="2x">2x</option>
+                    </select>
+                  </label>
+                </div>
+              </details>
+              <label class="commerce-field">
+                <span>提示词</span>
+                <textarea id="commercePrompt" rows="7"></textarea>
+              </label>
+              <div class="commerce-template-save">
+                <input id="commerceTemplateName" placeholder="模板名称">
+                <input id="commerceTemplateTags" placeholder="标签，用逗号分隔">
+                <button id="commerceSaveTemplate" type="button">保存模板</button>
+              </div>
+              <div class="commerce-form-actions">
+                <button id="commerceClearSelection" type="button">清空选择</button>
+                <button id="commerceGenerateBottom" type="button">生成图片</button>
+              </div>
+            </section>
+
+            <section class="commerce-result-card">
+              <div class="commerce-section-head">
+                <strong>最近结果</strong>
+                <span id="commerceResultStatus">列表为缩略图，点击预览查看原图</span>
+              </div>
+              <div class="commerce-task-box">
+                <strong>当前任务</strong>
+                <div id="commerceCurrentTask">还没有当前任务</div>
+              </div>
+              <div id="commerceGallery" class="commerce-gallery">
+                <div class="commerce-empty">生成后会在这里显示图片。</div>
+              </div>
+              <div class="commerce-task-box">
+                <div class="commerce-section-head compact">
+                  <strong>最近任务</strong>
+                  <button id="commerceShowAllHistory" type="button">查看全部</button>
+                </div>
+                <div id="commerceRecentTasks" class="commerce-task-list">暂无任务</div>
+              </div>
+            </section>
+          </div>
+
+          <section class="commerce-tab-panel commerce-form-card" data-commerce-panel="prompts">
+            <div class="commerce-section-head">
+              <strong>提示词模板</strong>
+              <span id="commerceTemplateCount">0</span>
+            </div>
+            <button id="commerceNewTemplate" class="commerce-upload-line" type="button">新建模板</button>
+            <div id="commerceTemplateList" class="commerce-template-list">
+              <div class="commerce-empty">暂无模板</div>
+            </div>
+          </section>
+
+          <section class="commerce-tab-panel commerce-result-card" data-commerce-panel="gallery">
+            <div class="commerce-section-head">
+              <strong>图库</strong>
+              <span>点击图片可放大预览，底部可下载、复制提示词或重新生成。</span>
+            </div>
+            <div id="commerceLibrary" class="commerce-library"></div>
+            <div class="commerce-pager">
+              <button data-commerce-page="gallery-prev" type="button">上一页</button>
+              <span id="commerceGalleryPageLabel">1 / 1</span>
+              <button data-commerce-page="gallery-next" type="button">下一页</button>
+            </div>
+          </section>
+
+          <section class="commerce-tab-panel commerce-result-card" data-commerce-panel="history">
+            <div class="commerce-section-head">
+              <strong>历史任务记录</strong>
+              <span>失败任务会显示上游错误摘要。</span>
+            </div>
+            <div class="commerce-chip-row" id="commerceHistoryFilters">
+              <button class="active" data-commerce-status="all" type="button">全部</button>
+              <button data-commerce-status="queued" type="button">排队中</button>
+              <button data-commerce-status="running" type="button">生成中</button>
+              <button data-commerce-status="success" type="button">已完成</button>
+              <button data-commerce-status="error" type="button">失败</button>
+            </div>
+            <div id="commerceHistoryList" class="commerce-history-list"></div>
+            <div class="commerce-pager">
+              <button data-commerce-page="history-prev" type="button">上一页</button>
+              <span id="commerceHistoryPageLabel">1 / 1</span>
+              <button data-commerce-page="history-next" type="button">下一页</button>
+            </div>
+          </section>
+        </main>
+      </div>
     </section>
 
     <section class="research-workbench" id="research">
@@ -207,7 +466,7 @@
         <div class="topbar-cluster">
           <button class="topbar-toggle active" id="researchToggleLeft" type="button">◫</button>
           <a class="topbar-home-button" href="#home">✣ 首页</a>
-          <a class="topbar-home-button" href="#studio">↗ 商业生图台</a>
+          <a class="topbar-home-button" href="#studio">↗ 专业生图台</a>
           <button class="status-pill connection-status success" type="button">● 科研绘图就绪</button>
         </div>
         <div class="current-model">

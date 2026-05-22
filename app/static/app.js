@@ -181,6 +181,60 @@ const squareEls = {
   quota: document.querySelector(".square-quota-strip"),
 };
 
+const commerceEls = {
+  tabs: document.querySelectorAll("[data-commerce-tab]"),
+  panels: document.querySelectorAll("[data-commerce-panel]"),
+  apiUrl: $("#commerceApiUrl"),
+  apiKey: $("#commerceApiKey"),
+  rememberKey: $("#commerceRememberKey"),
+  model: $("#commerceModel"),
+  modelStatus: $("#commerceModelStatus"),
+  templateSelect: $("#commerceTemplateSelect"),
+  modeChips: document.querySelectorAll("[data-commerce-mode]"),
+  referenceUpload: $("#commerceReferenceUpload"),
+  productName: $("#commerceProductName"),
+  sellingPoints: $("#commerceSellingPoints"),
+  style: $("#commerceStyle"),
+  sceneChips: document.querySelectorAll("[data-commerce-scene]"),
+  ratioChips: document.querySelectorAll("[data-commerce-ratio]"),
+  count: $("#commerceCount"),
+  size: $("#commerceSize"),
+  resolution: $("#commerceResolution"),
+  quality: $("#commerceQuality"),
+  format: $("#commerceFormat"),
+  background: $("#commerceBackground"),
+  upscale: $("#commerceUpscale"),
+  prompt: $("#commercePrompt"),
+  templateName: $("#commerceTemplateName"),
+  templateTags: $("#commerceTemplateTags"),
+  saveTemplate: $("#commerceSaveTemplate"),
+  clearSelection: $("#commerceClearSelection"),
+  generate: $("#commerceGenerate"),
+  generateBottom: $("#commerceGenerateBottom"),
+  gallery: $("#commerceGallery"),
+  resultStatus: $("#commerceResultStatus"),
+  currentTask: $("#commerceCurrentTask"),
+  recentTasks: $("#commerceRecentTasks"),
+  showAllHistory: $("#commerceShowAllHistory"),
+  newTemplate: $("#commerceNewTemplate"),
+  templateCount: $("#commerceTemplateCount"),
+  templateList: $("#commerceTemplateList"),
+  library: $("#commerceLibrary"),
+  pageButtons: document.querySelectorAll("[data-commerce-page]"),
+  galleryPageLabel: $("#commerceGalleryPageLabel"),
+  historyFilters: document.querySelectorAll("[data-commerce-status]"),
+  historyList: $("#commerceHistoryList"),
+  historyPageLabel: $("#commerceHistoryPageLabel"),
+};
+
+let commercePromptTouched = false;
+let commerceRefreshTimer = 0;
+let commerceActiveTab = "workspace";
+let commerceHistoryStatus = "all";
+let commerceTemplates = [];
+let commerceGalleryPage = 1;
+let commerceHistoryPage = 1;
+
 function persistHistorySelection(showAll = false) {
   try {
     if (showAll) {
@@ -273,13 +327,14 @@ function applyRoute() {
   const anchor = location.hash || "#home";
   document.body.classList.toggle("studio-active", anchor === "#studio");
   document.body.classList.toggle("research-active", anchor === "#research");
+  document.body.classList.toggle("commerce-active", anchor === "#commerce");
   if (anchor !== "#studio") {
     hideGuide(false);
   }
   const target = document.querySelector(anchor);
   if (target) {
     window.requestAnimationFrame(() => {
-      target.scrollIntoView({ block: "start", behavior: anchor === "#studio" || anchor === "#research" ? "auto" : "smooth" });
+      target.scrollIntoView({ block: "start", behavior: anchor === "#studio" || anchor === "#research" || anchor === "#commerce" ? "auto" : "smooth" });
     });
   }
   maybeAutoShowGuide(anchor);
@@ -441,6 +496,7 @@ const MANUAL_TEXT_MODEL_KEY = "yangyang_image_manual_text_model";
 const TEXT_API_URL_KEY = "yangyang_image_text_api_url";
 const TEXT_API_KEY_STORAGE_KEY = "yangyang_image_text_api_key";
 const SEND_OPTIMIZE_KEY = "yangyang_image_send_optimize";
+const COMMERCE_TEMPLATES_KEY = "yangyang_simple_studio_templates";
 const ALLOWED_CONNECTION_MODES = new Set(["custom", "pool"]);
 let debugCustomApi = {
   enabled: Boolean(modelConfig.debug?.workbench_custom_api),
@@ -1829,6 +1885,7 @@ function replaceModelOptions(models) {
     els.model.disabled = true;
     els.submitJob.disabled = true;
     syncResearchImageModelOptions([]);
+    syncCommerceModelOptions([]);
     syncSummary();
     return;
   }
@@ -1848,6 +1905,7 @@ function replaceModelOptions(models) {
   }
   if (els.model.value) localStorage.setItem(SELECTED_IMAGE_MODEL_KEY, els.model.value);
   syncResearchImageModelOptions(models);
+  syncCommerceModelOptions(models);
   syncSummary();
 }
 
@@ -3417,6 +3475,365 @@ function previewSquareItem(id) {
   });
 }
 
+function setCommerceStatus(message, tone = "idle") {
+  if (!commerceEls.modelStatus) return;
+  commerceEls.modelStatus.textContent = message;
+  commerceEls.modelStatus.classList.toggle("error", tone === "error");
+  commerceEls.modelStatus.classList.toggle("loading", tone === "loading");
+}
+
+function activeCommerceValue(buttons, key, fallback = "") {
+  const active = [...buttons].find((button) => button.classList.contains("active"));
+  return active?.dataset?.[key] || fallback;
+}
+
+function setCommerceChip(buttons, key, value) {
+  buttons.forEach((button) => button.classList.toggle("active", button.dataset[key] === value));
+}
+
+let commerceLastAutoPrompt = "";
+
+function buildCommercePrompt() {
+  const subject = (commerceEls.productName?.value || "").trim();
+  const details = (commerceEls.sellingPoints?.value || "").trim();
+  const preset = activeCommerceValue(commerceEls.sceneChips, "commerceScene", "商品主图");
+  const style = (commerceEls.style?.value || "").trim();
+  const mode = activeCommerceValue(commerceEls.modeChips, "commerceMode", "text") === "image" ? "参考图复用" : "文生图";
+  return [
+    subject ? `主体：${subject}。` : "主体：清晰明确的商业视觉主体。",
+    details ? `画面要求：${details}。` : "",
+    `风格预设：${preset}。`,
+    style ? `风格补充：${style}。` : "",
+    `生成模式：${mode}。`,
+    "构图干净，主体突出，光影自然，细节清晰，可直接用于宣传和展示。",
+  ].filter(Boolean).join("\n");
+}
+
+function syncCommercePrompt({ force = false } = {}) {
+  if (!commerceEls.prompt) return;
+  const next = buildCommercePrompt();
+  if (force || !commercePromptTouched || commerceEls.prompt.value.trim() === commerceLastAutoPrompt.trim()) {
+    commerceEls.prompt.value = next;
+    commerceLastAutoPrompt = next;
+    commercePromptTouched = false;
+  }
+}
+
+function loadCommerceTemplates() {
+  try {
+    commerceTemplates = JSON.parse(localStorage.getItem(COMMERCE_TEMPLATES_KEY) || "[]");
+    if (!Array.isArray(commerceTemplates)) commerceTemplates = [];
+  } catch (err) {
+    commerceTemplates = [];
+  }
+}
+
+function saveCommerceTemplates() {
+  localStorage.setItem(COMMERCE_TEMPLATES_KEY, JSON.stringify(commerceTemplates.slice(0, 80)));
+}
+
+function renderCommerceTemplates() {
+  if (!commerceEls.templateSelect) return;
+  const current = commerceEls.templateSelect.value;
+  commerceEls.templateSelect.innerHTML = "";
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = commerceTemplates.length ? "选择模板" : "暂无模板";
+  commerceEls.templateSelect.append(empty);
+  commerceTemplates.forEach((template) => {
+    const option = document.createElement("option");
+    option.value = template.id;
+    option.textContent = template.name || "未命名模板";
+    commerceEls.templateSelect.append(option);
+  });
+  if (commerceTemplates.some((item) => item.id === current)) commerceEls.templateSelect.value = current;
+  if (commerceEls.templateCount) commerceEls.templateCount.textContent = String(commerceTemplates.length);
+  if (!commerceEls.templateList) return;
+  if (!commerceTemplates.length) {
+    commerceEls.templateList.innerHTML = '<div class="commerce-empty">暂无模板</div>';
+    return;
+  }
+  commerceEls.templateList.innerHTML = commerceTemplates.map((template) => `
+    <article class="commerce-template-item" data-commerce-template-id="${escapeAttr(template.id)}">
+      <strong>${escapeHtml(template.name || "未命名模板")}</strong>
+      <span>${escapeHtml((template.tags || []).join("，") || "未设置标签")}</span>
+      <span>${escapeHtml((template.prompt || "").slice(0, 140))}</span>
+      <div class="commerce-template-actions">
+        <button data-commerce-template-action="use" type="button">使用</button>
+        <button data-commerce-template-action="delete" type="button">删除</button>
+      </div>
+    </article>
+  `).join("");
+}
+
+function applyCommerceTemplate(id) {
+  const template = commerceTemplates.find((item) => item.id === id);
+  if (!template) return;
+  if (commerceEls.prompt) {
+    commerceEls.prompt.value = template.prompt || "";
+    commerceLastAutoPrompt = template.prompt || "";
+    commercePromptTouched = true;
+  }
+  if (commerceEls.style && template.style) commerceEls.style.value = template.style;
+  if (template.scene) setCommerceChip(commerceEls.sceneChips, "commerceScene", template.scene);
+  if (commerceEls.templateName) commerceEls.templateName.value = template.name || "";
+  if (commerceEls.templateTags) commerceEls.templateTags.value = (template.tags || []).join(", ");
+}
+
+function saveCommerceTemplateFromForm() {
+  const prompt = (commerceEls.prompt?.value || "").trim();
+  if (!prompt) {
+    commerceEls.prompt?.focus();
+    return;
+  }
+  const name = (commerceEls.templateName?.value || "").trim() || `模板 ${commerceTemplates.length + 1}`;
+  const tags = (commerceEls.templateTags?.value || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean);
+  const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  commerceTemplates.unshift({
+    id,
+    name,
+    tags,
+    prompt,
+    style: (commerceEls.style?.value || "").trim(),
+    scene: activeCommerceValue(commerceEls.sceneChips, "commerceScene", "商品主图"),
+    created_at: Date.now() / 1000,
+  });
+  saveCommerceTemplates();
+  renderCommerceTemplates();
+  if (commerceEls.templateSelect) commerceEls.templateSelect.value = id;
+}
+
+function syncCommerceModelOptions(models = verifiedImageModels) {
+  if (!commerceEls.model) return;
+  const clean = cleanModelList(models);
+  const selected = commerceEls.model.value || els.model?.value || localStorage.getItem(SELECTED_IMAGE_MODEL_KEY) || "";
+  commerceEls.model.innerHTML = "";
+  if (!clean.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "填写 Key 后自动读取";
+    commerceEls.model.append(option);
+    commerceEls.model.disabled = true;
+    return;
+  }
+  clean.forEach((model) => {
+    const option = document.createElement("option");
+    option.value = model;
+    option.textContent = model;
+    commerceEls.model.append(option);
+  });
+  commerceEls.model.disabled = false;
+  commerceEls.model.value = clean.includes(selected) ? selected : clean[0];
+}
+
+function syncCommerceFromMain() {
+  if (!commerceEls.apiUrl) return;
+  if (document.activeElement !== commerceEls.apiUrl) {
+    commerceEls.apiUrl.value = els.apiUrl?.value || localStorage.getItem(CUSTOM_API_URL_KEY) || "";
+  }
+  if (document.activeElement !== commerceEls.apiKey) {
+    commerceEls.apiKey.value = els.apiKey?.value || localStorage.getItem("yangyang_image_api_key") || "";
+  }
+  commerceEls.rememberKey.checked = Boolean(els.rememberApiKey?.checked || localStorage.getItem("yangyang_image_api_key"));
+  syncCommerceModelOptions(verifiedImageModels);
+  if (commerceEls.model && els.model?.value) commerceEls.model.value = els.model.value;
+  setCommerceStatus(verifiedImageModels.length ? `已读取 ${verifiedImageModels.length} 个绘图模型` : "等待填写 API Key", verifiedImageModels.length ? "success" : "idle");
+  syncCommercePrompt();
+}
+
+function pushCommerceConnectionToMain() {
+  if (!commerceEls.apiUrl) return;
+  setConnectionMode("custom", { persist: true });
+  if (els.apiUrl) els.apiUrl.value = commerceEls.apiUrl.value.trim();
+  if (els.apiKey) els.apiKey.value = commerceEls.apiKey.value.trim();
+  if (els.rememberApiKey) els.rememberApiKey.checked = Boolean(commerceEls.rememberKey?.checked);
+  if (commerceEls.model?.value && els.model) {
+    if (![...els.model.options].some((option) => option.value === commerceEls.model.value)) {
+      const option = document.createElement("option");
+      option.value = commerceEls.model.value;
+      option.textContent = commerceEls.model.value;
+      els.model.append(option);
+    }
+    els.model.value = commerceEls.model.value;
+    localStorage.setItem(SELECTED_IMAGE_MODEL_KEY, commerceEls.model.value);
+  }
+  saveApiKeyPreference();
+}
+
+function scheduleCommerceModelRefresh() {
+  window.clearTimeout(commerceRefreshTimer);
+  commerceRefreshTimer = window.setTimeout(async () => {
+    pushCommerceConnectionToMain();
+    if (!selectedApiUrl() || (!selectedApiKey() && !adminDebugApiActive())) {
+      syncCommerceModelOptions([]);
+      setCommerceStatus(!selectedApiUrl() ? "等待填写 API 地址" : "等待填写 API Key");
+      return;
+    }
+    setCommerceStatus("正在读取模型...", "loading");
+    await refreshModels({ silent: true });
+    syncCommerceFromMain();
+  }, 650);
+}
+
+function commerceAspectValue() {
+  const sizeValue = commerceEls.size?.value || "auto";
+  if (sizeValue && sizeValue !== "auto") return sizeValue;
+  return activeCommerceValue(commerceEls.ratioChips, "commerceRatio", "1:1");
+}
+
+async function submitCommerceJob() {
+  syncCommercePrompt();
+  const prompt = (commerceEls.prompt?.value || "").trim();
+  if (!prompt) {
+    commerceEls.prompt?.focus();
+    return;
+  }
+  pushCommerceConnectionToMain();
+  if (els.title) els.title.value = "简洁生图台";
+  if (els.prompt) els.prompt.value = prompt;
+  if (els.count && commerceEls.count) els.count.value = commerceEls.count.value || "1";
+  if (els.aspectRatio) els.aspectRatio.value = commerceAspectValue();
+  if (els.resolution && commerceEls.resolution) els.resolution.value = commerceEls.resolution.value || "1K";
+  if (els.quality && commerceEls.quality) els.quality.value = commerceEls.quality.value || "auto";
+  if (els.outputFormat && commerceEls.format) els.outputFormat.value = commerceEls.format.value || "png";
+  if (els.editMode) els.editMode.checked = activeCommerceValue(commerceEls.modeChips, "commerceMode", "text") === "image" && selectedReferenceIds.size > 0;
+  clearAgentForGeneralGeneration();
+  syncSummary();
+  setCommerceStatus("已提交生成任务", "loading");
+  await performSubmitJob(prompt);
+  renderCommerceState();
+}
+
+function latestCommerceItems(limit = 8) {
+  const jobById = new Map(state.jobs.map((job) => [job.id, job]));
+  return [...state.media]
+    .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
+    .slice(0, limit)
+    .map((media) => ({ media, job: jobById.get(media.job_id) || {} }));
+}
+
+function commerceMediaCard(media, job = {}) {
+  const item = {
+    title: media.model || job.model || "生成图片",
+    prompt: media.prompt || job.prompt || "",
+    url: media.url,
+    thumbUrl: media.thumb_url || media.url,
+    jobId: media.job_id || job.id || "",
+    aspect_ratio: media.aspect_ratio || job.aspect_ratio || "",
+    resolution: media.resolution || job.resolution || "",
+    size: media.size || job.size || "",
+  };
+  return `
+    <article class="commerce-result-item" data-commerce-media-id="${escapeAttr(media.id)}" data-commerce-job-id="${escapeAttr(item.jobId)}">
+      <button data-commerce-media-action="preview" type="button">
+        <img src="${escapeAttr(item.thumbUrl || item.url || "")}" alt="${escapeAttr(item.prompt || "生成图片")}" loading="lazy" decoding="async">
+      </button>
+      <div>
+        <strong>${escapeHtml(item.title)}</strong>
+        <span>${escapeHtml([item.aspect_ratio, item.resolution, item.size].filter(Boolean).join(" · ") || "生成图片")}</span>
+        <div class="commerce-template-actions">
+          <a href="${escapeAttr(item.url || "")}" download>下载</a>
+          <button data-commerce-media-action="copy" type="button">复制提示词</button>
+          <button data-commerce-media-action="retry" type="button">重新生成</button>
+          <button data-commerce-media-action="delete" type="button">删除</button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderCommerceGallery() {
+  if (!commerceEls.gallery) return;
+  const items = latestCommerceItems(8);
+  if (!items.length) {
+    commerceEls.gallery.innerHTML = '<div class="commerce-empty">生成后会在这里显示图片。</div>';
+  } else {
+    commerceEls.gallery.innerHTML = items.map(({ media, job }) => commerceMediaCard(media, job)).join("");
+  }
+  if (commerceEls.library) {
+    const all = latestCommerceItems(200);
+    const pageSize = 20;
+    const pageCount = Math.max(1, Math.ceil(all.length / pageSize));
+    commerceGalleryPage = Math.max(1, Math.min(commerceGalleryPage, pageCount));
+    const pageItems = all.slice((commerceGalleryPage - 1) * pageSize, commerceGalleryPage * pageSize);
+    commerceEls.library.innerHTML = pageItems.length
+      ? pageItems.map(({ media, job }) => commerceMediaCard(media, job)).join("")
+      : '<div class="commerce-empty">暂无图片</div>';
+    if (commerceEls.galleryPageLabel) commerceEls.galleryPageLabel.textContent = `${commerceGalleryPage} / ${pageCount}`;
+  }
+}
+
+function renderCommerceTasks() {
+  const current = state.jobs[0] || null;
+  if (commerceEls.currentTask) {
+    commerceEls.currentTask.innerHTML = current
+      ? `<div class="commerce-task-line"><strong>${escapeHtml(current.model || current.title || "生成任务")}</strong><span>${escapeHtml(current.status || "")} · ${escapeHtml(formatTime(current.created_at))}</span><span>${escapeHtml((current.prompt || "").slice(0, 120))}</span></div>`
+      : "还没有当前任务";
+  }
+  const recent = state.jobs.slice(0, 5);
+  if (commerceEls.recentTasks) {
+    commerceEls.recentTasks.innerHTML = recent.length ? recent.map((job) => `
+      <div class="commerce-task-line" data-commerce-job-id="${escapeAttr(job.id)}">
+        <strong>${escapeHtml(job.model || job.title || "生成任务")}</strong>
+        <span>${escapeHtml(job.status || "")} · ${escapeHtml(formatTime(job.created_at))}</span>
+      </div>
+    `).join("") : "暂无任务";
+  }
+  if (!commerceEls.historyList) return;
+  const jobs = state.jobs.filter((job) => commerceHistoryStatus === "all" || job.status === commerceHistoryStatus);
+  const pageSize = 20;
+  const pageCount = Math.max(1, Math.ceil(jobs.length / pageSize));
+  commerceHistoryPage = Math.max(1, Math.min(commerceHistoryPage, pageCount));
+  const pageJobs = jobs.slice((commerceHistoryPage - 1) * pageSize, commerceHistoryPage * pageSize);
+  commerceEls.historyList.innerHTML = pageJobs.length ? pageJobs.map((job) => `
+    <article class="commerce-history-item" data-commerce-job-id="${escapeAttr(job.id)}">
+      <strong>${escapeHtml(job.model || job.title || "生成任务")}</strong>
+      <span>${escapeHtml(job.status || "")} · ${escapeHtml(formatTime(job.created_at))} · ${Number(job.count || 1)} 张</span>
+      <span>${escapeHtml(job.error || (job.prompt || "").slice(0, 180))}</span>
+      ${job.status === "error" ? '<button data-commerce-history-action="retry" type="button">重新生成</button>' : ""}
+    </article>
+  `).join("") : '<div class="commerce-empty">暂无任务</div>';
+  if (commerceEls.historyPageLabel) commerceEls.historyPageLabel.textContent = `${commerceHistoryPage} / ${pageCount}`;
+}
+
+function renderCommerceState() {
+  syncCommerceFromMain();
+  renderCommerceTemplates();
+  renderCommerceGallery();
+  renderCommerceTasks();
+}
+
+function setCommerceTab(tabName) {
+  commerceActiveTab = tabName || "workspace";
+  commerceEls.tabs.forEach((button) => button.classList.toggle("active", button.dataset.commerceTab === commerceActiveTab));
+  commerceEls.panels.forEach((panel) => panel.classList.toggle("active", panel.dataset.commercePanel === commerceActiveTab));
+  renderCommerceState();
+}
+
+function previewCommerceMedia(id) {
+  const media = state.media.find((item) => item.id === id);
+  if (!media) return;
+  const job = state.jobs.find((item) => item.id === media.job_id) || {};
+  setMediaPreview(true, {
+    title: media.model || job.model || "生成图片",
+    prompt: media.prompt || job.prompt || "",
+    url: media.url,
+    thumbUrl: media.thumb_url || media.url,
+    aspect_ratio: media.aspect_ratio || job.aspect_ratio || "",
+    resolution: media.resolution || job.resolution || "",
+    size: media.size || job.size || "",
+  });
+}
+
+async function deleteCommerceMedia(id) {
+  if (!id) return;
+  await api("/api/media/delete", {
+    method: "POST",
+    body: JSON.stringify({ media_ids: [id] }),
+  });
+  await loadState();
+}
+
 function clampMediaPreviewScale(value) {
   return Math.max(0.35, Math.min(5, value));
 }
@@ -3582,6 +3999,7 @@ function renderReferences() {
   if (!state.references.length) {
     els.composerReferenceList?.classList.add("hidden");
     els.referenceSendSummary?.classList.add("hidden");
+    if (commerceEls.referenceUpload) commerceEls.referenceUpload.textContent = "上传参考图";
     syncReferenceAspectControl();
     return;
   }
@@ -3609,6 +4027,9 @@ function renderReferences() {
     els.referenceList.append(btn);
   }
   const selectedRefs = selectedReferenceItems();
+  if (commerceEls.referenceUpload) {
+    commerceEls.referenceUpload.textContent = selectedRefs.length ? `已选参考图 ${selectedRefs.length}/${MAX_REFERENCE_SELECTION}` : "上传参考图";
+  }
   if (selectedRefs.length === 1) {
     syncReferenceAspectAuto({ announce: true });
   } else {
@@ -3668,6 +4089,7 @@ function renderState() {
   renderPresetPanel();
   renderPoolUser();
   syncResearchOutputsFromState();
+  renderCommerceState();
   syncSummary();
 }
 
@@ -3805,6 +4227,8 @@ async function performSubmitJob(promptOverride = "") {
         size: requestSize(),
         quality: els.quality.value,
         output_format: els.outputFormat.value,
+        background: document.body.classList.contains("commerce-active") ? (commerceEls.background?.value || "auto") : "auto",
+        local_upscale: document.body.classList.contains("commerce-active") ? (commerceEls.upscale?.value || "none") : "none",
         count: numbers.count,
         concurrency: numbers.concurrency,
         retry_limit: numbers.retryLimit,
@@ -5575,7 +5999,7 @@ async function submitResearchGenerationJob(sourceNode = null) {
     return null;
   }
   if (els.connectionMode.value === "pool" && !activePoolUser()) {
-    setResearchStatus("请先在商业生图台登录号池账号");
+    setResearchStatus("请先在专业生图台登录号池账号");
     setConnectionStatus("请先登录号池账号", "error");
     location.hash = "#studio";
     return null;
@@ -6443,7 +6867,7 @@ function initResearchWorkbench() {
   $("#researchApiButton")?.addEventListener("click", () => {
     location.hash = "#studio";
     els.appShell?.classList.add("settings-open");
-    setResearchStatus("API 配置沿用商业生图台，请在商业生图台右侧模型接入里填写");
+    setResearchStatus("API 配置沿用专业生图台，请在专业生图台右侧模型接入里填写");
   });
   document.querySelectorAll("[data-research-add-node]").forEach((button) => {
     button.addEventListener("click", () => createResearchNode(button.dataset.researchAddNode || "prompt"));
@@ -6609,6 +7033,129 @@ squareEls.grid?.addEventListener("click", (event) => {
   } else if (action === "open") {
     previewSquareItem(id);
   }
+});
+commerceEls.tabs.forEach((button) => {
+  button.addEventListener("click", () => setCommerceTab(button.dataset.commerceTab));
+});
+commerceEls.modeChips.forEach((button) => {
+  button.addEventListener("click", () => {
+    setCommerceChip(commerceEls.modeChips, "commerceMode", button.dataset.commerceMode);
+    syncCommercePrompt({ force: false });
+  });
+});
+commerceEls.sceneChips.forEach((button) => {
+  button.addEventListener("click", () => {
+    setCommerceChip(commerceEls.sceneChips, "commerceScene", button.dataset.commerceScene);
+    syncCommercePrompt({ force: false });
+  });
+});
+commerceEls.ratioChips.forEach((button) => {
+  button.addEventListener("click", () => {
+    setCommerceChip(commerceEls.ratioChips, "commerceRatio", button.dataset.commerceRatio);
+    if (commerceEls.size) commerceEls.size.value = "auto";
+  });
+});
+[commerceEls.productName, commerceEls.sellingPoints, commerceEls.style].forEach((input) => {
+  input?.addEventListener("input", () => syncCommercePrompt({ force: false }));
+});
+commerceEls.prompt?.addEventListener("input", () => {
+  commercePromptTouched = true;
+});
+[commerceEls.apiUrl, commerceEls.apiKey].forEach((input) => {
+  input?.addEventListener("input", scheduleCommerceModelRefresh);
+});
+commerceEls.rememberKey?.addEventListener("change", () => {
+  pushCommerceConnectionToMain();
+});
+commerceEls.model?.addEventListener("change", () => {
+  pushCommerceConnectionToMain();
+  renderAvailableModels();
+});
+commerceEls.templateSelect?.addEventListener("change", () => applyCommerceTemplate(commerceEls.templateSelect.value));
+commerceEls.saveTemplate?.addEventListener("click", saveCommerceTemplateFromForm);
+commerceEls.newTemplate?.addEventListener("click", () => {
+  commerceEls.templateName?.focus();
+  setCommerceTab("workspace");
+});
+commerceEls.templateList?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-commerce-template-action]");
+  if (!button) return;
+  const item = button.closest("[data-commerce-template-id]");
+  const id = item?.dataset.commerceTemplateId || "";
+  if (button.dataset.commerceTemplateAction === "use") {
+    applyCommerceTemplate(id);
+    setCommerceTab("workspace");
+    return;
+  }
+  commerceTemplates = commerceTemplates.filter((template) => template.id !== id);
+  saveCommerceTemplates();
+  renderCommerceTemplates();
+});
+commerceEls.clearSelection?.addEventListener("click", () => {
+  commercePromptTouched = false;
+  commerceEls.productName.value = "";
+  commerceEls.sellingPoints.value = "";
+  commerceEls.style.value = "";
+  commerceEls.templateName.value = "";
+  commerceEls.templateTags.value = "";
+  selectedReferenceIds.clear();
+  renderReferences();
+  setCommerceChip(commerceEls.modeChips, "commerceMode", "text");
+  setCommerceChip(commerceEls.sceneChips, "commerceScene", "商品主图");
+  setCommerceChip(commerceEls.ratioChips, "commerceRatio", "1:1");
+  syncCommercePrompt({ force: true });
+});
+commerceEls.referenceUpload?.addEventListener("click", () => {
+  setCommerceChip(commerceEls.modeChips, "commerceMode", "image");
+  els.referenceUpload?.click();
+});
+[commerceEls.generate, commerceEls.generateBottom].forEach((button) => {
+  button?.addEventListener("click", submitCommerceJob);
+});
+[commerceEls.gallery, commerceEls.library].forEach((list) => {
+  list?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-commerce-media-action]");
+    if (!button) return;
+    const card = button.closest("[data-commerce-media-id]");
+    const mediaId = card?.dataset.commerceMediaId || "";
+    const jobId = card?.dataset.commerceJobId || "";
+    const action = button.dataset.commerceMediaAction;
+    if (action === "preview") {
+      previewCommerceMedia(mediaId);
+    } else if (action === "copy") {
+      const media = state.media.find((item) => item.id === mediaId);
+      navigator.clipboard?.writeText(media?.prompt || "");
+    } else if (action === "retry") {
+      retryJobs([jobId]);
+    } else if (action === "delete") {
+      deleteCommerceMedia(mediaId).catch((err) => alert(err.message));
+    }
+  });
+});
+commerceEls.showAllHistory?.addEventListener("click", () => setCommerceTab("history"));
+commerceEls.pageButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const action = button.dataset.commercePage || "";
+    if (action === "gallery-prev") commerceGalleryPage = Math.max(1, commerceGalleryPage - 1);
+    if (action === "gallery-next") commerceGalleryPage += 1;
+    if (action === "history-prev") commerceHistoryPage = Math.max(1, commerceHistoryPage - 1);
+    if (action === "history-next") commerceHistoryPage += 1;
+    renderCommerceState();
+  });
+});
+commerceEls.historyFilters.forEach((button) => {
+  button.addEventListener("click", () => {
+    commerceHistoryStatus = button.dataset.commerceStatus || "all";
+    commerceHistoryPage = 1;
+    commerceEls.historyFilters.forEach((item) => item.classList.toggle("active", item === button));
+    renderCommerceTasks();
+  });
+});
+commerceEls.historyList?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-commerce-history-action]");
+  if (!button) return;
+  const item = button.closest("[data-commerce-job-id]");
+  retryJobs([item?.dataset.commerceJobId || ""]);
 });
 els.closeMediaPreview?.addEventListener("click", () => setMediaPreview(false));
 els.mediaPreviewModal?.addEventListener("click", (event) => {
@@ -6906,6 +7453,9 @@ clearLegacyDefaultNegative();
 applyModelConfigToUi();
 setConnectionMode(localStorage.getItem(CONNECTION_MODE_STORAGE_KEY) || "custom");
 replaceTextModelOptions([]);
+loadCommerceTemplates();
+syncCommerceFromMain();
+syncCommercePrompt({ force: true });
 if (els.count && (!els.count.value || els.count.value === "4")) els.count.value = "1";
 syncShellToggles();
 loadCustomIndustryAgents();
