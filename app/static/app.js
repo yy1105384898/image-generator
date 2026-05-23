@@ -192,6 +192,7 @@ const commerceEls = {
   modelStatus: $("#commerceModelStatus"),
   templateSelect: $("#commerceTemplateSelect"),
   modeChips: document.querySelectorAll("[data-commerce-mode]"),
+  referenceField: $("#commerceReferenceField"),
   referenceUpload: $("#commerceReferenceUpload"),
   referenceDrop: $("#commerceReferenceDrop"),
   referencePreview: $("#commerceReferencePreview"),
@@ -373,7 +374,7 @@ function applyRoute() {
   if (anchor === "#commerce" && lastRouteAnchor && lastRouteAnchor !== "#commerce") {
     selectedReferenceIds.clear();
     setCommerceChip(commerceEls.modeChips, "commerceMode", "text");
-    renderReferences();
+    syncCommerceModeControls({ clearTextReferences: true });
   }
   lastRouteAnchor = anchor;
   if (anchor !== "#studio") {
@@ -3543,6 +3544,20 @@ function setCommerceChip(buttons, key, value) {
   buttons.forEach((button) => button.classList.toggle("active", button.dataset[key] === value));
 }
 
+function commerceModeValue() {
+  return activeCommerceValue(commerceEls.modeChips, "commerceMode", "text");
+}
+
+function syncCommerceModeControls({ clearTextReferences = false } = {}) {
+  const isImageMode = commerceModeValue() === "image";
+  commerceEls.referenceField?.classList.toggle("hidden", !isImageMode);
+  if (!isImageMode && (clearTextReferences || selectedReferenceIds.size)) {
+    selectedReferenceIds.clear();
+    if (els.editMode) els.editMode.checked = false;
+    renderReferences();
+  }
+}
+
 let commerceLastAutoPrompt = "";
 
 function syncCommerceStyleControls() {
@@ -3651,6 +3666,7 @@ function applyCommerceTemplate(id) {
   if (template.upscale && commerceEls.upscale) commerceEls.upscale.value = template.upscale;
   if (template.mode) setCommerceChip(commerceEls.modeChips, "commerceMode", template.mode);
   if (template.ratio) setCommerceChip(commerceEls.ratioChips, "commerceRatio", template.ratio);
+  syncCommerceModeControls({ clearTextReferences: template.mode !== "image" });
   syncCommerceStyleControls();
   if (commerceEls.templateName) commerceEls.templateName.value = template.name || "";
   if (commerceEls.templateTags) commerceEls.templateTags.value = (template.tags || []).join(", ");
@@ -3742,6 +3758,7 @@ function syncCommerceFromMain() {
   syncCommerceModelOptions(verifiedImageModels);
   if (commerceEls.model && els.model?.value) commerceEls.model.value = els.model.value;
   setCommerceStatus(verifiedImageModels.length ? `已读取 ${verifiedImageModels.length} 个绘图模型` : "等待填写 API Key", verifiedImageModels.length ? "success" : "idle");
+  syncCommerceModeControls({ clearTextReferences: true });
   syncCommerceStyleControls();
   syncCommercePrompt();
 }
@@ -3796,10 +3813,15 @@ async function submitCommerceJob() {
     commerceEls.prompt?.focus();
     return;
   }
-  if (activeCommerceValue(commerceEls.modeChips, "commerceMode", "text") === "image" && !selectedReferenceIds.size) {
+  const isImageMode = commerceModeValue() === "image";
+  if (isImageMode && !selectedReferenceIds.size) {
     setCommerceStatus("图生图模式需要上传参考图片", "error");
     commerceEls.referenceDrop?.focus();
     return;
+  }
+  if (!isImageMode && selectedReferenceIds.size) {
+    selectedReferenceIds.clear();
+    renderReferences();
   }
   pushCommerceConnectionToMain();
   if (els.title) els.title.value = "简洁生图台";
@@ -3810,7 +3832,7 @@ async function submitCommerceJob() {
   if (els.resolution && commerceEls.resolution) els.resolution.value = commerceEls.resolution.value || "1K";
   if (els.quality && commerceEls.quality) els.quality.value = commerceEls.quality.value || "auto";
   if (els.outputFormat && commerceEls.format) els.outputFormat.value = commerceEls.format.value || "png";
-  if (els.editMode) els.editMode.checked = activeCommerceValue(commerceEls.modeChips, "commerceMode", "text") === "image" && selectedReferenceIds.size > 0;
+  if (els.editMode) els.editMode.checked = isImageMode && selectedReferenceIds.size > 0;
   clearAgentForGeneralGeneration();
   syncSummary();
   setCommerceStatus("已提交生成任务", "loading");
@@ -4401,6 +4423,10 @@ async function performSubmitJob(promptOverride = "") {
     els.submitJob.textContent = "…";
     const activeAgent = agentEnabled && selectedAgent ? selectedAgent : null;
     const workspace = document.body.classList.contains("commerce-active") ? "commerce" : "studio";
+    const commerceImageMode = workspace === "commerce" && commerceModeValue() === "image";
+    const submittedReferenceIds = workspace === "commerce" && !commerceImageMode
+      ? []
+      : Array.from(selectedReferenceIds).slice(0, MAX_REFERENCE_SELECTION);
     let title = els.title.value.trim();
     if (!activeAgent && titleMatchesIndustryAgent(title)) {
       title = "";
@@ -4436,8 +4462,8 @@ async function performSubmitJob(promptOverride = "") {
         seed: els.seed.value.trim(),
         negative: els.negative.value.trim(),
         variants: buildVariants(),
-        reference_ids: Array.from(selectedReferenceIds).slice(0, MAX_REFERENCE_SELECTION),
-        edit_mode: Boolean(els.editMode.checked || selectedReferenceIds.size),
+        reference_ids: submittedReferenceIds,
+        edit_mode: workspace === "commerce" ? Boolean(commerceImageMode && submittedReferenceIds.length) : Boolean(els.editMode.checked || submittedReferenceIds.length),
       }),
     });
     els.prompt.value = prompt;
@@ -7265,6 +7291,7 @@ commerceEls.tabs.forEach((button) => {
 commerceEls.modeChips.forEach((button) => {
   button.addEventListener("click", () => {
     setCommerceChip(commerceEls.modeChips, "commerceMode", button.dataset.commerceMode);
+    syncCommerceModeControls({ clearTextReferences: button.dataset.commerceMode !== "image" });
     syncCommercePrompt({ force: false });
   });
 });
@@ -7393,6 +7420,7 @@ commerceEls.clearSelection?.addEventListener("click", () => {
   selectedReferenceIds.clear();
   renderReferences();
   setCommerceChip(commerceEls.modeChips, "commerceMode", "text");
+  syncCommerceModeControls({ clearTextReferences: true });
   syncCommerceStyleControls();
   setCommerceChip(commerceEls.ratioChips, "commerceRatio", "1:1");
   syncCommercePrompt({ force: true });
