@@ -233,6 +233,27 @@
                 <strong>生成内容</strong>
                 <span>提示词默认为空，按需填写</span>
               </div>
+              <div class="commerce-param-row commerce-param-row-2">
+                <label class="commerce-field">
+                  <span>自定义 API 地址</span>
+                  <input id="commerceApiUrl" placeholder="https://your-api.example.com/v1" autocomplete="off">
+                </label>
+                <label class="commerce-field">
+                  <span>API Key</span>
+                  <input id="commerceApiKey" type="password" placeholder="自动填入已保存 Key，也可手动填写" autocomplete="off">
+                </label>
+              </div>
+              <label class="commerce-check">
+                <input id="commerceRememberKey" type="checkbox" checked>
+                <span>本地保存接入信息</span>
+              </label>
+              <div id="commerceModelStatus" class="commerce-status commerce-status-compact">默认使用全局自定义 API</div>
+              <label class="commerce-field">
+                <span>模型</span>
+                <select id="commerceModel">
+                  <option value="">填写 Key 后自动读取</option>
+                </select>
+              </label>
               <label class="commerce-field">
                 <span>选择模板</span>
                 <select id="commerceTemplateSelect">
@@ -247,12 +268,6 @@
                 </div>
               </div>
               <div class="commerce-param-row commerce-param-row-3">
-                <label class="commerce-field">
-                  <span>模型</span>
-                  <select id="commerceModel">
-                    <option value="">填写 Key 后自动读取</option>
-                  </select>
-                </label>
                 <label class="commerce-field">
                   <span>尺寸</span>
                   <select id="commerceSize">
@@ -272,8 +287,6 @@
                     <option value="low">Low</option>
                   </select>
                 </label>
-              </div>
-              <div class="commerce-param-row commerce-param-row-3">
                 <label class="commerce-field">
                   <span>格式</span>
                   <select id="commerceFormat">
@@ -282,6 +295,8 @@
                     <option value="webp">WebP</option>
                   </select>
                 </label>
+              </div>
+              <div class="commerce-param-row commerce-param-row-2">
                 <label class="commerce-field">
                   <span>背景</span>
                   <select id="commerceBackground">
@@ -299,21 +314,6 @@
                   </select>
                 </label>
               </div>
-              <div class="commerce-param-row commerce-param-row-2">
-                <label class="commerce-field">
-                  <span>自定义 API 地址</span>
-                  <input id="commerceApiUrl" placeholder="https://your-api.example.com/v1" autocomplete="off">
-                </label>
-                <label class="commerce-field">
-                  <span>API Key</span>
-                  <input id="commerceApiKey" type="password" placeholder="自动填入已保存 Key，也可手动填写" autocomplete="off">
-                </label>
-              </div>
-              <label class="commerce-check">
-                <input id="commerceRememberKey" type="checkbox" checked>
-                <span>本地保存接入信息</span>
-              </label>
-              <div id="commerceModelStatus" class="commerce-status commerce-status-compact">默认使用全局自定义 API</div>
               <div class="commerce-field commerce-style-field">
                 <span>风格</span>
                 <input id="commerceStyle" placeholder="可选风格词">
