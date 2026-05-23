@@ -5133,6 +5133,39 @@ def retry_job(job_id):
     return jsonify({"job": public_job(job)})
 
 
+@app.post("/api/jobs/archive")
+def archive_jobs():
+    auth = login_required_json()
+    if auth:
+        return auth
+    payload = request.get_json(silent=True) or {}
+    job_ids = {str(item).strip() for item in payload.get("job_ids", []) if str(item).strip()}
+    if not job_ids:
+        return jsonify({"error": "请选择要归档的任务"}), 400
+    archived = bool(payload.get("archived", True))
+    client_id = current_client_id()
+    updated = []
+    now = now_ts()
+    with state_lock:
+        jobs = read_jobs()
+        for job in jobs:
+            if str(job.get("id") or "") not in job_ids:
+                continue
+            if not matches_client(job, client_id):
+                continue
+            if job_workspace(job) == "commerce" and str(job.get("client_id") or "").strip() != client_id:
+                continue
+            job["archived"] = archived
+            if archived:
+                job["archived_at"] = now
+            else:
+                job.pop("archived_at", None)
+            job["updated_at"] = now
+            updated.append(public_job(job))
+        write_jobs(jobs)
+    return jsonify({"ok": True, "jobs": updated})
+
+
 @app.post("/api/subjects")
 def save_subject():
     auth = login_required_json()

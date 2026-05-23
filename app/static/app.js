@@ -221,6 +221,7 @@ const commerceEls = {
   currentTask: $("#commerceCurrentTask"),
   recentTasks: $("#commerceRecentTasks"),
   showAllHistory: $("#commerceShowAllHistory"),
+  archiveCompleted: $("#commerceArchiveCompleted"),
   newTemplate: $("#commerceNewTemplate"),
   templateSearch: $("#commerceTemplateSearch"),
   templateCount: $("#commerceTemplateCount"),
@@ -3940,8 +3941,9 @@ function renderCommerceGallery() {
 
 function renderCommerceTasks() {
   const commerceJobs = jobsForWorkspace("commerce");
-  if (commerceSelectedJobId && !commerceJobs.some((job) => job.id === commerceSelectedJobId)) commerceSelectedJobId = "";
-  const current = commerceJobs.find((job) => job.id === commerceSelectedJobId) || commerceJobs[0] || null;
+  const activeJobs = commerceJobs.filter((job) => !job.archived);
+  if (commerceSelectedJobId && !activeJobs.some((job) => job.id === commerceSelectedJobId)) commerceSelectedJobId = "";
+  const current = activeJobs.find((job) => job.id === commerceSelectedJobId) || activeJobs[0] || null;
   if (commerceEls.currentTask) {
     const currentStatus = String(current?.status || "").toLowerCase();
     commerceEls.currentTask.innerHTML = current
@@ -3955,7 +3957,7 @@ function renderCommerceTasks() {
         </div>`
       : "还没有当前任务";
   }
-  const recent = commerceJobs.slice(0, 5);
+  const recent = activeJobs.slice(0, 5);
   if (commerceEls.recentTasks) {
     commerceEls.recentTasks.innerHTML = recent.length ? recent.map((job) => {
       const status = String(job.status || "").toLowerCase();
@@ -3974,7 +3976,16 @@ function renderCommerceTasks() {
     `}).join("") : "暂无任务";
   }
   if (!commerceEls.historyList) return;
-  const jobs = commerceJobs.filter((job) => commerceHistoryStatus === "all" || job.status === commerceHistoryStatus);
+  const jobs = commerceJobs.filter((job) => {
+    if (commerceHistoryStatus === "archived") return Boolean(job.archived);
+    if (job.archived) return false;
+    return commerceHistoryStatus === "all" || job.status === commerceHistoryStatus;
+  });
+  if (commerceEls.archiveCompleted) {
+    const completedCount = commerceJobs.filter((job) => !job.archived && job.status === "success").length;
+    commerceEls.archiveCompleted.disabled = completedCount === 0;
+    commerceEls.archiveCompleted.textContent = completedCount ? `归档已完成 ${completedCount}` : "归档已完成";
+  }
   const pageSize = 20;
   const pageCount = Math.max(1, Math.ceil(jobs.length / pageSize));
   commerceHistoryPage = Math.max(1, Math.min(commerceHistoryPage, pageCount));
@@ -3985,9 +3996,9 @@ function renderCommerceTasks() {
       <span>${escapeHtml(job.status || "")} · ${escapeHtml(formatTime(job.created_at))} · ${Number(job.count || 1)} 张</span>
       <span>${escapeHtml(job.error || (job.prompt || "").slice(0, 180))}</span>
       <div class="commerce-template-actions">
-        <button data-commerce-history-action="select" type="button">设为当前</button>
+        ${job.archived ? "" : '<button data-commerce-history-action="select" type="button">设为当前</button>'}
         <button data-commerce-history-action="retry" type="button">重新生成</button>
-        <button data-commerce-history-action="delete" type="button">删除任务</button>
+        <button data-commerce-history-action="${job.archived ? "restore" : "archive"}" type="button">${job.archived ? "恢复" : "归档"}</button>
       </div>
     </article>
   `).join("") : '<div class="commerce-empty">暂无任务</div>';
@@ -4042,6 +4053,32 @@ async function deleteCommerceJob(jobId) {
     body: JSON.stringify({ job_ids: [jobId] }),
   });
   if (commerceSelectedJobId === jobId) commerceSelectedJobId = "";
+  await loadState();
+  renderCommerceState();
+}
+
+async function archiveCommerceJob(jobId, archived = true) {
+  if (!jobId) return;
+  await api("/api/jobs/archive", {
+    method: "POST",
+    body: JSON.stringify({ job_ids: [jobId], archived }),
+  });
+  if (archived && commerceSelectedJobId === jobId) commerceSelectedJobId = "";
+  await loadState();
+  renderCommerceState();
+}
+
+async function archiveCompletedCommerceJobs() {
+  const jobIds = jobsForWorkspace("commerce")
+    .filter((job) => !job.archived && job.status === "success")
+    .map((job) => job.id)
+    .filter(Boolean);
+  if (!jobIds.length) return;
+  await api("/api/jobs/archive", {
+    method: "POST",
+    body: JSON.stringify({ job_ids: jobIds, archived: true }),
+  });
+  if (commerceSelectedJobId && jobIds.includes(commerceSelectedJobId)) commerceSelectedJobId = "";
   await loadState();
   renderCommerceState();
 }
@@ -7470,6 +7507,7 @@ commerceEls.referenceUpload?.addEventListener("click", () => {
   });
 });
 commerceEls.showAllHistory?.addEventListener("click", () => setCommerceTab("history"));
+commerceEls.archiveCompleted?.addEventListener("click", () => archiveCompletedCommerceJobs().catch((err) => alert(err.message)));
 commerceEls.pageButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const action = button.dataset.commercePage || "";
@@ -7510,8 +7548,10 @@ commerceEls.historyList?.addEventListener("click", (event) => {
     setCommerceTab("workspace");
   } else if (button.dataset.commerceHistoryAction === "retry") {
     retryJobs([jobId]);
-  } else if (button.dataset.commerceHistoryAction === "delete") {
-    deleteCommerceJob(jobId).catch((err) => alert(err.message));
+  } else if (button.dataset.commerceHistoryAction === "archive") {
+    archiveCommerceJob(jobId, true).catch((err) => alert(err.message));
+  } else if (button.dataset.commerceHistoryAction === "restore") {
+    archiveCommerceJob(jobId, false).catch((err) => alert(err.message));
   }
 });
 els.closeMediaPreview?.addEventListener("click", () => setMediaPreview(false));

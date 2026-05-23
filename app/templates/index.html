@@ -438,7 +438,7 @@
           <section class="commerce-tab-panel commerce-result-card" data-commerce-panel="history">
             <div class="commerce-section-head">
               <strong>历史任务记录</strong>
-              <span>失败任务会显示上游错误摘要。</span>
+              <button id="commerceArchiveCompleted" type="button">归档已完成</button>
             </div>
             <div class="commerce-chip-row" id="commerceHistoryFilters">
               <button class="active" data-commerce-status="all" type="button">全部</button>
@@ -446,6 +446,7 @@
               <button data-commerce-status="running" type="button">生成中</button>
               <button data-commerce-status="success" type="button">已完成</button>
               <button data-commerce-status="error" type="button">失败</button>
+              <button data-commerce-status="archived" type="button">归档</button>
             </div>
             <div id="commerceHistoryList" class="commerce-history-list"></div>
             <div class="commerce-pager">
