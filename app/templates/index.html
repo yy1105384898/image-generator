@@ -231,7 +231,7 @@
             <section class="commerce-form-card">
               <div class="commerce-section-head">
                 <strong>生成内容</strong>
-                <span>按信息自动组装提示词</span>
+                <span>提示词默认为空，按需填写</span>
               </div>
               <label class="commerce-field">
                 <span>选择模板</span>
@@ -294,34 +294,26 @@
                   <span>本地放大</span>
                   <select id="commerceUpscale">
                     <option value="none">不放大</option>
-                    <option value="2x">2x</option>
+                    <option value="2k">放大到 2K</option>
+                    <option value="4k">放大到 4K</option>
                   </select>
                 </label>
               </div>
               <div class="commerce-param-row commerce-param-row-2">
                 <label class="commerce-field">
-                  <span>API 地址</span>
+                  <span>自定义 API 地址</span>
                   <input id="commerceApiUrl" placeholder="https://your-api.example.com/v1" autocomplete="off">
                 </label>
                 <label class="commerce-field">
                   <span>API Key</span>
-                  <input id="commerceApiKey" type="password" placeholder="自动选择或填写 Key" autocomplete="off">
+                  <input id="commerceApiKey" type="password" placeholder="自动填入已保存 Key，也可手动填写" autocomplete="off">
                 </label>
               </div>
               <label class="commerce-check">
                 <input id="commerceRememberKey" type="checkbox" checked>
                 <span>本地保存接入信息</span>
               </label>
-              <div id="commerceModelStatus" class="commerce-status">等待填写 API Key</div>
-              <button id="commerceReferenceUpload" class="commerce-upload-line" type="button">上传参考图</button>
-              <label class="commerce-field">
-                <span>标题 / 对象</span>
-                <input id="commerceProductName" placeholder="例如：便携榨汁杯、科技海报、节日主视觉">
-              </label>
-              <label class="commerce-field">
-                <span>细节 / 卖点 / 画面要求</span>
-                <textarea id="commerceSellingPoints" rows="4" placeholder="写主体细节、材质、用途、人群、希望突出的画面"></textarea>
-              </label>
+              <div id="commerceModelStatus" class="commerce-status commerce-status-compact">默认使用全局自定义 API</div>
               <div class="commerce-field commerce-style-field">
                 <span>风格</span>
                 <input id="commerceStyle" placeholder="可选风格词">
@@ -340,6 +332,18 @@
                   <button data-commerce-scene="复古海报" type="button">复古海报</button>
                   <button data-commerce-scene="动漫插画" type="button">动漫插画</button>
                   <button data-commerce-scene="极简壁纸" type="button">极简壁纸</button>
+                </div>
+              </div>
+              <div class="commerce-field commerce-reference-field">
+                <div class="commerce-preset-head">
+                  <span>参考图片</span>
+                  <button id="commerceReferenceUpload" type="button">上传</button>
+                </div>
+                <div id="commerceReferenceDrop" class="commerce-reference-drop" role="button" tabindex="0">
+                  <div id="commerceReferencePreview" class="commerce-reference-preview">
+                    <strong>⇧</strong>
+                    <span>上传一张或多张参考图片，AI 将基于这些图片进行修改</span>
+                  </div>
                 </div>
               </div>
               <div class="commerce-param-row commerce-param-row-2">
@@ -367,13 +371,14 @@
               </div>
               <label class="commerce-field">
                 <span>提示词</span>
-                <textarea id="commercePrompt" rows="7"></textarea>
+                <textarea id="commercePrompt" rows="7" placeholder="描述要生成的图片…"></textarea>
               </label>
               <div class="commerce-template-save">
                 <input id="commerceTemplateName" placeholder="模板名称">
                 <input id="commerceTemplateTags" placeholder="标签，用逗号分隔">
                 <button id="commerceSaveTemplate" type="button">保存模板</button>
               </div>
+              <div class="commerce-form-note">自动尺寸不会发送 size，让模型后缀和提示词比例规则生效。</div>
               <div class="commerce-form-actions">
                 <button id="commerceClearSelection" type="button">清空选择</button>
                 <button id="commerceGenerateBottom" type="button">生成图片</button>
@@ -408,6 +413,10 @@
               <span id="commerceTemplateCount">0</span>
             </div>
             <button id="commerceNewTemplate" class="commerce-upload-line" type="button">新建模板</button>
+            <label class="commerce-field">
+              <span>搜索模板或标签</span>
+              <input id="commerceTemplateSearch" placeholder="搜索模板或标签…">
+            </label>
             <div id="commerceTemplateList" class="commerce-template-list">
               <div class="commerce-empty">暂无模板</div>
             </div>

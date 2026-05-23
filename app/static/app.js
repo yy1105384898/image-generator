@@ -193,6 +193,8 @@ const commerceEls = {
   templateSelect: $("#commerceTemplateSelect"),
   modeChips: document.querySelectorAll("[data-commerce-mode]"),
   referenceUpload: $("#commerceReferenceUpload"),
+  referenceDrop: $("#commerceReferenceDrop"),
+  referencePreview: $("#commerceReferencePreview"),
   productName: $("#commerceProductName"),
   sellingPoints: $("#commerceSellingPoints"),
   style: $("#commerceStyle"),
@@ -219,6 +221,7 @@ const commerceEls = {
   recentTasks: $("#commerceRecentTasks"),
   showAllHistory: $("#commerceShowAllHistory"),
   newTemplate: $("#commerceNewTemplate"),
+  templateSearch: $("#commerceTemplateSearch"),
   templateCount: $("#commerceTemplateCount"),
   templateList: $("#commerceTemplateList"),
   library: $("#commerceLibrary"),
@@ -236,6 +239,8 @@ let commerceHistoryStatus = "all";
 let commerceTemplates = [];
 let commerceGalleryPage = 1;
 let commerceHistoryPage = 1;
+let commerceEditingTemplateId = "";
+let commerceSelectedJobId = "";
 
 function persistHistorySelection(showAll = false) {
   try {
@@ -358,12 +363,19 @@ function currentHistoryJob() {
 }
 let preflightTimer = 0;
 let preflightOriginalPrompt = "";
+let lastRouteAnchor = "";
 
 function applyRoute() {
   const anchor = location.hash || "#home";
   document.body.classList.toggle("studio-active", anchor === "#studio");
   document.body.classList.toggle("research-active", anchor === "#research");
   document.body.classList.toggle("commerce-active", anchor === "#commerce");
+  if (anchor === "#commerce" && lastRouteAnchor && lastRouteAnchor !== "#commerce") {
+    selectedReferenceIds.clear();
+    setCommerceChip(commerceEls.modeChips, "commerceMode", "text");
+    renderReferences();
+  }
+  lastRouteAnchor = anchor;
   if (anchor !== "#studio") {
     hideGuide(false);
   }
@@ -3542,27 +3554,17 @@ function syncCommerceStyleControls() {
 }
 
 function buildCommercePrompt() {
-  const subject = (commerceEls.productName?.value || "").trim();
-  const details = (commerceEls.sellingPoints?.value || "").trim();
-  const style = (commerceEls.style?.value || "").trim();
-  const mode = activeCommerceValue(commerceEls.modeChips, "commerceMode", "text") === "image" ? "参考图复用" : "文生图";
-  return [
-    subject ? `主体：${subject}。` : "主体：清晰明确的商业视觉主体。",
-    details ? `画面要求：${details}。` : "",
-    style ? `风格：${style}。` : "",
-    `生成模式：${mode}。`,
-    "构图干净，主体突出，光影自然，细节清晰，可直接用于宣传和展示。",
-  ].filter(Boolean).join("\n");
+  return "";
 }
 
 function syncCommercePrompt({ force = false } = {}) {
   if (!commerceEls.prompt) return;
   const next = buildCommercePrompt();
-  if (force || !commercePromptTouched || commerceEls.prompt.value.trim() === commerceLastAutoPrompt.trim()) {
+  if (force && commerceLastAutoPrompt && commerceEls.prompt.value.trim() === commerceLastAutoPrompt.trim()) {
     commerceEls.prompt.value = next;
-    commerceLastAutoPrompt = next;
     commercePromptTouched = false;
   }
+  commerceLastAutoPrompt = next;
 }
 
 function loadCommerceTemplates() {
@@ -3578,13 +3580,28 @@ function saveCommerceTemplates() {
   localStorage.setItem(COMMERCE_TEMPLATES_KEY, JSON.stringify(commerceTemplates.slice(0, 80)));
 }
 
+function filteredCommerceTemplates() {
+  const keyword = (commerceEls.templateSearch?.value || "").trim().toLowerCase();
+  const list = [...commerceTemplates].sort((a, b) => {
+    if (Boolean(a.favorite) !== Boolean(b.favorite)) return a.favorite ? -1 : 1;
+    return Number(b.updated_at || b.created_at || 0) - Number(a.updated_at || a.created_at || 0);
+  });
+  if (!keyword) return list;
+  return list.filter((template) => [
+    template.name,
+    template.prompt,
+    template.style,
+    ...(template.tags || []),
+  ].some((value) => String(value || "").toLowerCase().includes(keyword)));
+}
+
 function renderCommerceTemplates() {
   if (!commerceEls.templateSelect) return;
   const current = commerceEls.templateSelect.value;
   commerceEls.templateSelect.innerHTML = "";
   const empty = document.createElement("option");
   empty.value = "";
-  empty.textContent = commerceTemplates.length ? "选择模板" : "暂无模板";
+  empty.textContent = "不使用模板";
   commerceEls.templateSelect.append(empty);
   commerceTemplates.forEach((template) => {
     const option = document.createElement("option");
@@ -3595,17 +3612,21 @@ function renderCommerceTemplates() {
   if (commerceTemplates.some((item) => item.id === current)) commerceEls.templateSelect.value = current;
   if (commerceEls.templateCount) commerceEls.templateCount.textContent = String(commerceTemplates.length);
   if (!commerceEls.templateList) return;
-  if (!commerceTemplates.length) {
+  const visibleTemplates = filteredCommerceTemplates();
+  if (!visibleTemplates.length) {
     commerceEls.templateList.innerHTML = '<div class="commerce-empty">暂无模板</div>';
     return;
   }
-  commerceEls.templateList.innerHTML = commerceTemplates.map((template) => `
+  commerceEls.templateList.innerHTML = visibleTemplates.map((template) => `
     <article class="commerce-template-item" data-commerce-template-id="${escapeAttr(template.id)}">
-      <strong>${escapeHtml(template.name || "未命名模板")}</strong>
+      <strong>${template.favorite ? "★ " : ""}${escapeHtml(template.name || "未命名模板")}</strong>
       <span>${escapeHtml((template.tags || []).join("，") || "未设置标签")}</span>
       <span>${escapeHtml((template.prompt || "").slice(0, 140))}</span>
+      <span>使用 ${Number(template.usage_count || 0)} 次 · ${template.last_used_at ? `最近 ${formatTime(template.last_used_at)}` : "未使用"}</span>
       <div class="commerce-template-actions">
-        <button data-commerce-template-action="use" type="button">使用</button>
+        <button data-commerce-template-action="favorite" type="button">${template.favorite ? "取消收藏" : "收藏模板"}</button>
+        <button data-commerce-template-action="use" type="button">套用到工作台</button>
+        <button data-commerce-template-action="edit" type="button">编辑</button>
         <button data-commerce-template-action="delete" type="button">删除</button>
       </div>
     </article>
@@ -3621,9 +3642,24 @@ function applyCommerceTemplate(id) {
     commercePromptTouched = true;
   }
   if (commerceEls.style) commerceEls.style.value = template.style || template.scene || "";
+  if (template.model && commerceEls.model && [...commerceEls.model.options].some((option) => option.value === template.model)) commerceEls.model.value = template.model;
+  if (template.size && commerceEls.size) commerceEls.size.value = template.size;
+  if (template.resolution && commerceEls.resolution) commerceEls.resolution.value = template.resolution;
+  if (template.quality && commerceEls.quality) commerceEls.quality.value = template.quality;
+  if (template.format && commerceEls.format) commerceEls.format.value = template.format;
+  if (template.background && commerceEls.background) commerceEls.background.value = template.background;
+  if (template.upscale && commerceEls.upscale) commerceEls.upscale.value = template.upscale;
+  if (template.mode) setCommerceChip(commerceEls.modeChips, "commerceMode", template.mode);
+  if (template.ratio) setCommerceChip(commerceEls.ratioChips, "commerceRatio", template.ratio);
   syncCommerceStyleControls();
   if (commerceEls.templateName) commerceEls.templateName.value = template.name || "";
   if (commerceEls.templateTags) commerceEls.templateTags.value = (template.tags || []).join(", ");
+  if (commerceEls.saveTemplate) commerceEls.saveTemplate.textContent = "更新模板";
+  template.usage_count = Number(template.usage_count || 0) + 1;
+  template.last_used_at = Date.now() / 1000;
+  commerceEditingTemplateId = template.id;
+  saveCommerceTemplates();
+  renderCommerceTemplates();
 }
 
 function saveCommerceTemplateFromForm() {
@@ -3634,18 +3670,41 @@ function saveCommerceTemplateFromForm() {
   }
   const name = (commerceEls.templateName?.value || "").trim() || `模板 ${commerceTemplates.length + 1}`;
   const tags = (commerceEls.templateTags?.value || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean);
-  const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  commerceTemplates.unshift({
-    id,
+  const now = Date.now() / 1000;
+  const payload = {
     name,
     tags,
     prompt,
     style: (commerceEls.style?.value || "").trim(),
-    created_at: Date.now() / 1000,
-  });
+    model: commerceEls.model?.value || "",
+    size: commerceEls.size?.value || "auto",
+    resolution: commerceEls.resolution?.value || "1K",
+    quality: commerceEls.quality?.value || "auto",
+    format: commerceEls.format?.value || "png",
+    background: commerceEls.background?.value || "auto",
+    upscale: commerceEls.upscale?.value || "none",
+    mode: activeCommerceValue(commerceEls.modeChips, "commerceMode", "text"),
+    ratio: activeCommerceValue(commerceEls.ratioChips, "commerceRatio", "1:1"),
+    updated_at: now,
+  };
+  const existing = commerceTemplates.find((template) => template.id === commerceEditingTemplateId);
+  if (existing) {
+    Object.assign(existing, payload);
+  } else {
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    commerceEditingTemplateId = id;
+    commerceTemplates.unshift({
+      id,
+      ...payload,
+      favorite: false,
+      usage_count: 0,
+      created_at: now,
+    });
+  }
   saveCommerceTemplates();
   renderCommerceTemplates();
-  if (commerceEls.templateSelect) commerceEls.templateSelect.value = id;
+  if (commerceEls.templateSelect) commerceEls.templateSelect.value = commerceEditingTemplateId;
+  if (commerceEls.saveTemplate) commerceEls.saveTemplate.textContent = "更新模板";
 }
 
 function syncCommerceModelOptions(models = verifiedImageModels) {
@@ -3729,15 +3788,24 @@ function commerceAspectValue() {
 
 async function submitCommerceJob() {
   syncCommercePrompt();
-  const prompt = (commerceEls.prompt?.value || "").trim();
-  if (!prompt) {
+  const rawPrompt = (commerceEls.prompt?.value || "").trim();
+  const style = (commerceEls.style?.value || "").trim();
+  const prompt = [rawPrompt, style ? `风格：${style}` : ""].filter(Boolean).join("\n");
+  if (!rawPrompt) {
+    setCommerceStatus("请输入提示词", "error");
     commerceEls.prompt?.focus();
+    return;
+  }
+  if (activeCommerceValue(commerceEls.modeChips, "commerceMode", "text") === "image" && !selectedReferenceIds.size) {
+    setCommerceStatus("图生图模式需要上传参考图片", "error");
+    commerceEls.referenceDrop?.focus();
     return;
   }
   pushCommerceConnectionToMain();
   if (els.title) els.title.value = "简洁生图台";
   if (els.prompt) els.prompt.value = prompt;
   if (els.count && commerceEls.count) els.count.value = commerceEls.count.value || "1";
+  if (els.concurrency && commerceEls.count) els.concurrency.value = commerceEls.count.value || "1";
   if (els.aspectRatio) els.aspectRatio.value = commerceAspectValue();
   if (els.resolution && commerceEls.resolution) els.resolution.value = commerceEls.resolution.value || "1K";
   if (els.quality && commerceEls.quality) els.quality.value = commerceEls.quality.value || "auto";
@@ -3782,11 +3850,47 @@ function commerceMediaCard(media, job = {}) {
           <a href="${escapeAttr(item.url || "")}" download>下载</a>
           <button data-commerce-media-action="copy" type="button">复制提示词</button>
           <button data-commerce-media-action="retry" type="button">重新生成</button>
+          <button data-commerce-media-action="save-template" type="button">存为模板</button>
           <button data-commerce-media-action="delete" type="button">删除</button>
         </div>
       </div>
     </article>
   `;
+}
+
+function saveCommerceTemplateFromMedia(mediaId) {
+  const commerceJobs = jobsForWorkspace("commerce");
+  const jobById = new Map(commerceJobs.map((job) => [job.id, job]));
+  const media = mediaForWorkspace("commerce").find((item) => item.id === mediaId);
+  if (!media) return;
+  const job = jobById.get(media.job_id) || {};
+  const prompt = media.prompt || job.prompt || "";
+  if (!prompt) return;
+  const now = Date.now() / 1000;
+  const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  commerceTemplates.unshift({
+    id,
+    name: (job.title || prompt.slice(0, 18) || "图片模板").trim(),
+    tags: ["图库"],
+    prompt,
+    style: job.style || "",
+    model: media.model || job.model || "",
+    size: "auto",
+    resolution: media.resolution || job.resolution || "1K",
+    quality: media.quality || job.quality || "auto",
+    format: media.output_format || job.output_format || "png",
+    background: media.background || job.background || "auto",
+    upscale: media.local_upscale || job.local_upscale || "none",
+    mode: media.edit_mode || job.edit_mode ? "image" : "text",
+    ratio: media.aspect_ratio || job.aspect_ratio || "1:1",
+    favorite: false,
+    usage_count: 0,
+    created_at: now,
+    updated_at: now,
+  });
+  saveCommerceTemplates();
+  renderCommerceTemplates();
+  setCommerceStatus("已存为模板", "success");
 }
 
 function renderCommerceGallery() {
@@ -3812,10 +3916,11 @@ function renderCommerceGallery() {
 
 function renderCommerceTasks() {
   const commerceJobs = jobsForWorkspace("commerce");
-  const current = commerceJobs[0] || null;
+  if (commerceSelectedJobId && !commerceJobs.some((job) => job.id === commerceSelectedJobId)) commerceSelectedJobId = "";
+  const current = commerceJobs.find((job) => job.id === commerceSelectedJobId) || commerceJobs[0] || null;
   if (commerceEls.currentTask) {
     commerceEls.currentTask.innerHTML = current
-      ? `<div class="commerce-task-line"><strong>${escapeHtml(current.model || current.title || "生成任务")}</strong><span>${escapeHtml(current.status || "")} · ${escapeHtml(formatTime(current.created_at))}</span><span>${escapeHtml((current.prompt || "").slice(0, 120))}</span></div>`
+      ? `<div class="commerce-task-line" data-commerce-job-id="${escapeAttr(current.id)}"><strong>${escapeHtml(current.model || current.title || "生成任务")}</strong><span>${escapeHtml(current.status || "")} · ${escapeHtml(formatTime(current.created_at))} · ${Number(current.count || 1)} 张</span><span>${escapeHtml((current.prompt || "").slice(0, 120))}</span></div>`
       : "还没有当前任务";
   }
   const recent = commerceJobs.slice(0, 5);
@@ -3824,6 +3929,10 @@ function renderCommerceTasks() {
       <div class="commerce-task-line" data-commerce-job-id="${escapeAttr(job.id)}">
         <strong>${escapeHtml(job.model || job.title || "生成任务")}</strong>
         <span>${escapeHtml(job.status || "")} · ${escapeHtml(formatTime(job.created_at))}</span>
+        <div class="commerce-template-actions">
+          <button data-commerce-history-action="select" type="button">设为当前</button>
+          <button data-commerce-history-action="retry" type="button">重新生成</button>
+        </div>
       </div>
     `).join("") : "暂无任务";
   }
@@ -3838,7 +3947,11 @@ function renderCommerceTasks() {
       <strong>${escapeHtml(job.model || job.title || "生成任务")}</strong>
       <span>${escapeHtml(job.status || "")} · ${escapeHtml(formatTime(job.created_at))} · ${Number(job.count || 1)} 张</span>
       <span>${escapeHtml(job.error || (job.prompt || "").slice(0, 180))}</span>
-      ${job.status === "error" ? '<button data-commerce-history-action="retry" type="button">重新生成</button>' : ""}
+      <div class="commerce-template-actions">
+        <button data-commerce-history-action="select" type="button">设为当前</button>
+        <button data-commerce-history-action="retry" type="button">重新生成</button>
+        <button data-commerce-history-action="delete" type="button">删除任务</button>
+      </div>
     </article>
   `).join("") : '<div class="commerce-empty">暂无任务</div>';
   if (commerceEls.historyPageLabel) commerceEls.historyPageLabel.textContent = `${commerceHistoryPage} / ${pageCount}`;
@@ -3882,6 +3995,18 @@ async function deleteCommerceMedia(id) {
     body: JSON.stringify({ media_ids: [id] }),
   });
   await loadState();
+  renderCommerceState();
+}
+
+async function deleteCommerceJob(jobId) {
+  if (!jobId) return;
+  await api("/api/media/delete", {
+    method: "POST",
+    body: JSON.stringify({ job_ids: [jobId] }),
+  });
+  if (commerceSelectedJobId === jobId) commerceSelectedJobId = "";
+  await loadState();
+  renderCommerceState();
 }
 
 function clampMediaPreviewScale(value) {
@@ -4079,7 +4204,30 @@ function renderReferences() {
   }
   const selectedRefs = selectedReferenceItems();
   if (commerceEls.referenceUpload) {
-    commerceEls.referenceUpload.textContent = selectedRefs.length ? `已选参考图 ${selectedRefs.length}/${MAX_REFERENCE_SELECTION}` : "上传参考图";
+    commerceEls.referenceUpload.textContent = selectedRefs.length ? `已选 ${selectedRefs.length}/${MAX_REFERENCE_SELECTION}` : "上传";
+  }
+  if (commerceEls.referencePreview) {
+    if (selectedRefs.length) {
+      commerceEls.referencePreview.innerHTML = selectedRefs.map((ref) => `
+        <article class="commerce-reference-thumb" data-commerce-reference-id="${escapeAttr(ref.id)}">
+          <img src="${escapeAttr(ref.url)}" alt="${escapeAttr(ref.name || "参考图")}">
+          <button type="button" aria-label="移除参考图">×</button>
+        </article>
+      `).join("");
+      commerceEls.referencePreview.querySelectorAll("[data-commerce-reference-id] button").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const item = button.closest("[data-commerce-reference-id]");
+          selectedReferenceIds.delete(item?.dataset.commerceReferenceId || "");
+          renderReferences();
+        });
+      });
+    } else {
+      commerceEls.referencePreview.innerHTML = `
+        <strong>⇧</strong>
+        <span>上传一张或多张参考图片，AI 将基于这些图片进行修改</span>
+      `;
+    }
   }
   if (selectedRefs.length === 1) {
     syncReferenceAspectAuto({ announce: true });
@@ -4650,8 +4798,8 @@ async function refreshTextModelsOnly({ silent = false } = {}) {
   }
 }
 
-async function uploadReference() {
-  const files = Array.from(els.referenceUpload.files || []).filter((file) => file && file.type.startsWith("image/"));
+async function uploadReferenceFiles(fileList) {
+  const files = Array.from(fileList || []).filter((file) => file && file.type.startsWith("image/"));
   if (!files.length) return;
   const uploadFiles = files.slice(0, MAX_REFERENCE_SELECTION);
   if (files.length > MAX_REFERENCE_SELECTION) {
@@ -4698,6 +4846,10 @@ async function uploadReference() {
   if (uploaded.length && files.length > MAX_REFERENCE_SELECTION) {
     showReferenceLimitHint(`已上传并选中前 ${MAX_REFERENCE_SELECTION} 张参考图`);
   }
+}
+
+async function uploadReference() {
+  await uploadReferenceFiles(els.referenceUpload.files || []);
 }
 
 async function clearMedia() {
@@ -7141,6 +7293,29 @@ commerceEls.clearStyle?.addEventListener("click", () => {
   syncCommercePrompt({ force: false });
   commerceEls.style?.focus();
 });
+commerceEls.referenceDrop?.addEventListener("click", () => {
+  setCommerceChip(commerceEls.modeChips, "commerceMode", "image");
+  els.referenceUpload?.click();
+});
+commerceEls.referenceDrop?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  setCommerceChip(commerceEls.modeChips, "commerceMode", "image");
+  els.referenceUpload?.click();
+});
+commerceEls.referenceDrop?.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  commerceEls.referenceDrop?.classList.add("drag-over");
+});
+commerceEls.referenceDrop?.addEventListener("dragleave", () => {
+  commerceEls.referenceDrop?.classList.remove("drag-over");
+});
+commerceEls.referenceDrop?.addEventListener("drop", async (event) => {
+  event.preventDefault();
+  commerceEls.referenceDrop?.classList.remove("drag-over");
+  setCommerceChip(commerceEls.modeChips, "commerceMode", "image");
+  await uploadReferenceFiles(event.dataTransfer?.files || []);
+});
 commerceEls.prompt?.addEventListener("input", () => {
   commercePromptTouched = true;
 });
@@ -7157,30 +7332,64 @@ commerceEls.model?.addEventListener("change", () => {
 commerceEls.templateSelect?.addEventListener("change", () => applyCommerceTemplate(commerceEls.templateSelect.value));
 commerceEls.saveTemplate?.addEventListener("click", saveCommerceTemplateFromForm);
 commerceEls.newTemplate?.addEventListener("click", () => {
+  commerceEditingTemplateId = "";
+  if (commerceEls.templateSelect) commerceEls.templateSelect.value = "";
+  if (commerceEls.templateName) commerceEls.templateName.value = "";
+  if (commerceEls.templateTags) commerceEls.templateTags.value = "";
+  if (commerceEls.saveTemplate) commerceEls.saveTemplate.textContent = "保存模板";
+  if (commerceEls.prompt) {
+    commerceEls.prompt.value = "";
+    commercePromptTouched = false;
+  }
   commerceEls.templateName?.focus();
   setCommerceTab("workspace");
 });
+commerceEls.templateSearch?.addEventListener("input", renderCommerceTemplates);
 commerceEls.templateList?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-commerce-template-action]");
   if (!button) return;
   const item = button.closest("[data-commerce-template-id]");
   const id = item?.dataset.commerceTemplateId || "";
+  if (button.dataset.commerceTemplateAction === "favorite") {
+    const template = commerceTemplates.find((entry) => entry.id === id);
+    if (template) {
+      template.favorite = !template.favorite;
+      template.updated_at = Date.now() / 1000;
+      saveCommerceTemplates();
+      renderCommerceTemplates();
+    }
+    return;
+  }
   if (button.dataset.commerceTemplateAction === "use") {
     applyCommerceTemplate(id);
     setCommerceTab("workspace");
     return;
   }
+  if (button.dataset.commerceTemplateAction === "edit") {
+    applyCommerceTemplate(id);
+    setCommerceTab("workspace");
+    commerceEls.templateName?.focus();
+    return;
+  }
   commerceTemplates = commerceTemplates.filter((template) => template.id !== id);
+  if (commerceEditingTemplateId === id) {
+    commerceEditingTemplateId = "";
+    if (commerceEls.saveTemplate) commerceEls.saveTemplate.textContent = "保存模板";
+  }
   saveCommerceTemplates();
   renderCommerceTemplates();
 });
 commerceEls.clearSelection?.addEventListener("click", () => {
   commercePromptTouched = false;
-  commerceEls.productName.value = "";
-  commerceEls.sellingPoints.value = "";
-  commerceEls.style.value = "";
-  commerceEls.templateName.value = "";
-  commerceEls.templateTags.value = "";
+  if (commerceEls.productName) commerceEls.productName.value = "";
+  if (commerceEls.sellingPoints) commerceEls.sellingPoints.value = "";
+  if (commerceEls.style) commerceEls.style.value = "";
+  if (commerceEls.prompt) commerceEls.prompt.value = "";
+  if (commerceEls.templateName) commerceEls.templateName.value = "";
+  if (commerceEls.templateTags) commerceEls.templateTags.value = "";
+  commerceEditingTemplateId = "";
+  if (commerceEls.templateSelect) commerceEls.templateSelect.value = "";
+  if (commerceEls.saveTemplate) commerceEls.saveTemplate.textContent = "保存模板";
   selectedReferenceIds.clear();
   renderReferences();
   setCommerceChip(commerceEls.modeChips, "commerceMode", "text");
@@ -7210,6 +7419,8 @@ commerceEls.referenceUpload?.addEventListener("click", () => {
       navigator.clipboard?.writeText(media?.prompt || "");
     } else if (action === "retry") {
       retryJobs([jobId]);
+    } else if (action === "save-template") {
+      saveCommerceTemplateFromMedia(mediaId);
     } else if (action === "delete") {
       deleteCommerceMedia(mediaId).catch((err) => alert(err.message));
     }
@@ -7234,11 +7445,31 @@ commerceEls.historyFilters.forEach((button) => {
     renderCommerceTasks();
   });
 });
+commerceEls.recentTasks?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-commerce-history-action]");
+  if (!button) return;
+  const item = button.closest("[data-commerce-job-id]");
+  const jobId = item?.dataset.commerceJobId || "";
+  if (button.dataset.commerceHistoryAction === "select") {
+    commerceSelectedJobId = jobId;
+    renderCommerceTasks();
+  } else if (button.dataset.commerceHistoryAction === "retry") {
+    retryJobs([jobId]);
+  }
+});
 commerceEls.historyList?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-commerce-history-action]");
   if (!button) return;
   const item = button.closest("[data-commerce-job-id]");
-  retryJobs([item?.dataset.commerceJobId || ""]);
+  const jobId = item?.dataset.commerceJobId || "";
+  if (button.dataset.commerceHistoryAction === "select") {
+    commerceSelectedJobId = jobId;
+    setCommerceTab("workspace");
+  } else if (button.dataset.commerceHistoryAction === "retry") {
+    retryJobs([jobId]);
+  } else if (button.dataset.commerceHistoryAction === "delete") {
+    deleteCommerceJob(jobId).catch((err) => alert(err.message));
+  }
 });
 els.closeMediaPreview?.addEventListener("click", () => setMediaPreview(false));
 els.mediaPreviewModal?.addEventListener("click", (event) => {

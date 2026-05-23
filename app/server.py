@@ -2529,11 +2529,16 @@ def save_image_payload(job_id: str, index: int, image_payload: dict, prompt: str
         path.write_bytes(resp.content)
         mime = resp.headers.get("Content-Type", mime).split(";")[0] or mime
     local_upscale = str(job.get("local_upscale") or "none").strip().lower()
-    if local_upscale == "2x":
+    if local_upscale in {"2x", "2k", "4k"}:
         try:
             with Image.open(path) as image:
                 image = ImageOps.exif_transpose(image)
-                target_size = (max(1, image.width * 2), max(1, image.height * 2))
+                if local_upscale == "2x":
+                    target_size = (max(1, image.width * 2), max(1, image.height * 2))
+                else:
+                    target_edge = 4096 if local_upscale == "4k" else 2048
+                    scale = max(1.0, target_edge / max(1, image.width, image.height))
+                    target_size = (max(1, round(image.width * scale)), max(1, round(image.height * scale)))
                 resample_root = getattr(Image, "Resampling", Image)
                 resample = getattr(resample_root, "LANCZOS", 1)
                 image = image.resize(target_size, resample)
