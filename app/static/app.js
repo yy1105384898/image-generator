@@ -218,6 +218,10 @@ const commerceEls = {
   generateBottom: $("#commerceGenerateBottom"),
   gallery: $("#commerceGallery"),
   resultStatus: $("#commerceResultStatus"),
+  resultPager: $("#commerceResultPager"),
+  resultPageButtons: document.querySelectorAll("[data-commerce-result-page]"),
+  resultPageLabel: $("#commerceResultPageLabel"),
+  openGallery: $("#commerceOpenGallery"),
   currentTask: $("#commerceCurrentTask"),
   recentTasks: $("#commerceRecentTasks"),
   showAllHistory: $("#commerceShowAllHistory"),
@@ -239,6 +243,7 @@ let commerceRefreshTimer = 0;
 let commerceActiveTab = "workspace";
 let commerceHistoryStatus = "all";
 let commerceTemplates = [];
+let commerceResultPage = 1;
 let commerceGalleryPage = 1;
 let commerceHistoryPage = 1;
 let commerceEditingTemplateId = "";
@@ -3838,16 +3843,19 @@ async function submitCommerceJob() {
   syncSummary();
   setCommerceStatus("已提交生成任务", "loading");
   await performSubmitJob(prompt);
+  commerceResultPage = 1;
   renderCommerceState();
 }
 
-function latestCommerceItems(limit = 8) {
+function latestCommerceItems(limit = 8, options = {}) {
+  const includeArchived = Boolean(options.includeArchived);
   const commerceJobs = jobsForWorkspace("commerce");
   const jobById = new Map(commerceJobs.map((job) => [job.id, job]));
-  return mediaForWorkspace("commerce")
-    .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
-    .slice(0, limit)
-    .map((media) => ({ media, job: jobById.get(media.job_id) || {} }));
+  const items = mediaForWorkspace("commerce")
+    .map((media) => ({ media, job: jobById.get(media.job_id) || {} }))
+    .filter(({ job }) => includeArchived || !job.archived)
+    .sort((a, b) => (b.media.created_at || 0) - (a.media.created_at || 0));
+  return Number.isFinite(limit) ? items.slice(0, limit) : items;
 }
 
 function commerceMediaCard(media, job = {}) {
@@ -3920,15 +3928,32 @@ function saveCommerceTemplateFromMedia(mediaId) {
 
 function renderCommerceGallery() {
   if (!commerceEls.gallery) return;
-  const items = latestCommerceItems(8);
-  if (!items.length) {
+  const recentItems = latestCommerceItems(500);
+  const recentPageSize = 6;
+  const recentPageCount = Math.max(1, Math.ceil(recentItems.length / recentPageSize));
+  commerceResultPage = Math.max(1, Math.min(commerceResultPage, recentPageCount));
+  const items = recentItems.slice((commerceResultPage - 1) * recentPageSize, commerceResultPage * recentPageSize);
+  if (!recentItems.length) {
     commerceEls.gallery.innerHTML = '<div class="commerce-empty">生成后会在这里显示图片。</div>';
   } else {
     commerceEls.gallery.innerHTML = items.map(({ media, job }) => commerceMediaCard(media, job)).join("");
   }
+  if (commerceEls.resultStatus) {
+    commerceEls.resultStatus.textContent = recentItems.length
+      ? `只显示未归档任务缩略图，共 ${recentItems.length} 张`
+      : "列表为缩略图，点击预览查看原图";
+  }
+  if (commerceEls.resultPager) {
+    commerceEls.resultPager.classList.toggle("hidden", recentItems.length <= recentPageSize);
+    if (commerceEls.resultPageLabel) commerceEls.resultPageLabel.textContent = `${commerceResultPage} / ${recentPageCount}`;
+    commerceEls.resultPageButtons.forEach((button) => {
+      const action = button.dataset.commerceResultPage || "";
+      button.disabled = action === "prev" ? commerceResultPage <= 1 : commerceResultPage >= recentPageCount;
+    });
+  }
   if (commerceEls.library) {
-    const all = latestCommerceItems(200);
-    const pageSize = 20;
+    const all = latestCommerceItems(500, { includeArchived: true });
+    const pageSize = 36;
     const pageCount = Math.max(1, Math.ceil(all.length / pageSize));
     commerceGalleryPage = Math.max(1, Math.min(commerceGalleryPage, pageCount));
     const pageItems = all.slice((commerceGalleryPage - 1) * pageSize, commerceGalleryPage * pageSize);
@@ -3954,6 +3979,10 @@ function renderCommerceTasks() {
           </div>
           <span class="commerce-task-meta">${escapeHtml(formatTime(current.created_at))} · ${Number(current.count || 1)} 张</span>
           <p class="commerce-task-prompt">${escapeHtml(current.prompt || "暂无提示词")}</p>
+          <div class="commerce-task-actions">
+            <button data-commerce-history-action="retry" type="button">重新生成</button>
+            <button data-commerce-history-action="archive" type="button">归档当前任务</button>
+          </div>
         </div>`
       : "还没有当前任务";
   }
@@ -3971,6 +4000,7 @@ function renderCommerceTasks() {
         <div class="commerce-task-actions">
           <button data-commerce-history-action="select" type="button">设为当前</button>
           <button data-commerce-history-action="retry" type="button">重新生成</button>
+          <button data-commerce-history-action="archive" type="button">归档</button>
         </div>
       </div>
     `}).join("") : "暂无任务";
@@ -7508,6 +7538,15 @@ commerceEls.referenceUpload?.addEventListener("click", () => {
 });
 commerceEls.showAllHistory?.addEventListener("click", () => setCommerceTab("history"));
 commerceEls.archiveCompleted?.addEventListener("click", () => archiveCompletedCommerceJobs().catch((err) => alert(err.message)));
+commerceEls.openGallery?.addEventListener("click", () => setCommerceTab("gallery"));
+commerceEls.resultPageButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const action = button.dataset.commerceResultPage || "";
+    if (action === "prev") commerceResultPage = Math.max(1, commerceResultPage - 1);
+    if (action === "next") commerceResultPage += 1;
+    renderCommerceGallery();
+  });
+});
 commerceEls.pageButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const action = button.dataset.commercePage || "";
@@ -7526,6 +7565,17 @@ commerceEls.historyFilters.forEach((button) => {
     renderCommerceTasks();
   });
 });
+commerceEls.currentTask?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-commerce-history-action]");
+  if (!button) return;
+  const item = button.closest("[data-commerce-job-id]");
+  const jobId = item?.dataset.commerceJobId || "";
+  if (button.dataset.commerceHistoryAction === "retry") {
+    retryJobs([jobId]);
+  } else if (button.dataset.commerceHistoryAction === "archive") {
+    archiveCommerceJob(jobId, true).catch((err) => alert(err.message));
+  }
+});
 commerceEls.recentTasks?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-commerce-history-action]");
   if (!button) return;
@@ -7536,6 +7586,8 @@ commerceEls.recentTasks?.addEventListener("click", (event) => {
     renderCommerceTasks();
   } else if (button.dataset.commerceHistoryAction === "retry") {
     retryJobs([jobId]);
+  } else if (button.dataset.commerceHistoryAction === "archive") {
+    archiveCommerceJob(jobId, true).catch((err) => alert(err.message));
   }
 });
 commerceEls.historyList?.addEventListener("click", (event) => {
