@@ -42,6 +42,7 @@ MAX_HISTORY = int(os.getenv("MAX_HISTORY", "200"))
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "600"))
 AGENT_TEXT_TIMEOUT = int(os.getenv("AGENT_TEXT_TIMEOUT", "180"))
 AGENT_TEXT_RETRIES = int(os.getenv("AGENT_TEXT_RETRIES", "0"))
+VALID_WORKSPACES = {"studio", "commerce", "research"}
 DATA_DIR = Path(os.getenv("DATA_DIR", "/app/data"))
 MEDIA_DIR = DATA_DIR / "media"
 THUMB_DIR = DATA_DIR / "thumbs"
@@ -93,6 +94,30 @@ worker_started = False
 
 def now_ts() -> int:
     return int(time.time())
+
+
+def clean_workspace(value: str | None) -> str:
+    workspace = str(value or "").strip().lower()
+    return workspace if workspace in VALID_WORKSPACES else ""
+
+
+def normalize_workspace(value: str | None) -> str:
+    return clean_workspace(value) or "studio"
+
+
+def job_workspace(job: dict | None) -> str:
+    item = job or {}
+    explicit = clean_workspace(item.get("workspace"))
+    if explicit:
+        return explicit
+    agent_id = str(item.get("agent_id") or "")
+    agent_name = str(item.get("agent_name") or "")
+    title = str(item.get("title") or "")
+    if agent_id == "research-workbench" or "科研图" in agent_name:
+        return "research"
+    if "简洁生图台" in title:
+        return "commerce"
+    return "studio"
 
 
 def ensure_data_dir() -> None:
@@ -2275,6 +2300,7 @@ def client_jobs(client_id: str | None = None) -> list[dict]:
 
 def public_job(job: dict) -> dict:
     item = dict(job or {})
+    item["workspace"] = job_workspace(item)
     if item.get("api_key"):
         item["api_key"] = ""
         item["api_key_configured"] = True
@@ -2523,6 +2549,7 @@ def save_image_payload(job_id: str, index: int, image_payload: dict, prompt: str
         "id": media_id,
         "job_id": job_id,
         "client_id": str(job.get("client_id") or ""),
+        "workspace": job_workspace(job),
         "index": index,
         "url": url,
         "thumb_url": thumb_url_for_media(media_id, url),
@@ -4898,6 +4925,7 @@ def create_job():
         resolved_api_url, resolve_errors = resolve_api_url(connection_mode, api_url, api_key)
     client_id = current_client_id()
     client_request_id = str(payload.get("client_request_id") or "").strip()[:120]
+    workspace = normalize_workspace(payload.get("workspace"))
     if client_request_id:
         existing = next(
             (
@@ -4927,6 +4955,7 @@ def create_job():
         "id": uuid.uuid4().hex,
         "client_request_id": client_request_id,
         "client_id": client_id,
+        "workspace": workspace,
         "mode": mode,
         "protocol": str(payload.get("protocol") or "custom-openai").strip(),
         "connection_mode": connection_mode,
@@ -5034,6 +5063,7 @@ def retry_job(job_id):
     job = {
         "id": uuid.uuid4().hex,
         "client_id": client_id,
+        "workspace": job_workspace(source),
         "mode": str(source.get("mode") or "single"),
         "protocol": str(source.get("protocol") or "custom-openai").strip(),
         "connection_mode": connection_mode,

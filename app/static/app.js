@@ -11,6 +11,7 @@ const NEW_TASK_DRAFT_ID = "__new_task__";
 const SELECTED_HISTORY_JOB_KEY = "yy-selected-history-job";
 const SHOW_ALL_GENERATED_KEY = "yy-show-all-generated";
 const MAX_REFERENCE_SELECTION = 4;
+const VALID_WORKSPACES = new Set(["studio", "commerce", "research"]);
 
 const $ = (sel) => document.querySelector(sel);
 const els = {
@@ -257,14 +258,15 @@ function restoreHistorySelection() {
   try {
     if (selectedHistoryJobId || selectedHistoryDayKey || localStorage.getItem(SHOW_ALL_GENERATED_KEY) === "1") return;
     const lastJobId = localStorage.getItem(SELECTED_HISTORY_JOB_KEY);
-    if (lastJobId && state.jobs.some((job) => job.id === lastJobId)) {
+    const studioJobs = jobsForWorkspace("studio");
+    if (lastJobId && studioJobs.some((job) => job.id === lastJobId)) {
       selectedHistoryJobId = lastJobId;
       return;
     }
   } catch (err) {
     // Fall through to latest task.
   }
-  selectedHistoryJobId = state.jobs[0]?.id || null;
+  selectedHistoryJobId = jobsForWorkspace("studio")[0]?.id || null;
 }
 
 function clearLegacyDefaultNegative() {
@@ -316,9 +318,42 @@ const RESEARCH_PROJECT_STORAGE_KEY = "yy-research-project";
 const RESEARCH_ACTIVE_JOB_STORAGE_KEY = "yy-research-active-job";
 const LEGACY_DEFAULT_NEGATIVE = "低清晰度，畸形结构，错误文字，重复肢体，低质量，过度锐化";
 
+function cleanWorkspace(value) {
+  const workspace = String(value || "").trim().toLowerCase();
+  return VALID_WORKSPACES.has(workspace) ? workspace : "";
+}
+
+function legacyJobWorkspace(job = {}) {
+  const agentId = String(job.agent_id || "");
+  const agentName = String(job.agent_name || "");
+  const title = String(job.title || "");
+  if (agentId === "research-workbench" || agentName.includes("科研图")) return "research";
+  if (title.includes("简洁生图台")) return "commerce";
+  return "studio";
+}
+
+function jobWorkspace(job = {}) {
+  return cleanWorkspace(job.workspace) || legacyJobWorkspace(job);
+}
+
+function mediaWorkspace(media = {}, job = {}) {
+  return cleanWorkspace(media.workspace) || jobWorkspace(job);
+}
+
+function jobsForWorkspace(workspace = "studio") {
+  const target = cleanWorkspace(workspace) || "studio";
+  return state.jobs.filter((job) => jobWorkspace(job) === target);
+}
+
+function mediaForWorkspace(workspace = "studio") {
+  const target = cleanWorkspace(workspace) || "studio";
+  const jobById = new Map(state.jobs.map((job) => [job.id, job]));
+  return state.media.filter((media) => mediaWorkspace(media, jobById.get(media.job_id) || {}) === target);
+}
+
 function currentHistoryJob() {
   if (!selectedHistoryJobId || selectedHistoryJobId === NEW_TASK_DRAFT_ID) return null;
-  return state.jobs.find((job) => job.id === selectedHistoryJobId) || null;
+  return jobsForWorkspace("studio").find((job) => job.id === selectedHistoryJobId) || null;
 }
 let preflightTimer = 0;
 let preflightOriginalPrompt = "";
@@ -435,7 +470,7 @@ function historyTimeLabel(ts) {
 
 function jobsForHistoryDay(dayKey) {
   if (!dayKey) return [];
-  return state.jobs.filter((job) => historyDayKey(job.created_at) === dayKey);
+  return jobsForWorkspace("studio").filter((job) => historyDayKey(job.created_at) === dayKey);
 }
 
 function statusText(status) {
@@ -3086,7 +3121,7 @@ function maybeAutoShowGuide(anchor = location.hash || "#home") {
 
 function renderHistory() {
   els.historyList.innerHTML = "";
-  const jobs = state.jobs;
+  const jobs = jobsForWorkspace("studio");
   els.historyList.classList.toggle("hidden", !historyExpanded);
   if (els.toggleHistory) {
     els.toggleHistory.textContent = historyExpanded ? `任务归档 · ${jobs.length}` : `展开任务归档 · ${jobs.length}`;
@@ -3210,13 +3245,15 @@ function renderHistory() {
 
 function galleryItems() {
   if (selectedHistoryJobId === NEW_TASK_DRAFT_ID) return [];
+  const studioJobs = jobsForWorkspace("studio");
+  const studioMedia = mediaForWorkspace("studio");
   const visibleMedia = selectedHistoryJobId
-    ? state.media.filter((media) => media.job_id === selectedHistoryJobId)
-    : state.media;
+    ? studioMedia.filter((media) => media.job_id === selectedHistoryJobId)
+    : studioMedia;
   const visibleJobs = selectedHistoryJobId
-    ? state.jobs.filter((job) => job.id === selectedHistoryJobId)
-    : state.jobs;
-  const jobById = new Map(state.jobs.map((job) => [job.id, job]));
+    ? studioJobs.filter((job) => job.id === selectedHistoryJobId)
+    : studioJobs;
+  const jobById = new Map(studioJobs.map((job) => [job.id, job]));
   const referencesById = new Map(state.references.map((ref) => [ref.id, ref]));
   const jobReferences = (job = {}, media = {}) => {
     const ids = Array.isArray(media.reference_ids) && media.reference_ids.length
@@ -3294,10 +3331,12 @@ function renderGalleryHeader(items) {
     return;
   }
   const selectedCount = selectedGalleryIds.size;
-  const running = state.jobs.filter((job) => job.status === "running").length;
-  const queued = state.jobs.filter((job) => job.status === "queued").length;
-  const succeeded = state.jobs.filter((job) => job.status === "success").length;
-  const failed = state.jobs.filter((job) => job.status === "error").length;
+  const studioJobs = jobsForWorkspace("studio");
+  const studioMedia = mediaForWorkspace("studio");
+  const running = studioJobs.filter((job) => job.status === "running").length;
+  const queued = studioJobs.filter((job) => job.status === "queued").length;
+  const succeeded = studioJobs.filter((job) => job.status === "success").length;
+  const failed = studioJobs.filter((job) => job.status === "error").length;
   const currentJob = currentHistoryJob();
   const retryableFailed = currentJob ? (currentJob.status === "error" ? 1 : 0) : failed;
   const title = currentJob ? `当前任务记录 · 已显示 ${items.length} 条` : `最近生成 · 已显示 ${items.length} 条`;
@@ -3305,7 +3344,7 @@ function renderGalleryHeader(items) {
   els.galleryHeader.innerHTML = `
     <div class="gallery-title">
       <strong>${escapeHtml(title)}</strong>
-      <span>运行中 ${running} / 排队 ${queued} / 成功 ${succeeded} / 失败 ${failed} / 图片 ${state.media.length}</span>
+      <span>运行中 ${running} / 排队 ${queued} / 成功 ${succeeded} / 失败 ${failed} / 图片 ${studioMedia.length}</span>
       <small>列表为缩略图，点击预览查看原图</small>
     </div>
     ${currentJob && !selectedCount ? `
@@ -3705,8 +3744,9 @@ async function submitCommerceJob() {
 }
 
 function latestCommerceItems(limit = 8) {
-  const jobById = new Map(state.jobs.map((job) => [job.id, job]));
-  return [...state.media]
+  const commerceJobs = jobsForWorkspace("commerce");
+  const jobById = new Map(commerceJobs.map((job) => [job.id, job]));
+  return mediaForWorkspace("commerce")
     .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
     .slice(0, limit)
     .map((media) => ({ media, job: jobById.get(media.job_id) || {} }));
@@ -3764,13 +3804,14 @@ function renderCommerceGallery() {
 }
 
 function renderCommerceTasks() {
-  const current = state.jobs[0] || null;
+  const commerceJobs = jobsForWorkspace("commerce");
+  const current = commerceJobs[0] || null;
   if (commerceEls.currentTask) {
     commerceEls.currentTask.innerHTML = current
       ? `<div class="commerce-task-line"><strong>${escapeHtml(current.model || current.title || "生成任务")}</strong><span>${escapeHtml(current.status || "")} · ${escapeHtml(formatTime(current.created_at))}</span><span>${escapeHtml((current.prompt || "").slice(0, 120))}</span></div>`
       : "还没有当前任务";
   }
-  const recent = state.jobs.slice(0, 5);
+  const recent = commerceJobs.slice(0, 5);
   if (commerceEls.recentTasks) {
     commerceEls.recentTasks.innerHTML = recent.length ? recent.map((job) => `
       <div class="commerce-task-line" data-commerce-job-id="${escapeAttr(job.id)}">
@@ -3780,7 +3821,7 @@ function renderCommerceTasks() {
     `).join("") : "暂无任务";
   }
   if (!commerceEls.historyList) return;
-  const jobs = state.jobs.filter((job) => commerceHistoryStatus === "all" || job.status === commerceHistoryStatus);
+  const jobs = commerceJobs.filter((job) => commerceHistoryStatus === "all" || job.status === commerceHistoryStatus);
   const pageSize = 20;
   const pageCount = Math.max(1, Math.ceil(jobs.length / pageSize));
   commerceHistoryPage = Math.max(1, Math.min(commerceHistoryPage, pageCount));
@@ -3811,9 +3852,11 @@ function setCommerceTab(tabName) {
 }
 
 function previewCommerceMedia(id) {
-  const media = state.media.find((item) => item.id === id);
+  const commerceJobs = jobsForWorkspace("commerce");
+  const jobById = new Map(commerceJobs.map((job) => [job.id, job]));
+  const media = mediaForWorkspace("commerce").find((item) => item.id === id);
   if (!media) return;
-  const job = state.jobs.find((item) => item.id === media.job_id) || {};
+  const job = jobById.get(media.job_id) || {};
   setMediaPreview(true, {
     title: media.model || job.model || "生成图片",
     prompt: media.prompt || job.prompt || "",
@@ -3886,16 +3929,17 @@ function setMediaPreview(open = false, item = activeMediaPreviewItem) {
 
 function renderMedia() {
   const items = galleryItems();
+  const studioMedia = mediaForWorkspace("studio");
   selectedGalleryIds = new Set([...selectedGalleryIds].filter((id) => items.some((item) => item.id === id)));
   if (els.mediaCount) {
-    els.mediaCount.textContent = state.media.length;
+    els.mediaCount.textContent = studioMedia.length;
   }
   if (els.showAllMedia) {
     const filtered = Boolean(currentHistoryJob()) || selectedHistoryJobId === NEW_TASK_DRAFT_ID;
     els.showAllMedia.classList.toggle("return-all", filtered);
     els.showAllMedia.setAttribute(
       "title",
-      filtered ? `当前只显示部分记录，点击显示全部 ${state.media.length} 张` : `已显示全部最近生成 ${state.media.length} 张`
+      filtered ? `当前只显示部分记录，点击显示全部 ${studioMedia.length} 张` : `已显示全部最近生成 ${studioMedia.length} 张`
     );
     els.showAllMedia.setAttribute("aria-label", filtered ? "显示全部最近生成" : "全部最近生成");
   }
@@ -4074,7 +4118,7 @@ function renderReferences() {
 
 function renderState() {
   restoreHistorySelection();
-  if (selectedHistoryJobId && selectedHistoryJobId !== NEW_TASK_DRAFT_ID && !state.jobs.some((job) => job.id === selectedHistoryJobId)) {
+  if (selectedHistoryJobId && selectedHistoryJobId !== NEW_TASK_DRAFT_ID && !jobsForWorkspace("studio").some((job) => job.id === selectedHistoryJobId)) {
     selectedHistoryJobId = null;
     selectedGalleryIds.clear();
     persistHistorySelection(false);
@@ -4201,6 +4245,7 @@ async function performSubmitJob(promptOverride = "") {
     els.submitJob.disabled = true;
     els.submitJob.textContent = "…";
     const activeAgent = agentEnabled && selectedAgent ? selectedAgent : null;
+    const workspace = document.body.classList.contains("commerce-active") ? "commerce" : "studio";
     let title = els.title.value.trim();
     if (!activeAgent && titleMatchesIndustryAgent(title)) {
       title = "";
@@ -4210,6 +4255,7 @@ async function performSubmitJob(promptOverride = "") {
       method: "POST",
       body: JSON.stringify({
         mode: "single",
+        workspace,
         client_request_id: activeSubmitRequestId,
         title,
         prompt,
@@ -4227,8 +4273,8 @@ async function performSubmitJob(promptOverride = "") {
         size: requestSize(),
         quality: els.quality.value,
         output_format: els.outputFormat.value,
-        background: document.body.classList.contains("commerce-active") ? (commerceEls.background?.value || "auto") : "auto",
-        local_upscale: document.body.classList.contains("commerce-active") ? (commerceEls.upscale?.value || "none") : "none",
+        background: workspace === "commerce" ? (commerceEls.background?.value || "auto") : "auto",
+        local_upscale: workspace === "commerce" ? (commerceEls.upscale?.value || "none") : "none",
         count: numbers.count,
         concurrency: numbers.concurrency,
         retry_limit: numbers.retryLimit,
@@ -4240,8 +4286,10 @@ async function performSubmitJob(promptOverride = "") {
       }),
     });
     els.prompt.value = prompt;
-    selectedHistoryJobId = created?.job?.id || null;
-    persistHistorySelection(false);
+    if (workspace === "studio") {
+      selectedHistoryJobId = created?.job?.id || null;
+      persistHistorySelection(false);
+    }
     selectedGalleryIds.clear();
     closePromptAnalysis();
     syncSummary();
@@ -4674,8 +4722,17 @@ async function clearMedia() {
     await loadState();
     return;
   }
-  if (!confirm("确认删除所有会话任务和媒体库记录？\n\n图片文件会保留在 data/media。")) return;
-  await api("/api/media/clear", { method: "POST", body: "{}" });
+  const studioJobs = jobsForWorkspace("studio");
+  const studioMedia = mediaForWorkspace("studio");
+  if (!studioJobs.length && !studioMedia.length) return;
+  if (!confirm("确认删除专业生图台的全部会话任务和媒体库记录？\n\n其他工作台记录不受影响，图片文件会保留在 data/media。")) return;
+  await api("/api/media/delete", {
+    method: "POST",
+    body: JSON.stringify({
+      job_ids: studioJobs.map((job) => job.id),
+      media_ids: studioMedia.map((media) => media.id),
+    }),
+  });
   selectedHistoryJobId = null;
   selectedHistoryDayKey = null;
   selectedGalleryIds.clear();
@@ -4701,7 +4758,14 @@ async function deleteSelectedGallery() {
 }
 
 async function clearFailedGallery() {
-  await api("/api/media/clear-failed", { method: "POST", body: "{}" });
+  const failedJobIds = jobsForWorkspace("studio")
+    .filter((job) => job.status === "error")
+    .map((job) => job.id);
+  if (!failedJobIds.length) return;
+  await api("/api/media/delete", {
+    method: "POST",
+    body: JSON.stringify({ media_ids: [], job_ids: failedJobIds }),
+  });
   selectedGalleryIds.clear();
   persistHistorySelection(false);
   await loadState();
@@ -4717,7 +4781,7 @@ async function retryJobs(jobIds = []) {
     return;
   }
   saveApiKeyPreference();
-  let lastJobId = null;
+  let lastStudioJobId = null;
   const errors = [];
   for (const jobId of ids) {
     try {
@@ -4731,13 +4795,16 @@ async function retryJobs(jobIds = []) {
           retry_limit: Number(els.retryLimit.value || 2),
         }),
       });
-      lastJobId = created?.job?.id || lastJobId;
+      const createdJob = created?.job || {};
+      if (createdJob.id && jobWorkspace(createdJob) === "studio") {
+        lastStudioJobId = createdJob.id;
+      }
     } catch (err) {
       errors.push(`${jobId}: ${err.message}`);
     }
   }
-  if (lastJobId) {
-    selectedHistoryJobId = lastJobId;
+  if (lastStudioJobId) {
+    selectedHistoryJobId = lastStudioJobId;
     persistHistorySelection(false);
   }
   selectedGalleryIds.clear();
@@ -4782,13 +4849,13 @@ function handleGalleryAction(action) {
     const currentJob = currentHistoryJob();
     const ids = currentJob?.status === "error"
       ? [currentJob.id]
-      : state.jobs.filter((job) => job.status === "error").map((job) => job.id);
+      : jobsForWorkspace("studio").filter((job) => job.status === "error").map((job) => job.id);
     retryJobs(ids);
   } else if (action === "retry-selected") {
     const ids = [...new Set([...selectedGalleryIds]
       .filter((id) => id.startsWith("job:"))
       .map((id) => id.split(":")[1])
-      .filter((id) => state.jobs.some((job) => job.id === id && job.status === "error")))];
+      .filter((id) => jobsForWorkspace("studio").some((job) => job.id === id && job.status === "error")))];
     retryJobs(ids);
   }
 }
@@ -5857,15 +5924,15 @@ function setResearchOutputPending(job = {}, sourceNode = null) {
 }
 
 function mediaForResearchJob(jobId) {
-  const job = state.jobs.find((item) => item.id === jobId) || {};
+  const job = jobsForWorkspace("research").find((item) => item.id === jobId) || {};
   const ids = new Set((job.media_ids || []).map(String));
-  return state.media
+  return mediaForWorkspace("research")
     .filter((media) => media.job_id === jobId || ids.has(String(media.id)))
     .sort((a, b) => Number(a.index || 0) - Number(b.index || 0));
 }
 
 function renderResearchJobMedia(jobId, sourceNode = null) {
-  const job = state.jobs.find((item) => item.id === jobId) || {};
+  const job = jobsForWorkspace("research").find((item) => item.id === jobId) || {};
   const mediaItems = mediaForResearchJob(jobId);
   if (!mediaItems.length) return mediaItems;
   const count = Math.max(1, Number(job.count || mediaItems.length || 1));
@@ -5905,7 +5972,7 @@ function renderResearchJobMedia(jobId, sourceNode = null) {
 function lastResearchJobWithMedia() {
   const currentSignature = researchProjectSignature();
   if (!currentSignature) return null;
-  const jobs = state.jobs.filter((job) => {
+  const jobs = jobsForWorkspace("research").filter((job) => {
     const agentId = String(job.agent_id || "");
     const agentName = String(job.agent_name || "");
     if (!(agentId === "research-workbench" || agentName.includes("科研图"))) return false;
@@ -5927,7 +5994,7 @@ function syncResearchOutputsFromState() {
   const currentSignature = researchProjectSignature();
   if (!currentSignature) return;
   const jobId = activeResearchJobId || (selectedHistoryJobId !== NEW_TASK_DRAFT_ID ? selectedHistoryJobId : "");
-  const directJob = jobId ? state.jobs.find((job) => job.id === jobId) : null;
+  const directJob = jobId ? jobsForWorkspace("research").find((job) => job.id === jobId) : null;
   const directSourceNode = directJob ? sourceNodeForResearchJob(directJob) : null;
   const directMatches = directJob && (
     (directJob.research_project_signature && directJob.research_project_signature === currentSignature)
@@ -5964,7 +6031,7 @@ async function watchResearchGeneration(jobId, sourceNode = null) {
   try {
     for (let attempt = 0; attempt < 90; attempt += 1) {
       await loadState();
-      const job = state.jobs.find((item) => item.id === jobId) || {};
+      const job = jobsForWorkspace("research").find((item) => item.id === jobId) || {};
       const mediaItems = renderResearchJobMedia(jobId, sourceNode);
       if (mediaItems.length && (job.status === "success" || mediaItems.length >= Number(job.count || 1))) {
         setResearchStatus(`科研图已生成 ${mediaItems.length} 张，已回填到画布输出节点`);
@@ -6022,6 +6089,7 @@ async function submitResearchGenerationJob(sourceNode = null) {
       method: "POST",
       body: JSON.stringify({
         mode: "single",
+        workspace: "research",
         client_request_id: `research-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         title,
         prompt,
@@ -6051,8 +6119,6 @@ async function submitResearchGenerationJob(sourceNode = null) {
         edit_mode: Boolean(selectedReferenceIds.size),
       }),
     });
-    selectedHistoryJobId = created?.job?.id || null;
-    persistHistorySelection(false);
     activeResearchJobId = created?.job?.id || "";
     activeResearchProjectSignature = projectSignature;
     const appliedJob = created?.job || { id: activeResearchJobId, count: settings.count, status: "queued", research_project_signature: projectSignature };
@@ -7123,7 +7189,7 @@ commerceEls.referenceUpload?.addEventListener("click", () => {
     if (action === "preview") {
       previewCommerceMedia(mediaId);
     } else if (action === "copy") {
-      const media = state.media.find((item) => item.id === mediaId);
+      const media = mediaForWorkspace("commerce").find((item) => item.id === mediaId);
       navigator.clipboard?.writeText(media?.prompt || "");
     } else if (action === "retry") {
       retryJobs([jobId]);
