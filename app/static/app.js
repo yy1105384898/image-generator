@@ -3881,9 +3881,9 @@ function commerceMediaCard(media, job = {}) {
         </div>
         <div class="commerce-result-actions">
           <a class="is-primary" href="${escapeAttr(item.url || "")}" download>下载</a>
-          <button data-commerce-media-action="copy" type="button">复制提示词</button>
-          <button data-commerce-media-action="retry" type="button">重新生成</button>
-          <button data-commerce-media-action="save-template" type="button">存为模板</button>
+          <button data-commerce-media-action="copy" type="button">复制</button>
+          <button data-commerce-media-action="retry" type="button">重做</button>
+          <button data-commerce-media-action="save-template" type="button">模板</button>
           <button class="is-danger" data-commerce-media-action="delete" type="button">删除</button>
         </div>
       </div>
@@ -3981,7 +3981,7 @@ function renderCommerceTasks() {
           <p class="commerce-task-prompt">${escapeHtml(current.prompt || "暂无提示词")}</p>
           <div class="commerce-task-actions">
             <button data-commerce-history-action="retry" type="button">重新生成</button>
-            <button data-commerce-history-action="archive" type="button">归档当前任务</button>
+            <button data-commerce-history-action="archive" type="button">归档</button>
           </div>
         </div>`
       : "还没有当前任务";
