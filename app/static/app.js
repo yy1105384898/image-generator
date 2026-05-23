@@ -196,6 +196,7 @@ const commerceEls = {
   productName: $("#commerceProductName"),
   sellingPoints: $("#commerceSellingPoints"),
   style: $("#commerceStyle"),
+  clearStyle: $("#commerceClearStyle"),
   sceneChips: document.querySelectorAll("[data-commerce-scene]"),
   ratioChips: document.querySelectorAll("[data-commerce-ratio]"),
   count: $("#commerceCount"),
@@ -3532,17 +3533,23 @@ function setCommerceChip(buttons, key, value) {
 
 let commerceLastAutoPrompt = "";
 
+function syncCommerceStyleControls() {
+  const style = (commerceEls.style?.value || "").trim();
+  commerceEls.sceneChips.forEach((button) => {
+    button.classList.toggle("active", Boolean(style) && button.dataset.commerceScene === style);
+  });
+  commerceEls.clearStyle?.classList.toggle("hidden", !style);
+}
+
 function buildCommercePrompt() {
   const subject = (commerceEls.productName?.value || "").trim();
   const details = (commerceEls.sellingPoints?.value || "").trim();
-  const preset = activeCommerceValue(commerceEls.sceneChips, "commerceScene", "商品主图");
   const style = (commerceEls.style?.value || "").trim();
   const mode = activeCommerceValue(commerceEls.modeChips, "commerceMode", "text") === "image" ? "参考图复用" : "文生图";
   return [
     subject ? `主体：${subject}。` : "主体：清晰明确的商业视觉主体。",
     details ? `画面要求：${details}。` : "",
-    `风格预设：${preset}。`,
-    style ? `风格补充：${style}。` : "",
+    style ? `风格：${style}。` : "",
     `生成模式：${mode}。`,
     "构图干净，主体突出，光影自然，细节清晰，可直接用于宣传和展示。",
   ].filter(Boolean).join("\n");
@@ -3613,8 +3620,8 @@ function applyCommerceTemplate(id) {
     commerceLastAutoPrompt = template.prompt || "";
     commercePromptTouched = true;
   }
-  if (commerceEls.style && template.style) commerceEls.style.value = template.style;
-  if (template.scene) setCommerceChip(commerceEls.sceneChips, "commerceScene", template.scene);
+  if (commerceEls.style) commerceEls.style.value = template.style || template.scene || "";
+  syncCommerceStyleControls();
   if (commerceEls.templateName) commerceEls.templateName.value = template.name || "";
   if (commerceEls.templateTags) commerceEls.templateTags.value = (template.tags || []).join(", ");
 }
@@ -3634,7 +3641,6 @@ function saveCommerceTemplateFromForm() {
     tags,
     prompt,
     style: (commerceEls.style?.value || "").trim(),
-    scene: activeCommerceValue(commerceEls.sceneChips, "commerceScene", "商品主图"),
     created_at: Date.now() / 1000,
   });
   saveCommerceTemplates();
@@ -3677,6 +3683,7 @@ function syncCommerceFromMain() {
   syncCommerceModelOptions(verifiedImageModels);
   if (commerceEls.model && els.model?.value) commerceEls.model.value = els.model.value;
   setCommerceStatus(verifiedImageModels.length ? `已读取 ${verifiedImageModels.length} 个绘图模型` : "等待填写 API Key", verifiedImageModels.length ? "success" : "idle");
+  syncCommerceStyleControls();
   syncCommercePrompt();
 }
 
@@ -7111,7 +7118,8 @@ commerceEls.modeChips.forEach((button) => {
 });
 commerceEls.sceneChips.forEach((button) => {
   button.addEventListener("click", () => {
-    setCommerceChip(commerceEls.sceneChips, "commerceScene", button.dataset.commerceScene);
+    if (commerceEls.style) commerceEls.style.value = button.dataset.commerceScene || "";
+    syncCommerceStyleControls();
     syncCommercePrompt({ force: false });
   });
 });
@@ -7122,7 +7130,16 @@ commerceEls.ratioChips.forEach((button) => {
   });
 });
 [commerceEls.productName, commerceEls.sellingPoints, commerceEls.style].forEach((input) => {
-  input?.addEventListener("input", () => syncCommercePrompt({ force: false }));
+  input?.addEventListener("input", () => {
+    if (input === commerceEls.style) syncCommerceStyleControls();
+    syncCommercePrompt({ force: false });
+  });
+});
+commerceEls.clearStyle?.addEventListener("click", () => {
+  if (commerceEls.style) commerceEls.style.value = "";
+  syncCommerceStyleControls();
+  syncCommercePrompt({ force: false });
+  commerceEls.style?.focus();
 });
 commerceEls.prompt?.addEventListener("input", () => {
   commercePromptTouched = true;
@@ -7167,7 +7184,7 @@ commerceEls.clearSelection?.addEventListener("click", () => {
   selectedReferenceIds.clear();
   renderReferences();
   setCommerceChip(commerceEls.modeChips, "commerceMode", "text");
-  setCommerceChip(commerceEls.sceneChips, "commerceScene", "商品主图");
+  syncCommerceStyleControls();
   setCommerceChip(commerceEls.ratioChips, "commerceRatio", "1:1");
   syncCommercePrompt({ force: true });
 });
