@@ -3880,6 +3880,7 @@ function commerceMediaCard(media, job = {}) {
           <span>${escapeHtml([item.aspect_ratio, item.resolution, item.size].filter(Boolean).join(" · ") || "生成图片")}</span>
         </div>
         <div class="commerce-result-actions">
+          <button class="is-primary" data-commerce-media-action="preview" type="button">预览</button>
           <a class="is-primary" href="${escapeAttr(item.url || "")}" download>下载</a>
           <button data-commerce-media-action="copy" type="button">复制</button>
           <button data-commerce-media-action="retry" type="button">重做</button>
