@@ -2295,7 +2295,14 @@ def matches_client(item: dict, client_id: str) -> bool:
 
 def client_jobs(client_id: str | None = None) -> list[dict]:
     cid = client_id if client_id is not None else current_client_id()
-    return [public_job(job) for job in read_jobs() if matches_client(job, cid)]
+    items = []
+    for job in read_jobs():
+        if not matches_client(job, cid):
+            continue
+        if job_workspace(job) == "commerce" and str(job.get("client_id") or "").strip() != cid:
+            continue
+        items.append(public_job(job))
+    return items
 
 
 def public_job(job: dict) -> dict:

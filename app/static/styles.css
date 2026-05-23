@@ -763,6 +763,26 @@ body.commerce-active {
 .commerce-result-card {
   position: sticky;
   top: 16px;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .96), rgba(250, 250, 246, .94)),
+    var(--green-soft);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, .04),
+    0 8px 18px rgba(15, 23, 42, .06),
+    0 24px 54px rgba(15, 23, 42, .08);
+}
+
+.commerce-result-card .commerce-section-head {
+  align-items: flex-start;
+}
+
+.commerce-result-card .commerce-section-head span {
+  max-width: 150px;
+  text-align: right;
+  line-height: 1.45;
 }
 
 .commerce-section-head strong {
@@ -976,6 +996,63 @@ body.commerce-active {
 
 .commerce-gallery {
   grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.commerce-result-item {
+  border-radius: 20px;
+  background: rgba(250, 250, 246, .98);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, .035),
+    0 8px 18px rgba(15, 23, 42, .055),
+    0 18px 38px rgba(15, 23, 42, .065);
+}
+
+.commerce-result-item > button[data-commerce-media-action="preview"] {
+  overflow: hidden;
+}
+
+.commerce-result-item img {
+  aspect-ratio: 4 / 3;
+  transition: transform 260ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.commerce-result-item:hover img {
+  transform: scale(1.025);
+}
+
+.commerce-result-item .commerce-result-body {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.commerce-result-item .commerce-result-meta {
+  display: grid;
+  gap: 3px;
+  padding: 0;
+}
+
+.commerce-result-item .commerce-result-meta strong {
+  font-size: 14px;
+  letter-spacing: -.01em;
+}
+
+.commerce-result-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0;
+}
+
+.commerce-result-actions .is-danger {
+  color: #a3392f;
+}
+
+.commerce-result-actions .is-primary {
+  border-color: rgba(16, 163, 127, .28);
+  background: var(--green-soft);
+  color: #06745e;
 }
 
 .commerce-template-save {
@@ -1007,6 +1084,99 @@ body.commerce-active {
   border-color: rgba(16, 163, 127, .36);
   background: #111;
   color: #fff;
+}
+
+.commerce-task-box {
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(247, 247, 244, .84), rgba(239, 244, 238, .58));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .72);
+}
+
+.commerce-task-line {
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .86);
+  box-shadow:
+    0 1px 1px rgba(15, 23, 42, .025),
+    0 6px 14px rgba(15, 23, 42, .04),
+    0 14px 28px rgba(15, 23, 42, .04);
+}
+
+.commerce-task-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.commerce-task-meta {
+  color: #65665f;
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.commerce-task-prompt {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: #383a34;
+  font-size: 13px;
+  font-weight: 740;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.commerce-status-badge {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(16, 163, 127, .1);
+  color: #06745e;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.commerce-status-badge.status-error,
+.commerce-status-badge.status-failed {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.commerce-status-badge.status-running,
+.commerce-status-badge.status-queued {
+  background: #fff7df;
+  color: #8a5a00;
+}
+
+.commerce-task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.commerce-task-actions button,
+.commerce-result-actions button,
+.commerce-result-actions a {
+  min-height: 34px;
+  border: 1px solid rgba(17, 17, 17, .1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .92);
+  color: #161612;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 850;
+  text-align: center;
+  transition:
+    transform 150ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 220ms cubic-bezier(0.23, 1, 0.32, 1),
+    background 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.commerce-task-actions button:active,
+.commerce-result-actions button:active,
+.commerce-result-actions a:active {
+  transform: scale(.97);
 }
 
 @media (max-width: 1180px) {

@@ -3865,15 +3865,17 @@ function commerceMediaCard(media, job = {}) {
       <button data-commerce-media-action="preview" type="button">
         <img src="${escapeAttr(item.thumbUrl || item.url || "")}" alt="${escapeAttr(item.prompt || "生成图片")}" loading="lazy" decoding="async">
       </button>
-      <div>
-        <strong>${escapeHtml(item.title)}</strong>
-        <span>${escapeHtml([item.aspect_ratio, item.resolution, item.size].filter(Boolean).join(" · ") || "生成图片")}</span>
-        <div class="commerce-template-actions">
-          <a href="${escapeAttr(item.url || "")}" download>下载</a>
+      <div class="commerce-result-body">
+        <div class="commerce-result-meta">
+          <strong>${escapeHtml(item.title)}</strong>
+          <span>${escapeHtml([item.aspect_ratio, item.resolution, item.size].filter(Boolean).join(" · ") || "生成图片")}</span>
+        </div>
+        <div class="commerce-result-actions">
+          <a class="is-primary" href="${escapeAttr(item.url || "")}" download>下载</a>
           <button data-commerce-media-action="copy" type="button">复制提示词</button>
           <button data-commerce-media-action="retry" type="button">重新生成</button>
           <button data-commerce-media-action="save-template" type="button">存为模板</button>
-          <button data-commerce-media-action="delete" type="button">删除</button>
+          <button class="is-danger" data-commerce-media-action="delete" type="button">删除</button>
         </div>
       </div>
     </article>
@@ -3941,22 +3943,35 @@ function renderCommerceTasks() {
   if (commerceSelectedJobId && !commerceJobs.some((job) => job.id === commerceSelectedJobId)) commerceSelectedJobId = "";
   const current = commerceJobs.find((job) => job.id === commerceSelectedJobId) || commerceJobs[0] || null;
   if (commerceEls.currentTask) {
+    const currentStatus = String(current?.status || "").toLowerCase();
     commerceEls.currentTask.innerHTML = current
-      ? `<div class="commerce-task-line" data-commerce-job-id="${escapeAttr(current.id)}"><strong>${escapeHtml(current.model || current.title || "生成任务")}</strong><span>${escapeHtml(current.status || "")} · ${escapeHtml(formatTime(current.created_at))} · ${Number(current.count || 1)} 张</span><span>${escapeHtml((current.prompt || "").slice(0, 120))}</span></div>`
+      ? `<div class="commerce-task-line commerce-task-line-current" data-commerce-job-id="${escapeAttr(current.id)}">
+          <div class="commerce-task-head">
+            <strong>${escapeHtml(current.model || current.title || "生成任务")}</strong>
+            <span class="commerce-status-badge status-${escapeAttr(currentStatus)}">${escapeHtml(statusText(current.status || ""))}</span>
+          </div>
+          <span class="commerce-task-meta">${escapeHtml(formatTime(current.created_at))} · ${Number(current.count || 1)} 张</span>
+          <p class="commerce-task-prompt">${escapeHtml(current.prompt || "暂无提示词")}</p>
+        </div>`
       : "还没有当前任务";
   }
   const recent = commerceJobs.slice(0, 5);
   if (commerceEls.recentTasks) {
-    commerceEls.recentTasks.innerHTML = recent.length ? recent.map((job) => `
+    commerceEls.recentTasks.innerHTML = recent.length ? recent.map((job) => {
+      const status = String(job.status || "").toLowerCase();
+      return `
       <div class="commerce-task-line" data-commerce-job-id="${escapeAttr(job.id)}">
-        <strong>${escapeHtml(job.model || job.title || "生成任务")}</strong>
-        <span>${escapeHtml(job.status || "")} · ${escapeHtml(formatTime(job.created_at))}</span>
-        <div class="commerce-template-actions">
+        <div class="commerce-task-head">
+          <strong>${escapeHtml(job.model || job.title || "生成任务")}</strong>
+          <span class="commerce-status-badge status-${escapeAttr(status)}">${escapeHtml(statusText(job.status || ""))}</span>
+        </div>
+        <span class="commerce-task-meta">${escapeHtml(formatTime(job.created_at))}</span>
+        <div class="commerce-task-actions">
           <button data-commerce-history-action="select" type="button">设为当前</button>
           <button data-commerce-history-action="retry" type="button">重新生成</button>
         </div>
       </div>
-    `).join("") : "暂无任务";
+    `}).join("") : "暂无任务";
   }
   if (!commerceEls.historyList) return;
   const jobs = commerceJobs.filter((job) => commerceHistoryStatus === "all" || job.status === commerceHistoryStatus);
