@@ -1067,6 +1067,10 @@ function requestSizeFor(aspectRatio, resolution) {
 }
 
 function requestSize() {
+  if (document.body.classList.contains("commerce-active")) {
+    const explicitCommerceSize = commerceExplicitSizeValue();
+    if (explicitCommerceSize) return explicitCommerceSize;
+  }
   return requestSizeFor(els.aspectRatio.value, els.resolution.value);
 }
 
@@ -3664,8 +3668,10 @@ function applyCommerceTemplate(id) {
   }
   if (commerceEls.style) commerceEls.style.value = template.style || template.scene || "";
   if (template.model && commerceEls.model && [...commerceEls.model.options].some((option) => option.value === template.model)) commerceEls.model.value = template.model;
-  if (template.size && commerceEls.size) commerceEls.size.value = template.size;
-  if (template.resolution && commerceEls.resolution) commerceEls.resolution.value = template.resolution;
+  if (template.size && commerceEls.size) {
+    const hasSizeOption = [...commerceEls.size.options].some((option) => option.value === template.size);
+    commerceEls.size.value = hasSizeOption ? template.size : "auto";
+  }
   if (template.quality && commerceEls.quality) commerceEls.quality.value = template.quality;
   if (template.format && commerceEls.format) commerceEls.format.value = template.format;
   if (template.background && commerceEls.background) commerceEls.background.value = template.background;
@@ -3700,7 +3706,7 @@ function saveCommerceTemplateFromForm() {
     style: (commerceEls.style?.value || "").trim(),
     model: commerceEls.model?.value || "",
     size: commerceEls.size?.value || "auto",
-    resolution: commerceEls.resolution?.value || "1K",
+    resolution: commerceResolutionValue(),
     quality: commerceEls.quality?.value || "auto",
     format: commerceEls.format?.value || "png",
     background: commerceEls.background?.value || "auto",
@@ -3803,9 +3809,45 @@ function scheduleCommerceModelRefresh() {
   }, 650);
 }
 
+function parseCommerceSizeValue(value = "") {
+  const match = String(value || "").trim().match(/^(\d{2,5})x(\d{2,5})$/i);
+  if (!match) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  return { width, height };
+}
+
+function reduceRatio(width, height) {
+  let a = Math.round(Math.abs(width));
+  let b = Math.round(Math.abs(height));
+  while (b) {
+    const next = a % b;
+    a = b;
+    b = next;
+  }
+  const divisor = a || 1;
+  return `${Math.round(width / divisor)}:${Math.round(height / divisor)}`;
+}
+
+function commerceExplicitSizeValue() {
+  const sizeValue = commerceEls.size?.value || "auto";
+  return parseCommerceSizeValue(sizeValue) ? sizeValue : "";
+}
+
+function commerceResolutionValue() {
+  const parsed = parseCommerceSizeValue(commerceExplicitSizeValue());
+  if (!parsed) return "1K";
+  const longEdge = Math.max(parsed.width, parsed.height);
+  if (longEdge >= 3500) return "4K";
+  if (longEdge >= 1900) return "2K";
+  return "1K";
+}
+
 function commerceAspectValue() {
   const sizeValue = commerceEls.size?.value || "auto";
-  if (sizeValue && sizeValue !== "auto") return sizeValue;
+  const parsedSize = parseCommerceSizeValue(sizeValue);
+  if (parsedSize) return reduceRatio(parsedSize.width, parsedSize.height);
   return activeCommerceValue(commerceEls.ratioChips, "commerceRatio", "1:1");
 }
 
@@ -3835,7 +3877,7 @@ async function submitCommerceJob() {
   if (els.count && commerceEls.count) els.count.value = commerceEls.count.value || "1";
   if (els.concurrency && commerceEls.count) els.concurrency.value = commerceEls.count.value || "1";
   if (els.aspectRatio) els.aspectRatio.value = commerceAspectValue();
-  if (els.resolution && commerceEls.resolution) els.resolution.value = commerceEls.resolution.value || "1K";
+  if (els.resolution) els.resolution.value = commerceResolutionValue();
   if (els.quality && commerceEls.quality) els.quality.value = commerceEls.quality.value || "auto";
   if (els.outputFormat && commerceEls.format) els.outputFormat.value = commerceEls.format.value || "png";
   if (els.editMode) els.editMode.checked = isImageMode && selectedReferenceIds.size > 0;
@@ -3877,7 +3919,7 @@ function commerceMediaCard(media, job = {}) {
       <div class="commerce-result-body">
         <div class="commerce-result-meta">
           <strong>${escapeHtml(item.title)}</strong>
-          <span>${escapeHtml([item.aspect_ratio, item.resolution, item.size].filter(Boolean).join(" · ") || "生成图片")}</span>
+          <span>${escapeHtml([item.aspect_ratio, item.size].filter(Boolean).join(" · ") || "生成图片")}</span>
         </div>
         <div class="commerce-result-actions">
           <button class="is-primary" data-commerce-media-action="preview" type="button">预览</button>
