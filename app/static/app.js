@@ -3755,7 +3755,7 @@ async function sendCommerceAnalysisMessage(options = {}) {
   commerceEls.analysisSend.disabled = true;
   setCommerceAnalysisStatus("正在回复...", "loading");
   try {
-    const data = await apiRequest("/api/commerce-analysis-chat", {
+    const data = await api("/api/commerce-analysis-chat", {
       method: "POST",
       body: JSON.stringify({
         text_api_url: apiUrl,
