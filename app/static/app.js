@@ -4034,6 +4034,7 @@ function renderCommerceTasks() {
           <div class="commerce-task-actions">
             <button data-commerce-history-action="retry" type="button">重新生成</button>
             <button data-commerce-history-action="archive" type="button">归档</button>
+            <button class="is-danger" data-commerce-history-action="delete" type="button">删除</button>
           </div>
         </div>`
       : "还没有当前任务";
@@ -4053,6 +4054,7 @@ function renderCommerceTasks() {
           <button data-commerce-history-action="select" type="button">设为当前</button>
           <button data-commerce-history-action="retry" type="button">重新生成</button>
           <button data-commerce-history-action="archive" type="button">归档</button>
+          <button class="is-danger" data-commerce-history-action="delete" type="button">删除</button>
         </div>
       </div>
     `}).join("") : "暂无任务";
@@ -4081,6 +4083,7 @@ function renderCommerceTasks() {
         ${job.archived ? "" : '<button data-commerce-history-action="select" type="button">设为当前</button>'}
         <button data-commerce-history-action="retry" type="button">重新生成</button>
         <button data-commerce-history-action="${job.archived ? "restore" : "archive"}" type="button">${job.archived ? "恢复" : "归档"}</button>
+        <button class="is-danger" data-commerce-history-action="delete" type="button">删除</button>
       </div>
     </article>
   `).join("") : '<div class="commerce-empty">暂无任务</div>';
@@ -4130,6 +4133,9 @@ async function deleteCommerceMedia(id) {
 
 async function deleteCommerceJob(jobId) {
   if (!jobId) return;
+  const job = jobsForWorkspace("commerce").find((item) => item.id === jobId);
+  const label = job?.model || job?.title || "该任务";
+  if (!confirm(`确认删除${label}？\n\n会同时移除该任务生成的图片记录。`)) return;
   await api("/api/media/delete", {
     method: "POST",
     body: JSON.stringify({ job_ids: [jobId] }),
@@ -7626,6 +7632,8 @@ commerceEls.currentTask?.addEventListener("click", (event) => {
     retryJobs([jobId]);
   } else if (button.dataset.commerceHistoryAction === "archive") {
     archiveCommerceJob(jobId, true).catch((err) => alert(err.message));
+  } else if (button.dataset.commerceHistoryAction === "delete") {
+    deleteCommerceJob(jobId).catch((err) => alert(err.message));
   }
 });
 commerceEls.recentTasks?.addEventListener("click", (event) => {
@@ -7640,6 +7648,8 @@ commerceEls.recentTasks?.addEventListener("click", (event) => {
     retryJobs([jobId]);
   } else if (button.dataset.commerceHistoryAction === "archive") {
     archiveCommerceJob(jobId, true).catch((err) => alert(err.message));
+  } else if (button.dataset.commerceHistoryAction === "delete") {
+    deleteCommerceJob(jobId).catch((err) => alert(err.message));
   }
 });
 commerceEls.historyList?.addEventListener("click", (event) => {
@@ -7656,6 +7666,8 @@ commerceEls.historyList?.addEventListener("click", (event) => {
     archiveCommerceJob(jobId, true).catch((err) => alert(err.message));
   } else if (button.dataset.commerceHistoryAction === "restore") {
     archiveCommerceJob(jobId, false).catch((err) => alert(err.message));
+  } else if (button.dataset.commerceHistoryAction === "delete") {
+    deleteCommerceJob(jobId).catch((err) => alert(err.message));
   }
 });
 els.closeMediaPreview?.addEventListener("click", () => setMediaPreview(false));

@@ -1195,6 +1195,11 @@ body.commerce-active {
   transform: scale(.97);
 }
 
+.commerce-task-actions .is-danger,
+.commerce-template-actions .is-danger {
+  color: #a3392f;
+}
+
 .commerce-result-pager {
   display: flex;
   align-items: center;
@@ -1290,7 +1295,7 @@ body.commerce-active {
 
 .commerce-task-line-current .commerce-task-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .commerce-task-line-current .commerce-task-actions button {
