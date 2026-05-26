@@ -892,7 +892,8 @@ body.commerce-active {
   gap: 12px;
 }
 
-.commerce-preset-head button {
+.commerce-preset-head button,
+.commerce-reference-upload-button {
   min-height: 38px;
   border: 1px solid rgba(17, 17, 17, .1);
   border-radius: 0;
@@ -901,6 +902,10 @@ body.commerce-active {
   padding: 0 14px;
   font-size: 12px;
   font-weight: 850;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
 .commerce-preset-grid {
@@ -917,7 +922,17 @@ body.commerce-active {
 }
 
 .commerce-reference-field {
+  position: relative;
   gap: 8px;
+}
+
+.commerce-reference-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .commerce-reference-drop {

@@ -195,6 +195,7 @@ const commerceEls = {
   modeChips: document.querySelectorAll("[data-commerce-mode]"),
   referenceField: $("#commerceReferenceField"),
   referenceUpload: $("#commerceReferenceUpload"),
+  referenceInput: $("#commerceReferenceInput"),
   referenceDrop: $("#commerceReferenceDrop"),
   referencePreview: $("#commerceReferencePreview"),
   productName: $("#commerceProductName"),
@@ -5023,7 +5024,8 @@ async function uploadReferenceFiles(fileList) {
     if (document.body.classList.contains("commerce-active")) setCommerceStatus(err.message || "参考图上传失败", "error");
     alert(err.message || "参考图上传失败");
   } finally {
-    els.referenceUpload.value = "";
+    if (els.referenceUpload) els.referenceUpload.value = "";
+    if (commerceEls.referenceInput) commerceEls.referenceInput.value = "";
     if (els.referenceUploadButton) {
       els.referenceUploadButton.disabled = false;
       delete els.referenceUploadButton.dataset.uploading;
@@ -7488,7 +7490,7 @@ commerceEls.clearStyle?.addEventListener("click", () => {
 function openCommerceReferencePicker() {
   setCommerceChip(commerceEls.modeChips, "commerceMode", "image");
   syncCommerceModeControls();
-  els.referenceUpload?.click();
+  (commerceEls.referenceInput || els.referenceUpload)?.click();
 }
 
 commerceEls.referenceDrop?.addEventListener("click", () => {
@@ -7596,7 +7598,11 @@ commerceEls.clearSelection?.addEventListener("click", () => {
   syncCommercePrompt({ force: true });
 });
 commerceEls.referenceUpload?.addEventListener("click", () => {
-  openCommerceReferencePicker();
+  setCommerceChip(commerceEls.modeChips, "commerceMode", "image");
+  syncCommerceModeControls();
+});
+commerceEls.referenceInput?.addEventListener("change", () => {
+  uploadReferenceFiles(commerceEls.referenceInput.files || []);
 });
 [commerceEls.generate, commerceEls.generateBottom].forEach((button) => {
   button?.addEventListener("click", submitCommerceJob);
