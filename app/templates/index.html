@@ -222,6 +222,7 @@
           <div class="commerce-notice">PNG 遇到上游 server_error 时，系统会按现有队列策略重试；点击缩略图可查看原图。</div>
           <nav class="commerce-tabs" id="commerceTabs">
             <button class="active" data-commerce-tab="workspace" type="button">工作台</button>
+            <button id="commerceChatToggle" class="commerce-chat-tab-button" type="button">AI 对话</button>
             <button data-commerce-tab="prompts" type="button">提示词管理</button>
             <button data-commerce-tab="gallery" type="button">图库</button>
             <button data-commerce-tab="history" type="button">历史任务</button>
@@ -383,10 +384,11 @@
               </div>
             </section>
 
-            <section class="commerce-analysis-card">
+            <section id="commerceAnalysisCard" class="commerce-analysis-card commerce-chat-drawer hidden" aria-hidden="true">
               <div class="commerce-section-head">
                 <strong>AI 对话</strong>
                 <span id="commerceAnalysisStatus">填写文本模型 Key 后可进行图文对话</span>
+                <button id="commerceChatClose" class="commerce-chat-close" type="button">关闭</button>
               </div>
               <div class="commerce-param-row commerce-param-row-2">
                 <label class="commerce-field">

@@ -186,6 +186,9 @@ const squareEls = {
 const commerceEls = {
   tabs: document.querySelectorAll("[data-commerce-tab]"),
   panels: document.querySelectorAll("[data-commerce-panel]"),
+  chatToggle: $("#commerceChatToggle"),
+  chatClose: $("#commerceChatClose"),
+  analysisCard: $("#commerceAnalysisCard"),
   apiUrl: $("#commerceApiUrl"),
   apiKey: $("#commerceApiKey"),
   rememberKey: $("#commerceRememberKey"),
@@ -3602,6 +3605,18 @@ function setCommerceAnalysisStatus(message, tone = "idle") {
   commerceEls.analysisStatus.classList.toggle("success", tone === "success");
 }
 
+function setCommerceChatOpen(open = true) {
+  if (!commerceEls.analysisCard) return;
+  if (open && commerceActiveTab !== "workspace") setCommerceTab("workspace");
+  commerceEls.analysisCard.classList.toggle("hidden", !open);
+  commerceEls.analysisCard.setAttribute("aria-hidden", open ? "false" : "true");
+  commerceEls.chatToggle?.classList.toggle("active", open);
+  document.body.classList.toggle("commerce-chat-open", open);
+  if (open) {
+    window.requestAnimationFrame(() => commerceEls.analysisInputText?.focus());
+  }
+}
+
 function saveCommerceAnalysisState() {
   localStorage.setItem(COMMERCE_ANALYSIS_REFS_KEY, JSON.stringify(commerceAnalysisRefs.slice(0, 4)));
   localStorage.setItem(COMMERCE_ANALYSIS_CHAT_KEY, JSON.stringify(commerceAnalysisMessages.slice(-40)));
@@ -4311,6 +4326,7 @@ function renderCommerceState() {
 
 function setCommerceTab(tabName) {
   commerceActiveTab = tabName || "workspace";
+  if (commerceActiveTab !== "workspace") setCommerceChatOpen(false);
   commerceEls.tabs.forEach((button) => button.classList.toggle("active", button.dataset.commerceTab === commerceActiveTab));
   commerceEls.panels.forEach((panel) => panel.classList.toggle("active", panel.dataset.commercePanel === commerceActiveTab));
   renderCommerceState();
@@ -7687,6 +7703,16 @@ squareEls.grid?.addEventListener("click", (event) => {
 });
 commerceEls.tabs.forEach((button) => {
   button.addEventListener("click", () => setCommerceTab(button.dataset.commerceTab));
+});
+commerceEls.chatToggle?.addEventListener("click", () => setCommerceChatOpen(true));
+commerceEls.chatClose?.addEventListener("click", () => setCommerceChatOpen(false));
+commerceEls.analysisCard?.addEventListener("click", (event) => {
+  if (event.target === commerceEls.analysisCard) setCommerceChatOpen(false);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && document.body.classList.contains("commerce-chat-open")) {
+    setCommerceChatOpen(false);
+  }
 });
 commerceEls.modeChips.forEach((button) => {
   button.addEventListener("click", () => {
