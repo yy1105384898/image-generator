@@ -3199,6 +3199,86 @@ def call_prompt_analysis_text_model(api_url: str, api_key: str, model: str, payl
     return normalize_prompt_analysis_plan(extract_json_object(content), payload)
 
 
+def extract_chat_text_content(message: dict) -> str:
+    content = message.get("content") if isinstance(message, dict) else ""
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                value = item.get("text") or item.get("content") or ""
+                if value:
+                    parts.append(str(value))
+            elif item:
+                parts.append(str(item))
+        return "\n".join(parts).strip()
+    return str(content or "").strip()
+
+
+def build_commerce_analysis_messages(payload: dict, references: list[dict]) -> list[dict]:
+    prompt = str(payload.get("message") or "").strip()
+    history = payload.get("history") if isinstance(payload.get("history"), list) else []
+    product_context = str(payload.get("product_context") or "").strip()
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "你是电商产品分析和生图策划助手，目标是帮助商品在淘宝移动端缩略图场景获得更高点击吸引力。必须使用简体中文回答。"
+                "根据用户文字和产品图判断主体识别度、材质与核心卖点，重点检查缩略图可读性、商品占比、视觉对比、使用场景、价值感提示、信任信息和情绪钩子。"
+                "输出必须包含：产品识别、核心卖点、点击率风险、淘宝主图优化建议、热门视觉方向、可直接复制生图的提示词、A/B 测试方案。"
+                "生图提示词必须具体描述主体、构图、背景、光线、材质、氛围、文字留白和不应出现的内容，可直接粘贴到生图模型使用。"
+                "淘宝主图建议应保证主体清晰突出、手机缩略图可识别、少而有力的信息层级，避免过度堆字和喧宾夺主的装饰。"
+                "不要编造图片里不存在的品牌、文字、功效认证或参数。无法确认的信息要明确说不确定。"
+            ),
+        }
+    ]
+    if product_context:
+        messages.append({"role": "user", "content": f"产品背景：{product_context}"})
+    for item in history[-10:]:
+        if not isinstance(item, dict):
+            continue
+        role = str(item.get("role") or "").strip()
+        if role not in {"user", "assistant"}:
+            continue
+        content = str(item.get("content") or "").strip()
+        if content:
+            messages.append({"role": role, "content": content[:3000]})
+    content_parts = [{"type": "text", "text": prompt or "请分析这些产品图片，给出电商卖点、视觉策略和生图提示词。"}]
+    for ref in references[:4]:
+        data_url = reference_to_data_url(ref)
+        if data_url:
+            content_parts.append({"type": "image_url", "image_url": {"url": data_url}})
+    messages.append({"role": "user", "content": content_parts if len(content_parts) > 1 else content_parts[0]["text"]})
+    return messages
+
+
+def call_commerce_analysis_text_model(api_url: str, api_key: str, model: str, payload: dict, references: list[dict]) -> str:
+    api_base = normalize_api_base(api_url)
+    headers = {"Content-Type": "application/json"}
+    auth = bearer_token(api_key)
+    if auth:
+        headers["Authorization"] = auth
+    body = {
+        "model": model,
+        "messages": build_commerce_analysis_messages(payload, references),
+        "temperature": 0.45,
+    }
+    endpoint = urljoin(api_base + "/", "v1/chat/completions")
+    resp = requests.post(endpoint, headers=headers, json=body, timeout=AGENT_TEXT_TIMEOUT)
+    if resp.status_code >= 400:
+        raise RuntimeError(redact_secrets(f"New API {resp.status_code}: {resp.text[:800].strip()}"))
+    data = resp.json()
+    choices = data.get("choices") or []
+    if not choices:
+        raise RuntimeError("文本模型没有返回 choices")
+    message = choices[0].get("message") if isinstance(choices[0], dict) else {}
+    content = extract_chat_text_content(message)
+    if not content:
+        raise RuntimeError("文本模型没有返回内容")
+    return content[:12000]
+
+
 def call_pool_text_model_once(
     model: str,
     messages: list[dict],
@@ -4767,6 +4847,48 @@ def agent_plan():
         return jsonify({"ok": True, "plan": plan, "model": model})
     except Exception as exc:
         return jsonify({"ok": False, "error": "Agent 文本模型生成失败", "detail": redact_secrets(str(exc))}), 200
+
+
+@app.post("/api/commerce-analysis-chat")
+def commerce_analysis_chat():
+    auth = login_required_json()
+    if auth:
+        return auth
+    payload = request.get_json(silent=True) or {}
+    message = str(payload.get("message") or "").strip()
+    reference_ids = [str(item).strip() for item in payload.get("reference_ids", []) if str(item).strip()][:4]
+    if not message and not reference_ids:
+        return jsonify({"error": "请先输入问题或上传产品图片"}), 400
+    model = str(payload.get("text_model") or DEFAULT_TEXT_MODEL).strip()
+    if not model:
+        return jsonify({"error": "请先填写文本模型"}), 400
+    api_url = str(payload.get("text_api_url") or payload.get("api_url") or "").strip()
+    api_key = str(payload.get("text_api_key") or payload.get("api_key") or "").strip()
+    requested_api_key = api_key
+    try:
+        api_url, api_key, used_debug_key, _route_kind = resolve_custom_api_credentials(api_url, api_key, "text")
+        if not api_url:
+            return jsonify({"error": "请先填写文本模型 API URL"}), 400
+        if not api_key:
+            return jsonify({"error": "请先填写文本模型 API Key"}), 400
+        client_id = current_client_id()
+        allowed_refs = {str(item.get("id") or ""): item for item in client_references(client_id)}
+        references = [allowed_refs[item] for item in reference_ids if item in allowed_refs][:4]
+        if used_debug_key and not requested_api_key:
+            route_url, route_keys, _route_kind = custom_model_route_key_pool(read_model_config(), "text", include_legacy=True)
+            api_url = route_url or api_url
+            last_error = ""
+            for key in route_keys or [api_key]:
+                try:
+                    reply = call_commerce_analysis_text_model(api_url, key, model, payload, references)
+                    return jsonify({"ok": True, "reply": reply, "model": model})
+                except Exception as exc:
+                    last_error = str(exc)
+            raise RuntimeError(last_error or "文本模型调用失败")
+        reply = call_commerce_analysis_text_model(api_url, api_key, model, payload, references)
+        return jsonify({"ok": True, "reply": reply, "model": model})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": "产品分析对话失败", "detail": redact_secrets(str(exc))}), 200
 
 
 @app.post("/api/agent-mode-plan")

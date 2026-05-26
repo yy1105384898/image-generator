@@ -238,6 +238,16 @@ const commerceEls = {
   historyFilters: document.querySelectorAll("[data-commerce-status]"),
   historyList: $("#commerceHistoryList"),
   historyPageLabel: $("#commerceHistoryPageLabel"),
+  analysisStatus: $("#commerceAnalysisStatus"),
+  textApiUrl: $("#commerceTextApiUrl"),
+  textModel: $("#commerceTextModel"),
+  textApiKey: $("#commerceTextApiKey"),
+  analysisContext: $("#commerceAnalysisContext"),
+  analysisInput: $("#commerceAnalysisInput"),
+  analysisImages: $("#commerceAnalysisImages"),
+  analysisMessages: $("#commerceAnalysisMessages"),
+  analysisInputText: $("#commerceAnalysisInputText"),
+  analysisSend: $("#commerceAnalysisSend"),
 };
 
 let commercePromptTouched = false;
@@ -250,6 +260,8 @@ let commerceGalleryPage = 1;
 let commerceHistoryPage = 1;
 let commerceEditingTemplateId = "";
 let commerceSelectedJobId = "";
+let commerceAnalysisRefs = [];
+let commerceAnalysisMessages = [];
 
 function persistHistorySelection(showAll = false) {
   try {
@@ -555,6 +567,12 @@ const TEXT_API_URL_KEY = "yangyang_image_text_api_url";
 const TEXT_API_KEY_STORAGE_KEY = "yangyang_image_text_api_key";
 const SEND_OPTIMIZE_KEY = "yangyang_image_send_optimize";
 const COMMERCE_TEMPLATES_KEY = "yangyang_simple_studio_templates";
+const COMMERCE_ANALYSIS_CHAT_KEY = "yangyang_commerce_analysis_chat";
+const COMMERCE_ANALYSIS_REFS_KEY = "yangyang_commerce_analysis_refs";
+const COMMERCE_ANALYSIS_MODEL_KEY = "yangyang_commerce_analysis_model";
+const COMMERCE_ANALYSIS_TEXT_KEY = "yangyang_commerce_analysis_text_key";
+const COMMERCE_ANALYSIS_URL_KEY = "yangyang_commerce_analysis_text_url";
+const COMMERCE_ANALYSIS_CONTEXT_KEY = "yangyang_commerce_analysis_context";
 const ALLOWED_CONNECTION_MODES = new Set(["custom", "pool"]);
 let debugCustomApi = {
   enabled: Boolean(modelConfig.debug?.workbench_custom_api),
@@ -3553,6 +3571,177 @@ function setCommerceStatus(message, tone = "idle") {
   commerceEls.modelStatus.textContent = message;
   commerceEls.modelStatus.classList.toggle("error", tone === "error");
   commerceEls.modelStatus.classList.toggle("loading", tone === "loading");
+}
+
+function setCommerceAnalysisStatus(message, tone = "idle") {
+  if (!commerceEls.analysisStatus) return;
+  commerceEls.analysisStatus.textContent = message;
+  commerceEls.analysisStatus.classList.toggle("error", tone === "error");
+  commerceEls.analysisStatus.classList.toggle("loading", tone === "loading");
+  commerceEls.analysisStatus.classList.toggle("success", tone === "success");
+}
+
+function saveCommerceAnalysisState() {
+  localStorage.setItem(COMMERCE_ANALYSIS_REFS_KEY, JSON.stringify(commerceAnalysisRefs.slice(0, 4)));
+  localStorage.setItem(COMMERCE_ANALYSIS_CHAT_KEY, JSON.stringify(commerceAnalysisMessages.slice(-40)));
+  if (commerceEls.textApiUrl?.value.trim()) localStorage.setItem(COMMERCE_ANALYSIS_URL_KEY, commerceEls.textApiUrl.value.trim());
+  if (commerceEls.textModel?.value.trim()) localStorage.setItem(COMMERCE_ANALYSIS_MODEL_KEY, commerceEls.textModel.value.trim());
+  if (commerceEls.textApiKey?.value.trim()) localStorage.setItem(COMMERCE_ANALYSIS_TEXT_KEY, commerceEls.textApiKey.value.trim());
+  localStorage.setItem(COMMERCE_ANALYSIS_CONTEXT_KEY, commerceEls.analysisContext?.value || "");
+}
+
+function loadCommerceAnalysisState() {
+  try {
+    commerceAnalysisRefs = JSON.parse(localStorage.getItem(COMMERCE_ANALYSIS_REFS_KEY) || "[]");
+    if (!Array.isArray(commerceAnalysisRefs)) commerceAnalysisRefs = [];
+  } catch (err) {
+    commerceAnalysisRefs = [];
+  }
+  try {
+    commerceAnalysisMessages = JSON.parse(localStorage.getItem(COMMERCE_ANALYSIS_CHAT_KEY) || "[]");
+    if (!Array.isArray(commerceAnalysisMessages)) commerceAnalysisMessages = [];
+  } catch (err) {
+    commerceAnalysisMessages = [];
+  }
+  commerceAnalysisRefs = commerceAnalysisRefs.filter((ref) => ref?.id && ref?.url).slice(0, 4);
+  commerceAnalysisMessages = commerceAnalysisMessages
+    .filter((message) => ["user", "assistant"].includes(message?.role) && message?.content)
+    .slice(-40);
+  if (commerceEls.textApiUrl) {
+    commerceEls.textApiUrl.value = localStorage.getItem(COMMERCE_ANALYSIS_URL_KEY)
+      || localStorage.getItem(TEXT_API_URL_KEY)
+      || DEFAULT_CUSTOM_API_URL;
+  }
+  if (commerceEls.textModel) {
+    commerceEls.textModel.value = localStorage.getItem(COMMERCE_ANALYSIS_MODEL_KEY)
+      || selectedTextModel()
+      || localStorage.getItem(SELECTED_TEXT_MODEL_KEY)
+      || "";
+  }
+  if (commerceEls.textApiKey) {
+    commerceEls.textApiKey.value = localStorage.getItem(COMMERCE_ANALYSIS_TEXT_KEY)
+      || localStorage.getItem(TEXT_API_KEY_STORAGE_KEY)
+      || "";
+  }
+  if (commerceEls.analysisContext) commerceEls.analysisContext.value = localStorage.getItem(COMMERCE_ANALYSIS_CONTEXT_KEY) || "";
+  renderCommerceAnalysisRefs();
+  renderCommerceAnalysisMessages();
+}
+
+function renderCommerceAnalysisRefs() {
+  if (!commerceEls.analysisImages) return;
+  if (!commerceAnalysisRefs.length) {
+    commerceEls.analysisImages.innerHTML = '<span class="commerce-analysis-image-empty">未上传产品图</span>';
+    return;
+  }
+  commerceEls.analysisImages.innerHTML = commerceAnalysisRefs.map((ref) => `
+    <figure class="commerce-analysis-thumb" data-commerce-analysis-ref="${escapeAttr(ref.id)}">
+      <img src="${escapeAttr(ref.url)}" alt="${escapeAttr(ref.name || "产品图")}">
+      <button type="button" data-commerce-analysis-remove="${escapeAttr(ref.id)}" aria-label="移除图片">×</button>
+    </figure>
+  `).join("");
+}
+
+function renderCommerceAnalysisMessages() {
+  if (!commerceEls.analysisMessages) return;
+  if (!commerceAnalysisMessages.length) {
+    commerceEls.analysisMessages.innerHTML = '<div class="commerce-analysis-empty">上传产品图后，可分析主图点击率风险，并直接生成作图提示词。</div>';
+    return;
+  }
+  commerceEls.analysisMessages.innerHTML = commerceAnalysisMessages.map((message) => `
+    <div class="commerce-analysis-message ${message.role}">
+      <strong>${message.role === "assistant" ? "分析助手" : "我"}</strong>
+      <p>${escapeHtml(message.content).replace(/\n/g, "<br>")}</p>
+    </div>
+  `).join("");
+  commerceEls.analysisMessages.scrollTop = commerceEls.analysisMessages.scrollHeight;
+}
+
+async function uploadCommerceAnalysisImages(fileList) {
+  const files = Array.from(fileList || []).filter(isReferenceImageFile);
+  const remaining = 4 - commerceAnalysisRefs.length;
+  if (!files.length) {
+    setCommerceAnalysisStatus("请选择产品图片", "error");
+    return;
+  }
+  if (remaining <= 0) {
+    setCommerceAnalysisStatus("最多上传 4 张产品图", "error");
+    return;
+  }
+  const uploadFiles = files.slice(0, remaining);
+  try {
+    for (let index = 0; index < uploadFiles.length; index += 1) {
+      setCommerceAnalysisStatus(`正在上传产品图 ${index + 1}/${uploadFiles.length}`, "loading");
+      const file = uploadFiles[index];
+      const form = new FormData();
+      form.append("file", file);
+      form.append("name", file.name);
+      const resp = await fetch("/api/references", {
+        method: "POST",
+        headers: { "X-YY-Client-ID": clientId },
+        body: form,
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "产品图上传失败");
+      commerceAnalysisRefs.push(data.reference);
+    }
+    saveCommerceAnalysisState();
+    renderCommerceAnalysisRefs();
+    setCommerceAnalysisStatus(`已上传 ${commerceAnalysisRefs.length} 张产品图，可开始分析`, "success");
+  } catch (err) {
+    setCommerceAnalysisStatus(err.message || "产品图上传失败", "error");
+  } finally {
+    if (commerceEls.analysisInput) commerceEls.analysisInput.value = "";
+  }
+}
+
+async function sendCommerceAnalysisMessage() {
+  const message = (commerceEls.analysisInputText?.value || "").trim();
+  const apiUrl = (commerceEls.textApiUrl?.value || "").trim();
+  const apiKey = (commerceEls.textApiKey?.value || "").trim();
+  const model = (commerceEls.textModel?.value || "").trim();
+  if (!message && !commerceAnalysisRefs.length) {
+    setCommerceAnalysisStatus("请输入问题或上传产品图", "error");
+    return;
+  }
+  if (!apiUrl || !apiKey || !model) {
+    setCommerceAnalysisStatus("请填写文本 API、模型和 Key", "error");
+    return;
+  }
+  const question = message || "分析这款产品，并输出适合淘宝主图的生图提示词与 A/B 方向。";
+  const history = commerceAnalysisMessages.slice(-10);
+  commerceAnalysisMessages.push({ role: "user", content: question });
+  if (commerceEls.analysisInputText) commerceEls.analysisInputText.value = "";
+  saveCommerceAnalysisState();
+  renderCommerceAnalysisMessages();
+  commerceEls.analysisSend.disabled = true;
+  setCommerceAnalysisStatus("正在分析产品与主图策略...", "loading");
+  try {
+    const data = await apiRequest("/api/commerce-analysis-chat", {
+      method: "POST",
+      body: JSON.stringify({
+        text_api_url: apiUrl,
+        text_api_key: apiKey,
+        text_model: model,
+        product_context: (commerceEls.analysisContext?.value || "").trim(),
+        message: question,
+        reference_ids: commerceAnalysisRefs.map((ref) => ref.id),
+        history,
+      }),
+    });
+    if (!data.ok) throw new Error(data.detail || data.error || "产品分析失败");
+    commerceAnalysisMessages.push({ role: "assistant", content: data.reply || "模型未返回分析内容" });
+    saveCommerceAnalysisState();
+    renderCommerceAnalysisMessages();
+    setCommerceAnalysisStatus(`分析完成 · ${data.model || model}`, "success");
+  } catch (err) {
+    commerceAnalysisMessages.push({ role: "assistant", content: `分析失败：${err.message}` });
+    saveCommerceAnalysisState();
+    renderCommerceAnalysisMessages();
+    setCommerceAnalysisStatus(err.message || "产品分析失败", "error");
+  } finally {
+    commerceEls.analysisSend.disabled = false;
+  }
 }
 
 function activeCommerceValue(buttons, key, fallback = "") {
@@ -7627,6 +7816,26 @@ commerceEls.referenceUpload?.addEventListener("click", () => {
 commerceEls.referenceInput?.addEventListener("change", () => {
   uploadReferenceFiles(commerceEls.referenceInput.files || []);
 });
+commerceEls.analysisInput?.addEventListener("change", () => {
+  uploadCommerceAnalysisImages(commerceEls.analysisInput.files || []);
+});
+commerceEls.analysisImages?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-commerce-analysis-remove]");
+  if (!button) return;
+  commerceAnalysisRefs = commerceAnalysisRefs.filter((ref) => ref.id !== button.dataset.commerceAnalysisRemove);
+  saveCommerceAnalysisState();
+  renderCommerceAnalysisRefs();
+  setCommerceAnalysisStatus(commerceAnalysisRefs.length ? `已保留 ${commerceAnalysisRefs.length} 张产品图` : "可上传产品图后开始分析");
+});
+[commerceEls.textApiUrl, commerceEls.textModel, commerceEls.textApiKey, commerceEls.analysisContext].forEach((input) => {
+  input?.addEventListener("input", saveCommerceAnalysisState);
+});
+commerceEls.analysisSend?.addEventListener("click", sendCommerceAnalysisMessage);
+commerceEls.analysisInputText?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" || event.shiftKey) return;
+  event.preventDefault();
+  sendCommerceAnalysisMessage();
+});
 [commerceEls.generate, commerceEls.generateBottom].forEach((button) => {
   button?.addEventListener("click", submitCommerceJob);
 });
@@ -8027,6 +8236,7 @@ replaceTextModelOptions([]);
 loadCommerceTemplates();
 syncCommerceFromMain();
 syncCommercePrompt({ force: true });
+loadCommerceAnalysisState();
 if (els.count && (!els.count.value || els.count.value === "4")) els.count.value = "1";
 syncShellToggles();
 loadCustomIndustryAgents();
