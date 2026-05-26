@@ -31,7 +31,8 @@ except ImportError:  # pragma: no cover - fallback for lightweight local runs
 
 APP_USERNAME = os.getenv("APP_USERNAME", "root")
 APP_PASSWORD = os.getenv("APP_PASSWORD", "root")
-NEW_API_BASE = os.getenv("NEW_API_BASE", "http://127.0.0.1:3004").rstrip("/")
+DEFAULT_CUSTOM_API_URL = os.getenv("DEFAULT_CUSTOM_API_URL", "https://yynewapi.yangyangnj.top/v1").rstrip("/")
+NEW_API_BASE = os.getenv("NEW_API_BASE", DEFAULT_CUSTOM_API_URL).rstrip("/")
 NEW_API_TOKEN = os.getenv("NEW_API_TOKEN", "")
 
 
@@ -151,7 +152,7 @@ def default_model_config() -> dict:
             "custom": {
                 "label": "自定义 API",
                 "badge": "云端",
-                "url": "",
+                "url": DEFAULT_CUSTOM_API_URL,
                 "description": "使用云端服务器的 OpenAI 兼容 API，需要填写 API URL 和 API Key。",
                 "enabled": True,
             },
@@ -217,14 +218,14 @@ def default_model_config() -> dict:
         "custom_model_routes": {
             "image": {
                 "label": "生图模型接入",
-                "url": "",
+                "url": DEFAULT_CUSTOM_API_URL,
                 "api_key": "",
                 "api_keys": [],
                 "enabled": False,
             },
             "text": {
                 "label": "文本模型接入",
-                "url": "",
+                "url": DEFAULT_CUSTOM_API_URL,
                 "api_key": "",
                 "api_keys": [],
                 "enabled": False,
@@ -246,6 +247,7 @@ def normalize_model_config(raw: dict | None = None) -> dict:
         merged = {**connections[key], **value}
         merged["enabled"] = bool(merged.get("enabled", True))
         if key == "custom":
+            merged["url"] = str(merged.get("url") or DEFAULT_CUSTOM_API_URL).strip()
             merged["api_key"] = str(merged.get("api_key") or "").strip()
         connections[key] = merged
     profiles = raw.get("model_profiles")
@@ -307,7 +309,7 @@ def normalize_model_config(raw: dict | None = None) -> dict:
         route_raw = raw_routes.get(kind) if isinstance(raw_routes.get(kind), dict) else {}
         route = {**base["custom_model_routes"][kind], **route_raw}
         route["label"] = str(route.get("label") or base["custom_model_routes"][kind]["label"]).strip()
-        route["url"] = str(route.get("url") or "").strip()
+        route["url"] = str(route.get("url") or DEFAULT_CUSTOM_API_URL).strip()
         keys = []
         for value in route.get("api_keys") or []:
             value = str(value or "").strip()
@@ -585,7 +587,7 @@ def public_model_config(config: dict | None = None, include_admin_debug: bool = 
     raw_key = str(custom.pop("api_key", "") or "").strip()
     custom["api_key_configured"] = bool(debug_enabled and raw_key)
     if not debug_enabled:
-        custom["url"] = ""
+        custom["url"] = custom.get("url") or DEFAULT_CUSTOM_API_URL
     routes = public.get("custom_model_routes") if isinstance(public.get("custom_model_routes"), dict) else {}
     for route in routes.values():
         if not isinstance(route, dict):

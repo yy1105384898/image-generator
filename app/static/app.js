@@ -544,6 +544,7 @@ const protocols = {
 
 const modelConfig = window.YY_MODEL_CONFIG || {};
 const modelConnections = modelConfig.connections || {};
+const DEFAULT_CUSTOM_API_URL = "https://yynewapi.yangyangnj.top/v1";
 const CUSTOM_API_URL_KEY = "yangyang_image_custom_api_url";
 const SELECTED_IMAGE_MODEL_KEY = "yangyang_image_selected_model";
 const SELECTED_TEXT_MODEL_KEY = "yangyang_image_selected_text_model";
@@ -567,9 +568,16 @@ const connectionNotes = {
 };
 
 const connectionEndpoints = {
-  custom: modelConnections.custom?.url || "",
+  custom: modelConnections.custom?.url || DEFAULT_CUSTOM_API_URL,
   pool: modelConnections.pool?.label || "使用本地号池，无需 API URL",
 };
+function storedCustomApiUrl() {
+  const saved = (localStorage.getItem(CUSTOM_API_URL_KEY) || "").trim();
+  if (!saved || saved === "http://127.0.0.1:3004" || saved === "http://127.0.0.1:3004/v1" || saved === "https://your-api.example.com/v1") {
+    return DEFAULT_CUSTOM_API_URL;
+  }
+  return saved;
+}
 const modelProfiles = Array.isArray(modelConfig.model_profiles) ? modelConfig.model_profiles : [];
 const modelProfileMap = new Map(modelProfiles.map((item) => [item.id, item]));
 if (modelConfig.connections) {
@@ -1399,7 +1407,7 @@ function setConnectionMode(mode, options = {}) {
     button.classList.toggle("selected", button.dataset.connectionMode === mode);
   });
   if (mode === "custom") {
-    els.apiUrl.value = localStorage.getItem(CUSTOM_API_URL_KEY) || connectionEndpoints.custom || "";
+    els.apiUrl.value = storedCustomApiUrl() || connectionEndpoints.custom || DEFAULT_CUSTOM_API_URL;
   } else if (connectionEndpoints[mode]) {
     els.apiUrl.value = connectionEndpoints[mode];
   }
@@ -1424,7 +1432,7 @@ function renderDebugApiState() {
   const active = Boolean(isCustom && debugCustomApi.enabled);
   els.debugApiBanner?.classList.toggle("hidden", !active);
   if (active && els.apiUrl) {
-    els.apiUrl.value = debugCustomApi.image?.apiUrl || debugCustomApi.apiUrl || connectionEndpoints.custom || els.apiUrl.value;
+    els.apiUrl.value = debugCustomApi.image?.apiUrl || debugCustomApi.apiUrl || connectionEndpoints.custom || DEFAULT_CUSTOM_API_URL;
   }
   if (els.apiKey) {
     const useBackendKey = active && debugCustomApi.hasApiKey;
@@ -1441,7 +1449,7 @@ function renderDebugApiState() {
 }
 
 function selectedApiUrl() {
-  return els.connectionMode.value === "pool" ? "" : els.apiUrl.value.trim();
+  return els.connectionMode.value === "pool" ? "" : (els.apiUrl.value.trim() || DEFAULT_CUSTOM_API_URL);
 }
 
 function selectedApiKey() {
@@ -2009,7 +2017,7 @@ function syncTextModelFields() {
     els.textApiKeyField.classList.toggle("hidden", Boolean(els.reuseTextApiKey?.checked));
   }
   if (els.textApiUrl && els.reuseTextApiUrl?.checked) {
-    els.textApiUrl.value = debugTextRouteActive() ? (debugCustomApi.text?.apiUrl || selectedApiUrl()) : selectedApiUrl();
+    els.textApiUrl.value = debugTextRouteActive() ? (debugCustomApi.text?.apiUrl || selectedApiUrl() || DEFAULT_CUSTOM_API_URL) : (selectedApiUrl() || DEFAULT_CUSTOM_API_URL);
   }
   if (els.textApiKey) {
     const useBackendTextKey = debugTextRouteActive();
@@ -2091,8 +2099,8 @@ function selectedTextModelLabel() {
 }
 
 function selectedTextApiUrl() {
-  if (debugTextRouteActive()) return (debugCustomApi.text?.apiUrl || selectedApiUrl()).trim();
-  return (els.reuseTextApiUrl?.checked ? selectedApiUrl() : (els.textApiUrl?.value || localStorage.getItem(TEXT_API_URL_KEY) || "")).trim();
+  if (debugTextRouteActive()) return (debugCustomApi.text?.apiUrl || selectedApiUrl() || DEFAULT_CUSTOM_API_URL).trim();
+  return (els.reuseTextApiUrl?.checked ? (selectedApiUrl() || DEFAULT_CUSTOM_API_URL) : (els.textApiUrl?.value || localStorage.getItem(TEXT_API_URL_KEY) || DEFAULT_CUSTOM_API_URL)).trim();
 }
 
 function selectedTextApiKey() {
@@ -3761,7 +3769,8 @@ function syncCommerceModelOptions(models = verifiedImageModels) {
 function syncCommerceFromMain() {
   if (!commerceEls.apiUrl) return;
   if (document.activeElement !== commerceEls.apiUrl) {
-    commerceEls.apiUrl.value = els.apiUrl?.value || localStorage.getItem(CUSTOM_API_URL_KEY) || "";
+    const mainApiUrl = els.connectionMode?.value === "custom" ? els.apiUrl?.value : "";
+    commerceEls.apiUrl.value = mainApiUrl || storedCustomApiUrl() || DEFAULT_CUSTOM_API_URL;
   }
   if (document.activeElement !== commerceEls.apiKey) {
     commerceEls.apiKey.value = els.apiKey?.value || localStorage.getItem("yangyang_image_api_key") || "";
@@ -4480,12 +4489,12 @@ async function loadState() {
   const imageFallbackRoute = imageRoute.enabled ? imageRoute : (textRoute.enabled ? textRoute : {});
   const textFallbackRoute = textRoute.enabled ? textRoute : (imageRoute.enabled ? imageRoute : {});
   debugCustomApi.image = {
-    apiUrl: debugCustomApi.enabled ? (imageFallbackRoute.url || custom.url || "") : "",
+    apiUrl: debugCustomApi.enabled ? (imageFallbackRoute.url || custom.url || DEFAULT_CUSTOM_API_URL) : "",
     hasApiKey: Boolean(debugCustomApi.enabled && (imageFallbackRoute.api_key_configured || custom.api_key_configured)),
     routeKind: imageRoute.enabled ? "image" : (textRoute.enabled ? "text" : ""),
   };
   debugCustomApi.text = {
-    apiUrl: debugCustomApi.enabled ? (textFallbackRoute.url || debugCustomApi.image.apiUrl || "") : "",
+    apiUrl: debugCustomApi.enabled ? (textFallbackRoute.url || debugCustomApi.image.apiUrl || DEFAULT_CUSTOM_API_URL) : "",
     hasApiKey: Boolean(debugCustomApi.enabled && (textFallbackRoute.api_key_configured || debugCustomApi.image.hasApiKey)),
     routeKind: textRoute.enabled ? "text" : debugCustomApi.image.routeKind,
   };
