@@ -4486,6 +4486,14 @@ function addSelectedReferenceId(id) {
   return true;
 }
 
+function mergeReferenceItems(refs = []) {
+  const incoming = refs.filter((ref) => ref?.id);
+  if (!incoming.length) return;
+  const byId = new Map(state.references.map((ref) => [ref.id, ref]));
+  incoming.forEach((ref) => byId.set(ref.id, ref));
+  state.references = [...byId.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+}
+
 function isReferenceImageFile(file) {
   if (!file) return false;
   if (String(file.type || "").startsWith("image/")) return true;
@@ -5032,7 +5040,22 @@ async function uploadReferenceFiles(fileList) {
       els.referenceUploadButton.querySelector(".upload-label")?.replaceChildren(document.createTextNode("参考图"));
     }
   }
-  await loadState();
+  if (uploaded.length) {
+    mergeReferenceItems(uploaded);
+    renderReferences();
+    syncSummary();
+  }
+  try {
+    await loadState();
+    if (uploaded.length) {
+      mergeReferenceItems(uploaded);
+      uploaded.forEach((ref) => addSelectedReferenceId(ref.id));
+      renderReferences();
+      syncSummary();
+    }
+  } catch (err) {
+    console.warn("state refresh after reference upload failed", err);
+  }
   if (uploaded.length && !uploadError && document.body.classList.contains("commerce-active")) {
     setCommerceStatus(`已上传并选中 ${uploaded.length} 张参考图`, "success");
   }
