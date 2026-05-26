@@ -596,7 +596,7 @@ def public_model_config(config: dict | None = None, include_admin_debug: bool = 
         route.pop("api_keys", None)
         route["api_key_configured"] = bool(debug_enabled and raw_route_key)
         if not debug_enabled:
-            route["url"] = ""
+            route["url"] = DEFAULT_CUSTOM_API_URL
             route["enabled"] = False
     return public
 
