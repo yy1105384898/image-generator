@@ -12,6 +12,7 @@ const SELECTED_HISTORY_JOB_KEY = "yy-selected-history-job";
 const SHOW_ALL_GENERATED_KEY = "yy-show-all-generated";
 const MAX_REFERENCE_SELECTION = 4;
 const VALID_WORKSPACES = new Set(["studio", "commerce", "research"]);
+const REFERENCE_IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "gif", "bmp", "avif", "heic", "heif"]);
 
 const $ = (sel) => document.querySelector(sel);
 const els = {
@@ -4484,6 +4485,13 @@ function addSelectedReferenceId(id) {
   return true;
 }
 
+function isReferenceImageFile(file) {
+  if (!file) return false;
+  if (String(file.type || "").startsWith("image/")) return true;
+  const ext = String(file.name || "").split(".").pop().toLowerCase();
+  return REFERENCE_IMAGE_EXTENSIONS.has(ext);
+}
+
 async function loadState() {
   state = await api("/api/state");
   const debug = state.model_config?.debug || {};
@@ -4965,13 +4973,24 @@ async function refreshTextModelsOnly({ silent = false } = {}) {
 }
 
 async function uploadReferenceFiles(fileList) {
-  const files = Array.from(fileList || []).filter((file) => file && file.type.startsWith("image/"));
-  if (!files.length) return;
+  const incoming = Array.from(fileList || []).filter(Boolean);
+  const files = incoming.filter(isReferenceImageFile);
+  if (!files.length) {
+    const message = incoming.length ? "请选择图片文件，支持 JPG、PNG、WEBP、AVIF、HEIC" : "没有选择参考图";
+    if (document.body.classList.contains("commerce-active")) setCommerceStatus(message, "error");
+    else alert(message);
+    return;
+  }
   const uploadFiles = files.slice(0, MAX_REFERENCE_SELECTION);
+  if (incoming.length !== files.length) {
+    showReferenceLimitHint(`已忽略 ${incoming.length - files.length} 个非图片文件`);
+  }
   if (files.length > MAX_REFERENCE_SELECTION) {
     showReferenceLimitHint(`一次最多上传并选中 ${MAX_REFERENCE_SELECTION} 张参考图，已忽略后 ${files.length - MAX_REFERENCE_SELECTION} 张`);
   }
   const uploaded = [];
+  let uploadError = null;
+  if (document.body.classList.contains("commerce-active")) setCommerceStatus(`正在上传参考图 0/${uploadFiles.length}`, "loading");
   if (els.referenceUploadButton) {
     els.referenceUploadButton.disabled = true;
     els.referenceUploadButton.dataset.uploading = "true";
@@ -4980,6 +4999,7 @@ async function uploadReferenceFiles(fileList) {
   try {
     for (let index = 0; index < uploadFiles.length; index += 1) {
       const file = uploadFiles[index];
+      if (document.body.classList.contains("commerce-active")) setCommerceStatus(`正在上传参考图 ${index + 1}/${uploadFiles.length}`, "loading");
       if (els.referenceUploadButton) {
         els.referenceUploadButton.querySelector(".upload-label")?.replaceChildren(document.createTextNode(`${index + 1}/${uploadFiles.length}`));
       }
@@ -4999,6 +5019,8 @@ async function uploadReferenceFiles(fileList) {
       addSelectedReferenceId(data.reference.id);
     }
   } catch (err) {
+    uploadError = err;
+    if (document.body.classList.contains("commerce-active")) setCommerceStatus(err.message || "参考图上传失败", "error");
     alert(err.message || "参考图上传失败");
   } finally {
     els.referenceUpload.value = "";
@@ -5009,6 +5031,9 @@ async function uploadReferenceFiles(fileList) {
     }
   }
   await loadState();
+  if (uploaded.length && !uploadError && document.body.classList.contains("commerce-active")) {
+    setCommerceStatus(`已上传并选中 ${uploaded.length} 张参考图`, "success");
+  }
   if (uploaded.length && files.length > MAX_REFERENCE_SELECTION) {
     showReferenceLimitHint(`已上传并选中前 ${MAX_REFERENCE_SELECTION} 张参考图`);
   }
@@ -7460,15 +7485,19 @@ commerceEls.clearStyle?.addEventListener("click", () => {
   syncCommercePrompt({ force: false });
   commerceEls.style?.focus();
 });
-commerceEls.referenceDrop?.addEventListener("click", () => {
+function openCommerceReferencePicker() {
   setCommerceChip(commerceEls.modeChips, "commerceMode", "image");
+  syncCommerceModeControls();
   els.referenceUpload?.click();
+}
+
+commerceEls.referenceDrop?.addEventListener("click", () => {
+  openCommerceReferencePicker();
 });
 commerceEls.referenceDrop?.addEventListener("keydown", (event) => {
   if (event.key !== "Enter" && event.key !== " ") return;
   event.preventDefault();
-  setCommerceChip(commerceEls.modeChips, "commerceMode", "image");
-  els.referenceUpload?.click();
+  openCommerceReferencePicker();
 });
 commerceEls.referenceDrop?.addEventListener("dragover", (event) => {
   event.preventDefault();
@@ -7481,6 +7510,7 @@ commerceEls.referenceDrop?.addEventListener("drop", async (event) => {
   event.preventDefault();
   commerceEls.referenceDrop?.classList.remove("drag-over");
   setCommerceChip(commerceEls.modeChips, "commerceMode", "image");
+  syncCommerceModeControls();
   await uploadReferenceFiles(event.dataTransfer?.files || []);
 });
 commerceEls.prompt?.addEventListener("input", () => {
@@ -7566,8 +7596,7 @@ commerceEls.clearSelection?.addEventListener("click", () => {
   syncCommercePrompt({ force: true });
 });
 commerceEls.referenceUpload?.addEventListener("click", () => {
-  setCommerceChip(commerceEls.modeChips, "commerceMode", "image");
-  els.referenceUpload?.click();
+  openCommerceReferencePicker();
 });
 [commerceEls.generate, commerceEls.generateBottom].forEach((button) => {
   button?.addEventListener("click", submitCommerceJob);
