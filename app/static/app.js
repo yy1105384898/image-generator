@@ -243,8 +243,8 @@ const commerceEls = {
   historyPageLabel: $("#commerceHistoryPageLabel"),
   analysisStatus: $("#commerceAnalysisStatus"),
   textApiUrl: $("#commerceTextApiUrl"),
+  textModelSelect: $("#commerceTextModelSelect"),
   textModel: $("#commerceTextModel"),
-  textModelList: $("#commerceTextModelList"),
   textApiKey: $("#commerceTextApiKey"),
   analysisContext: $("#commerceAnalysisContext"),
   analysisInput: $("#commerceAnalysisInput"),
@@ -264,6 +264,7 @@ let commerceGalleryPage = 1;
 let commerceHistoryPage = 1;
 let commerceEditingTemplateId = "";
 let commerceSelectedJobId = "";
+let commerceTextModelTimer = 0;
 let commerceAnalysisRefs = [];
 let commerceAnalysisMessages = [];
 
@@ -2114,21 +2115,33 @@ function syncResearchTextModelOptions(models = verifiedTextModels) {
 
 function syncCommerceAnalysisModelOptions(models = verifiedTextModels) {
   models = cleanTextModelList(models);
-  if (commerceEls.textModelList) {
-    commerceEls.textModelList.innerHTML = "";
+  if (!commerceEls.textModel || !commerceEls.textModelSelect) return;
+  const current = commerceEls.textModel.value.trim();
+  const saved = localStorage.getItem(COMMERCE_ANALYSIS_MODEL_KEY) || "";
+  const selected = current || saved || selectedTextModel() || localStorage.getItem(SELECTED_TEXT_MODEL_KEY) || preferredTextModel(models) || "";
+  commerceEls.textModelSelect.innerHTML = "";
+  if (models.length) {
     models.forEach((model) => {
       const option = document.createElement("option");
       option.value = model;
-      commerceEls.textModelList.append(option);
+      option.textContent = model;
+      commerceEls.textModelSelect.append(option);
     });
+  } else {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "未读取到文本模型";
+    commerceEls.textModelSelect.append(option);
   }
-  if (!commerceEls.textModel) return;
-  const current = commerceEls.textModel.value.trim();
-  const saved = localStorage.getItem(COMMERCE_ANALYSIS_MODEL_KEY) || "";
-  const fallback = selectedTextModel() || localStorage.getItem(SELECTED_TEXT_MODEL_KEY) || preferredTextModel(models) || "";
-  if (!current && (saved || fallback)) {
-    commerceEls.textModel.value = saved || fallback;
-  }
+  const manual = document.createElement("option");
+  manual.value = "__manual__";
+  manual.textContent = "手动填写模型...";
+  commerceEls.textModelSelect.append(manual);
+  const usesListedModel = Boolean(selected && models.includes(selected));
+  commerceEls.textModelSelect.value = usesListedModel ? selected : "__manual__";
+  commerceEls.textModel.classList.toggle("hidden", usesListedModel);
+  if (usesListedModel) commerceEls.textModel.value = selected;
+  if (!usesListedModel && selected && !current) commerceEls.textModel.value = selected;
 }
 
 function selectedTextModel() {
@@ -3654,6 +3667,7 @@ function loadCommerceAnalysisState() {
       || localStorage.getItem(SELECTED_TEXT_MODEL_KEY)
       || "";
   }
+  syncCommerceAnalysisModelOptions(verifiedTextModels);
   if (commerceEls.textApiKey) {
     commerceEls.textApiKey.value = localStorage.getItem(COMMERCE_ANALYSIS_TEXT_KEY)
       || localStorage.getItem(TEXT_API_KEY_STORAGE_KEY)
@@ -3777,6 +3791,49 @@ async function sendCommerceAnalysisMessage() {
     setCommerceAnalysisStatus(err.message || "对话失败", "error");
   } finally {
     commerceEls.analysisSend.disabled = false;
+  }
+}
+
+function scheduleCommerceTextModelRefresh() {
+  window.clearTimeout(commerceTextModelTimer);
+  commerceTextModelTimer = window.setTimeout(refreshCommerceTextModels, 650);
+}
+
+async function refreshCommerceTextModels() {
+  const apiUrl = (commerceEls.textApiUrl?.value || "").trim();
+  const apiKey = (commerceEls.textApiKey?.value || "").trim();
+  saveCommerceAnalysisState();
+  if (!apiUrl || !apiKey) {
+    syncCommerceAnalysisModelOptions([]);
+    setCommerceAnalysisStatus(!apiUrl ? "请先填写文本 API 地址" : "请先填写文本模型 Key");
+    return;
+  }
+  setCommerceAnalysisStatus("正在读取文本模型...", "loading");
+  try {
+    const data = await api("/api/models", {
+      method: "POST",
+      body: JSON.stringify({
+        connection_mode: "custom",
+        api_url: apiUrl,
+        api_key: apiKey,
+        model_kind: "text",
+      }),
+    });
+    const allModels = Array.isArray(data.models) ? data.models : [];
+    const textModels = cleanTextModelList(Array.isArray(data.text_models) ? data.text_models : allModels);
+    verifiedTextModels = textModels;
+    replaceTextModelOptions(textModels);
+    syncCommerceAnalysisModelOptions(textModels);
+    if (textModels.length) {
+      setCommerceAnalysisStatus(`已读取 ${textModels.length} 个文本模型`, "success");
+      return;
+    }
+    setCommerceAnalysisStatus("Key 有效，但未识别到文本模型，可手动填写", "error");
+  } catch (err) {
+    verifiedTextModels = [];
+    replaceTextModelOptions([]);
+    syncCommerceAnalysisModelOptions([]);
+    setCommerceAnalysisStatus(`文本模型读取失败：${err.message}`, "error");
   }
 }
 
@@ -7876,6 +7933,20 @@ commerceEls.analysisImages?.addEventListener("click", (event) => {
 });
 [commerceEls.textApiUrl, commerceEls.textModel, commerceEls.textApiKey, commerceEls.analysisContext].forEach((input) => {
   input?.addEventListener("input", saveCommerceAnalysisState);
+});
+commerceEls.textApiUrl?.addEventListener("input", scheduleCommerceTextModelRefresh);
+commerceEls.textApiKey?.addEventListener("input", scheduleCommerceTextModelRefresh);
+commerceEls.textModelSelect?.addEventListener("change", () => {
+  const selected = commerceEls.textModelSelect.value;
+  const manual = selected === "__manual__";
+  commerceEls.textModel.classList.toggle("hidden", !manual);
+  if (manual) {
+    if (verifiedTextModels.includes(commerceEls.textModel.value.trim())) commerceEls.textModel.value = "";
+    commerceEls.textModel.focus();
+  } else if (selected) {
+    commerceEls.textModel.value = selected;
+  }
+  saveCommerceAnalysisState();
 });
 commerceEls.analysisSend?.addEventListener("click", sendCommerceAnalysisMessage);
 commerceEls.analysisInputText?.addEventListener("keydown", (event) => {

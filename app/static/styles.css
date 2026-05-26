@@ -856,6 +856,36 @@ body.commerce-chat-open::after {
   color: #b43b31;
 }
 
+.commerce-model-picker {
+  display: grid;
+  gap: 8px;
+}
+
+.commerce-model-picker select,
+.commerce-model-picker input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(17, 17, 17, .1);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .98), rgba(247, 247, 244, .96));
+  color: #161612;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 760;
+  outline: none;
+}
+
+.commerce-model-picker select {
+  cursor: pointer;
+}
+
+.commerce-model-picker select:focus,
+.commerce-model-picker input:focus {
+  border-color: rgba(16, 163, 127, .42);
+  box-shadow: 0 0 0 3px rgba(16, 163, 127, .1);
+}
+
 .commerce-analysis-upload {
   display: flex;
   align-items: center;
@@ -981,7 +1011,7 @@ body.commerce-chat-open::after {
 
 .commerce-analysis-compose {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 102px;
+  grid-template-columns: minmax(0, 1fr) 110px 92px;
   align-items: end;
   gap: 10px;
 }
@@ -995,7 +1025,11 @@ body.commerce-chat-open::after {
   resize: vertical;
 }
 
-.commerce-analysis-compose button {
+.commerce-analysis-compose button,
+.commerce-analysis-compose-upload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 76px;
   border: 1px solid #111;
   border-radius: 8px;
@@ -1003,6 +1037,22 @@ body.commerce-chat-open::after {
   color: #fff;
   font-weight: 850;
   cursor: pointer;
+  text-align: center;
+}
+
+.commerce-analysis-compose-upload {
+  border-color: rgba(16, 163, 127, .36);
+  background: var(--green-soft);
+  color: #06745e;
+}
+
+.commerce-analysis-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .commerce-analysis-compose button:disabled {
