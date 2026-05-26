@@ -3631,7 +3631,7 @@ function setCommerceChatOpen(open = true) {
 }
 
 function saveCommerceAnalysisState() {
-  localStorage.setItem(COMMERCE_ANALYSIS_REFS_KEY, JSON.stringify(commerceAnalysisRefs.slice(0, 4)));
+  localStorage.removeItem(COMMERCE_ANALYSIS_REFS_KEY);
   localStorage.setItem(COMMERCE_ANALYSIS_CHAT_KEY, JSON.stringify(commerceAnalysisMessages.slice(-40)));
   if (commerceEls.textApiUrl?.value.trim()) localStorage.setItem(COMMERCE_ANALYSIS_URL_KEY, commerceEls.textApiUrl.value.trim());
   if (commerceEls.textModel?.value.trim()) localStorage.setItem(COMMERCE_ANALYSIS_MODEL_KEY, commerceEls.textModel.value.trim());
@@ -3641,8 +3641,8 @@ function saveCommerceAnalysisState() {
 
 function loadCommerceAnalysisState() {
   try {
-    commerceAnalysisRefs = JSON.parse(localStorage.getItem(COMMERCE_ANALYSIS_REFS_KEY) || "[]");
-    if (!Array.isArray(commerceAnalysisRefs)) commerceAnalysisRefs = [];
+      commerceAnalysisRefs = [];
+      localStorage.removeItem(COMMERCE_ANALYSIS_REFS_KEY);
   } catch (err) {
     commerceAnalysisRefs = [];
   }
@@ -3652,7 +3652,7 @@ function loadCommerceAnalysisState() {
   } catch (err) {
     commerceAnalysisMessages = [];
   }
-  commerceAnalysisRefs = commerceAnalysisRefs.filter((ref) => ref?.id && ref?.url).slice(0, 4);
+  commerceAnalysisRefs = [];
   commerceAnalysisMessages = commerceAnalysisMessages
     .filter((message) => ["user", "assistant"].includes(message?.role) && message?.content)
     .slice(-40);
@@ -3679,17 +3679,7 @@ function loadCommerceAnalysisState() {
 }
 
 function renderCommerceAnalysisRefs() {
-  if (!commerceEls.analysisImages) return;
-  if (!commerceAnalysisRefs.length) {
-    commerceEls.analysisImages.innerHTML = '<span class="commerce-analysis-image-empty">未上传图片</span>';
-    return;
-  }
-  commerceEls.analysisImages.innerHTML = commerceAnalysisRefs.map((ref) => `
-    <figure class="commerce-analysis-thumb" data-commerce-analysis-ref="${escapeAttr(ref.id)}">
-      <img src="${escapeAttr(ref.url)}" alt="${escapeAttr(ref.name || "图片")}">
-      <button type="button" data-commerce-analysis-remove="${escapeAttr(ref.id)}" aria-label="移除图片">×</button>
-    </figure>
-  `).join("");
+  commerceAnalysisRefs = [];
 }
 
 function renderCommerceAnalysisMessages() {
@@ -3709,16 +3699,12 @@ function renderCommerceAnalysisMessages() {
 
 async function uploadCommerceAnalysisImages(fileList) {
   const files = Array.from(fileList || []).filter(isReferenceImageFile);
-  const remaining = 4 - commerceAnalysisRefs.length;
   if (!files.length) {
     setCommerceAnalysisStatus("请选择图片", "error");
     return;
   }
-  if (remaining <= 0) {
-    setCommerceAnalysisStatus("最多上传 4 张图片", "error");
-    return;
-  }
-  const uploadFiles = files.slice(0, remaining);
+  const uploadFiles = files.slice(0, 4);
+  const uploaded = [];
   try {
     for (let index = 0; index < uploadFiles.length; index += 1) {
       setCommerceAnalysisStatus(`正在上传图片 ${index + 1}/${uploadFiles.length}`, "loading");
@@ -3733,11 +3719,10 @@ async function uploadCommerceAnalysisImages(fileList) {
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "图片上传失败");
-      commerceAnalysisRefs.push(data.reference);
+      uploaded.push(data.reference);
     }
-    saveCommerceAnalysisState();
-    renderCommerceAnalysisRefs();
-    setCommerceAnalysisStatus(`已上传 ${commerceAnalysisRefs.length} 张图片，可开始对话`, "success");
+    setCommerceAnalysisStatus(`已上传 ${uploaded.length} 张图片，正在发送...`, "loading");
+    await sendCommerceAnalysisMessage({ refs: uploaded, imageOnlyLabel: `已发送 ${uploaded.length} 张图片` });
   } catch (err) {
     setCommerceAnalysisStatus(err.message || "图片上传失败", "error");
   } finally {
@@ -3745,12 +3730,13 @@ async function uploadCommerceAnalysisImages(fileList) {
   }
 }
 
-async function sendCommerceAnalysisMessage() {
+async function sendCommerceAnalysisMessage(options = {}) {
   const message = (commerceEls.analysisInputText?.value || "").trim();
+  const refs = Array.isArray(options.refs) ? options.refs.filter((ref) => ref?.id) : commerceAnalysisRefs;
   const apiUrl = (commerceEls.textApiUrl?.value || "").trim();
   const apiKey = (commerceEls.textApiKey?.value || "").trim();
   const model = (commerceEls.textModel?.value || "").trim();
-  if (!message && !commerceAnalysisRefs.length) {
+  if (!message && !refs.length) {
     setCommerceAnalysisStatus("请输入问题或上传图片", "error");
     return;
   }
@@ -3759,9 +3745,11 @@ async function sendCommerceAnalysisMessage() {
     return;
   }
   const question = message || "请根据这些图片进行正常图文对话。";
+  const visibleQuestion = message || options.imageOnlyLabel || question;
   const history = commerceAnalysisMessages.slice(-10);
-  commerceAnalysisMessages.push({ role: "user", content: question });
+  commerceAnalysisMessages.push({ role: "user", content: visibleQuestion });
   if (commerceEls.analysisInputText) commerceEls.analysisInputText.value = "";
+  commerceAnalysisRefs = [];
   saveCommerceAnalysisState();
   renderCommerceAnalysisMessages();
   commerceEls.analysisSend.disabled = true;
@@ -3775,7 +3763,7 @@ async function sendCommerceAnalysisMessage() {
         text_model: model,
         product_context: (commerceEls.analysisContext?.value || "").trim(),
         message: question,
-        reference_ids: commerceAnalysisRefs.map((ref) => ref.id),
+        reference_ids: refs.map((ref) => ref.id),
         history,
       }),
     });
