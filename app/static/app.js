@@ -241,6 +241,7 @@ const commerceEls = {
   analysisStatus: $("#commerceAnalysisStatus"),
   textApiUrl: $("#commerceTextApiUrl"),
   textModel: $("#commerceTextModel"),
+  textModelList: $("#commerceTextModelList"),
   textApiKey: $("#commerceTextApiKey"),
   analysisContext: $("#commerceAnalysisContext"),
   analysisInput: $("#commerceAnalysisInput"),
@@ -2052,6 +2053,7 @@ function syncTextModelFields() {
 
 function replaceTextModelOptions(models = []) {
   models = cleanTextModelList(models);
+  syncCommerceAnalysisModelOptions(models);
   if (!els.analysisModel) return;
   const saved = localStorage.getItem(SELECTED_TEXT_MODEL_KEY) || "";
   const current = els.analysisModel.value || saved;
@@ -2105,6 +2107,25 @@ function syncResearchTextModelOptions(models = verifiedTextModels) {
   option.textContent = manual || "未检测到文本模型";
   select.append(option);
   select.disabled = !manual;
+}
+
+function syncCommerceAnalysisModelOptions(models = verifiedTextModels) {
+  models = cleanTextModelList(models);
+  if (commerceEls.textModelList) {
+    commerceEls.textModelList.innerHTML = "";
+    models.forEach((model) => {
+      const option = document.createElement("option");
+      option.value = model;
+      commerceEls.textModelList.append(option);
+    });
+  }
+  if (!commerceEls.textModel) return;
+  const current = commerceEls.textModel.value.trim();
+  const saved = localStorage.getItem(COMMERCE_ANALYSIS_MODEL_KEY) || "";
+  const fallback = selectedTextModel() || localStorage.getItem(SELECTED_TEXT_MODEL_KEY) || preferredTextModel(models) || "";
+  if (!current && (saved || fallback)) {
+    commerceEls.textModel.value = saved || fallback;
+  }
 }
 
 function selectedTextModel() {
@@ -3631,12 +3652,12 @@ function loadCommerceAnalysisState() {
 function renderCommerceAnalysisRefs() {
   if (!commerceEls.analysisImages) return;
   if (!commerceAnalysisRefs.length) {
-    commerceEls.analysisImages.innerHTML = '<span class="commerce-analysis-image-empty">未上传产品图</span>';
+    commerceEls.analysisImages.innerHTML = '<span class="commerce-analysis-image-empty">未上传图片</span>';
     return;
   }
   commerceEls.analysisImages.innerHTML = commerceAnalysisRefs.map((ref) => `
     <figure class="commerce-analysis-thumb" data-commerce-analysis-ref="${escapeAttr(ref.id)}">
-      <img src="${escapeAttr(ref.url)}" alt="${escapeAttr(ref.name || "产品图")}">
+      <img src="${escapeAttr(ref.url)}" alt="${escapeAttr(ref.name || "图片")}">
       <button type="button" data-commerce-analysis-remove="${escapeAttr(ref.id)}" aria-label="移除图片">×</button>
     </figure>
   `).join("");
@@ -3645,7 +3666,7 @@ function renderCommerceAnalysisRefs() {
 function renderCommerceAnalysisMessages() {
   if (!commerceEls.analysisMessages) return;
   if (!commerceAnalysisMessages.length) {
-    commerceEls.analysisMessages.innerHTML = '<div class="commerce-analysis-empty">上传产品图后，可分析主图点击率风险，并直接生成作图提示词。</div>';
+    commerceEls.analysisMessages.innerHTML = '<div class="commerce-analysis-empty">可以直接提问，也可以上传图片后进行图文对话。</div>';
     return;
   }
   commerceEls.analysisMessages.innerHTML = commerceAnalysisMessages.map((message) => `
@@ -3661,17 +3682,17 @@ async function uploadCommerceAnalysisImages(fileList) {
   const files = Array.from(fileList || []).filter(isReferenceImageFile);
   const remaining = 4 - commerceAnalysisRefs.length;
   if (!files.length) {
-    setCommerceAnalysisStatus("请选择产品图片", "error");
+    setCommerceAnalysisStatus("请选择图片", "error");
     return;
   }
   if (remaining <= 0) {
-    setCommerceAnalysisStatus("最多上传 4 张产品图", "error");
+    setCommerceAnalysisStatus("最多上传 4 张图片", "error");
     return;
   }
   const uploadFiles = files.slice(0, remaining);
   try {
     for (let index = 0; index < uploadFiles.length; index += 1) {
-      setCommerceAnalysisStatus(`正在上传产品图 ${index + 1}/${uploadFiles.length}`, "loading");
+      setCommerceAnalysisStatus(`正在上传图片 ${index + 1}/${uploadFiles.length}`, "loading");
       const file = uploadFiles[index];
       const form = new FormData();
       form.append("file", file);
@@ -3682,14 +3703,14 @@ async function uploadCommerceAnalysisImages(fileList) {
         body: form,
       });
       const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || "产品图上传失败");
+      if (!resp.ok) throw new Error(data.error || "图片上传失败");
       commerceAnalysisRefs.push(data.reference);
     }
     saveCommerceAnalysisState();
     renderCommerceAnalysisRefs();
-    setCommerceAnalysisStatus(`已上传 ${commerceAnalysisRefs.length} 张产品图，可开始分析`, "success");
+    setCommerceAnalysisStatus(`已上传 ${commerceAnalysisRefs.length} 张图片，可开始对话`, "success");
   } catch (err) {
-    setCommerceAnalysisStatus(err.message || "产品图上传失败", "error");
+    setCommerceAnalysisStatus(err.message || "图片上传失败", "error");
   } finally {
     if (commerceEls.analysisInput) commerceEls.analysisInput.value = "";
   }
@@ -3701,21 +3722,21 @@ async function sendCommerceAnalysisMessage() {
   const apiKey = (commerceEls.textApiKey?.value || "").trim();
   const model = (commerceEls.textModel?.value || "").trim();
   if (!message && !commerceAnalysisRefs.length) {
-    setCommerceAnalysisStatus("请输入问题或上传产品图", "error");
+    setCommerceAnalysisStatus("请输入问题或上传图片", "error");
     return;
   }
-  if (!apiUrl || !apiKey || !model) {
-    setCommerceAnalysisStatus("请填写文本 API、模型和 Key", "error");
+  if (!apiUrl || !apiKey) {
+    setCommerceAnalysisStatus("请填写文本 API 和 Key", "error");
     return;
   }
-  const question = message || "分析这款产品，并输出适合淘宝主图的生图提示词与 A/B 方向。";
+  const question = message || "请根据这些图片进行正常图文对话。";
   const history = commerceAnalysisMessages.slice(-10);
   commerceAnalysisMessages.push({ role: "user", content: question });
   if (commerceEls.analysisInputText) commerceEls.analysisInputText.value = "";
   saveCommerceAnalysisState();
   renderCommerceAnalysisMessages();
   commerceEls.analysisSend.disabled = true;
-  setCommerceAnalysisStatus("正在分析产品与主图策略...", "loading");
+  setCommerceAnalysisStatus("正在回复...", "loading");
   try {
     const data = await apiRequest("/api/commerce-analysis-chat", {
       method: "POST",
@@ -3729,16 +3750,16 @@ async function sendCommerceAnalysisMessage() {
         history,
       }),
     });
-    if (!data.ok) throw new Error(data.detail || data.error || "产品分析失败");
+    if (!data.ok) throw new Error(data.detail || data.error || "对话失败");
     commerceAnalysisMessages.push({ role: "assistant", content: data.reply || "模型未返回分析内容" });
     saveCommerceAnalysisState();
     renderCommerceAnalysisMessages();
-    setCommerceAnalysisStatus(`分析完成 · ${data.model || model}`, "success");
+    setCommerceAnalysisStatus(`回复完成 · ${data.model || model || "默认模型"}`, "success");
   } catch (err) {
-    commerceAnalysisMessages.push({ role: "assistant", content: `分析失败：${err.message}` });
+    commerceAnalysisMessages.push({ role: "assistant", content: `回复失败：${err.message}` });
     saveCommerceAnalysisState();
     renderCommerceAnalysisMessages();
-    setCommerceAnalysisStatus(err.message || "产品分析失败", "error");
+    setCommerceAnalysisStatus(err.message || "对话失败", "error");
   } finally {
     commerceEls.analysisSend.disabled = false;
   }
@@ -7825,7 +7846,7 @@ commerceEls.analysisImages?.addEventListener("click", (event) => {
   commerceAnalysisRefs = commerceAnalysisRefs.filter((ref) => ref.id !== button.dataset.commerceAnalysisRemove);
   saveCommerceAnalysisState();
   renderCommerceAnalysisRefs();
-  setCommerceAnalysisStatus(commerceAnalysisRefs.length ? `已保留 ${commerceAnalysisRefs.length} 张产品图` : "可上传产品图后开始分析");
+  setCommerceAnalysisStatus(commerceAnalysisRefs.length ? `已保留 ${commerceAnalysisRefs.length} 张图片` : "可上传图片后开始对话");
 });
 [commerceEls.textApiUrl, commerceEls.textModel, commerceEls.textApiKey, commerceEls.analysisContext].forEach((input) => {
   input?.addEventListener("input", saveCommerceAnalysisState);

@@ -3224,17 +3224,16 @@ def build_commerce_analysis_messages(payload: dict, references: list[dict]) -> l
         {
             "role": "system",
             "content": (
-                "你是电商产品分析和生图策划助手，目标是帮助商品在淘宝移动端缩略图场景获得更高点击吸引力。必须使用简体中文回答。"
-                "根据用户文字和产品图判断主体识别度、材质与核心卖点，重点检查缩略图可读性、商品占比、视觉对比、使用场景、价值感提示、信任信息和情绪钩子。"
-                "输出必须包含：产品识别、核心卖点、点击率风险、淘宝主图优化建议、热门视觉方向、可直接复制生图的提示词、A/B 测试方案。"
-                "生图提示词必须具体描述主体、构图、背景、光线、材质、氛围、文字留白和不应出现的内容，可直接粘贴到生图模型使用。"
-                "淘宝主图建议应保证主体清晰突出、手机缩略图可识别、少而有力的信息层级，避免过度堆字和喧宾夺主的装饰。"
+                "你是简洁生图台里的通用图文对话助手。必须使用简体中文回答。"
+                "根据用户的问题、补充说明和上传图片正常对话，回答要直接、具体、可执行。"
+                "如果用户需要生图提示词，就输出可直接复制的提示词，并说明主体、构图、背景、光线、材质、风格、画面比例和需要避免的内容。"
+                "如果用户只是提问、改文案、看图、总结、翻译或分析图片，就按问题本身回答，不要强制套电商、淘宝主图或产品分析结构。"
                 "不要编造图片里不存在的品牌、文字、功效认证或参数。无法确认的信息要明确说不确定。"
             ),
         }
     ]
     if product_context:
-        messages.append({"role": "user", "content": f"产品背景：{product_context}"})
+        messages.append({"role": "user", "content": f"补充说明：{product_context}"})
     for item in history[-10:]:
         if not isinstance(item, dict):
             continue
@@ -3244,7 +3243,7 @@ def build_commerce_analysis_messages(payload: dict, references: list[dict]) -> l
         content = str(item.get("content") or "").strip()
         if content:
             messages.append({"role": role, "content": content[:3000]})
-    content_parts = [{"type": "text", "text": prompt or "请分析这些产品图片，给出电商卖点、视觉策略和生图提示词。"}]
+    content_parts = [{"type": "text", "text": prompt or "请根据这些图片进行正常图文对话。"}]
     for ref in references[:4]:
         data_url = reference_to_data_url(ref)
         if data_url:
@@ -4858,7 +4857,7 @@ def commerce_analysis_chat():
     message = str(payload.get("message") or "").strip()
     reference_ids = [str(item).strip() for item in payload.get("reference_ids", []) if str(item).strip()][:4]
     if not message and not reference_ids:
-        return jsonify({"error": "请先输入问题或上传产品图片"}), 400
+        return jsonify({"error": "请先输入问题或上传图片"}), 400
     model = str(payload.get("text_model") or DEFAULT_TEXT_MODEL).strip()
     if not model:
         return jsonify({"error": "请先填写文本模型"}), 400
@@ -4888,7 +4887,7 @@ def commerce_analysis_chat():
         reply = call_commerce_analysis_text_model(api_url, api_key, model, payload, references)
         return jsonify({"ok": True, "reply": reply, "model": model})
     except Exception as exc:
-        return jsonify({"ok": False, "error": "产品分析对话失败", "detail": redact_secrets(str(exc))}), 200
+        return jsonify({"ok": False, "error": "AI 对话失败", "detail": redact_secrets(str(exc))}), 200
 
 
 @app.post("/api/agent-mode-plan")

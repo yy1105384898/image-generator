@@ -385,8 +385,8 @@
 
             <section class="commerce-analysis-card">
               <div class="commerce-section-head">
-                <strong>产品分析</strong>
-                <span id="commerceAnalysisStatus">填写文本模型 Key 后可分析产品图</span>
+                <strong>AI 对话</strong>
+                <span id="commerceAnalysisStatus">填写文本模型 Key 后可进行图文对话</span>
               </div>
               <div class="commerce-param-row commerce-param-row-2">
                 <label class="commerce-field">
@@ -395,7 +395,8 @@
                 </label>
                 <label class="commerce-field">
                   <span>文本模型</span>
-                  <input id="commerceTextModel" placeholder="例如 gpt-4o-mini / gpt-5-mini" autocomplete="off">
+                  <input id="commerceTextModel" list="commerceTextModelList" placeholder="可选择，也可手填" autocomplete="off">
+                  <datalist id="commerceTextModelList"></datalist>
                 </label>
               </div>
               <label class="commerce-field">
@@ -403,21 +404,21 @@
                 <input id="commerceTextApiKey" type="password" placeholder="填写有文本/视觉模型权限的 Key" autocomplete="off">
               </label>
               <label class="commerce-field">
-                <span>产品背景</span>
-                <textarea id="commerceAnalysisContext" rows="3" placeholder="可选：产品名称、类目、价格带、目标平台、人群、竞品等"></textarea>
+                <span>补充说明</span>
+                <textarea id="commerceAnalysisContext" rows="3" placeholder="可选：补充背景、目标、要求、风格、用途等"></textarea>
               </label>
               <div class="commerce-analysis-upload">
-                <label id="commerceAnalysisUpload" for="commerceAnalysisInput">上传产品图</label>
+                <label id="commerceAnalysisUpload" for="commerceAnalysisInput">上传图片</label>
                 <input id="commerceAnalysisInput" type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp,.avif,.heic,.heif" multiple>
-                <span>最多 4 张，用于视觉理解和卖点分析</span>
+                <span>最多 4 张，用于图文理解</span>
               </div>
               <div id="commerceAnalysisImages" class="commerce-analysis-images"></div>
               <div id="commerceAnalysisMessages" class="commerce-analysis-messages">
-                <div class="commerce-analysis-empty">上传产品图后，可以问：这款产品卖点怎么提炼？主图怎么做？适合什么风格？</div>
+                <div class="commerce-analysis-empty">可以直接提问，也可以上传图片后进行图文对话。</div>
               </div>
               <div class="commerce-analysis-compose">
-                <textarea id="commerceAnalysisInputText" rows="3" placeholder="输入你想问的问题，例如：帮我分析这款产品的核心卖点，并给一套主图生图提示词"></textarea>
-                <button id="commerceAnalysisSend" type="button">产品分析</button>
+                <textarea id="commerceAnalysisInputText" rows="3" placeholder="输入你想问的问题，例如：帮我看这张图哪里需要优化，或者根据图片写一段生图提示词"></textarea>
+                <button id="commerceAnalysisSend" type="button">发送</button>
               </div>
             </section>
 
