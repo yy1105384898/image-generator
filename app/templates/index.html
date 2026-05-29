@@ -234,153 +234,171 @@
                 <strong>生成内容</strong>
                 <span>提示词默认为空，按需填写</span>
               </div>
-              <div class="commerce-param-row commerce-param-row-2">
-                <label class="commerce-field">
-                  <span>自定义 API 地址</span>
-                  <input id="commerceApiUrl" value="{{ model_config.connections.custom.url or 'https://yynewapi.yangyangnj.top/v1' }}" placeholder="https://yynewapi.yangyangnj.top/v1" autocomplete="off">
-                </label>
-                <label class="commerce-field">
-                  <span>API Key</span>
-                  <input id="commerceApiKey" type="password" placeholder="自动填入已保存 Key，也可手动填写" autocomplete="off">
-                </label>
-              </div>
-              <label class="commerce-check">
-                <input id="commerceRememberKey" type="checkbox" checked>
-                <span>本地保存接入信息</span>
-              </label>
-              <div id="commerceModelStatus" class="commerce-status commerce-status-compact">默认使用全局自定义 API</div>
-              <label class="commerce-field">
-                <span>模型</span>
-                <select id="commerceModel">
-                  <option value="">填写 Key 后自动读取</option>
-                </select>
-              </label>
-              <label class="commerce-field">
-                <span>选择模板</span>
-                <select id="commerceTemplateSelect">
-                  <option value="">暂无模板</option>
-                </select>
-              </label>
-              <div class="commerce-field">
-                <span>生成模式</span>
-                <div class="commerce-chip-row" id="commerceModeChips">
-                  <button class="active" data-commerce-mode="text" type="button">文生图</button>
-                  <button data-commerce-mode="image" type="button">图生图</button>
+              <div class="commerce-config-panel">
+                <div class="commerce-mini-title">
+                  <strong>模型接入</strong>
+                  <span>填写后自动读取模型，本地保存不丢失</span>
                 </div>
-              </div>
-              <div class="commerce-param-row commerce-param-row-3">
-                <label class="commerce-field">
-                  <span>尺寸</span>
-                  <select id="commerceSize">
-                    <option value="auto">Auto</option>
-                    <option value="1024x1024">1024x1024</option>
-                    <option value="1536x864">1536x864</option>
-                    <option value="864x1536">864x1536</option>
-                    <option value="2048x2048">2048x2048</option>
-                    <option value="2560x1440">2560x1440</option>
-                    <option value="1440x2560">1440x2560</option>
-                    <option value="3840x2160">3840x2160</option>
-                    <option value="2160x3840">2160x3840</option>
-                    <option value="2880x2880">2880x2880</option>
-                  </select>
-                </label>
-                <label class="commerce-field">
-                  <span>质量</span>
-                  <select id="commerceQuality">
-                    <option value="auto">Auto</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="low">Low</option>
-                  </select>
-                </label>
-                <label class="commerce-field">
-                  <span>格式</span>
-                  <select id="commerceFormat">
-                    <option value="png">PNG</option>
-                    <option value="jpeg">JPEG</option>
-                    <option value="webp">WebP</option>
-                  </select>
-                </label>
-              </div>
-              <div class="commerce-param-row commerce-param-row-2">
-                <label class="commerce-field">
-                  <span>背景</span>
-                  <select id="commerceBackground">
-                    <option value="auto">自动</option>
-                    <option value="transparent">透明</option>
-                    <option value="opaque">不透明</option>
-                  </select>
-                </label>
-                <label class="commerce-field">
-                  <span>本地放大</span>
-                  <select id="commerceUpscale">
-                    <option value="none">不放大</option>
-                    <option value="2k">放大到 2K</option>
-                    <option value="4k">放大到 4K</option>
-                  </select>
-                </label>
-              </div>
-              <div class="commerce-field commerce-style-field">
-                <span>风格</span>
-                <input id="commerceStyle" placeholder="可选风格词">
-              </div>
-              <div class="commerce-field commerce-preset-field">
-                <div class="commerce-preset-head">
-                  <span>风格预设</span>
-                  <button id="commerceClearStyle" class="hidden" type="button">清空风格</button>
+                <div class="commerce-param-row commerce-param-row-2">
+                  <label class="commerce-field">
+                    <span>自定义 API 地址</span>
+                    <input id="commerceApiUrl" value="{{ model_config.connections.custom.url or 'https://yynewapi.yangyangnj.top/v1' }}" placeholder="https://yynewapi.yangyangnj.top/v1" autocomplete="off">
+                  </label>
+                  <label class="commerce-field">
+                    <span>API Key</span>
+                    <input id="commerceApiKey" type="password" placeholder="自动填入已保存 Key，也可手动填写" autocomplete="off">
+                  </label>
                 </div>
-                <div class="commerce-chip-row commerce-preset-grid" id="commerceSceneChips">
-                  <button data-commerce-scene="电影感写实" type="button">电影感写实</button>
-                  <button data-commerce-scene="电商主图" type="button">电商主图</button>
-                  <button data-commerce-scene="透明贴纸" type="button">透明贴纸</button>
-                  <button data-commerce-scene="3D 潮玩" type="button">3D 潮玩</button>
-                  <button data-commerce-scene="扁平图标" type="button">扁平图标</button>
-                  <button data-commerce-scene="复古海报" type="button">复古海报</button>
-                  <button data-commerce-scene="动漫插画" type="button">动漫插画</button>
-                  <button data-commerce-scene="极简壁纸" type="button">极简壁纸</button>
+                <div class="commerce-config-foot">
+                  <label class="commerce-check">
+                    <input id="commerceRememberKey" type="checkbox" checked>
+                    <span>本地保存接入信息</span>
+                  </label>
+                  <div id="commerceModelStatus" class="commerce-status commerce-status-compact">默认使用全局自定义 API</div>
                 </div>
+                <label class="commerce-field">
+                  <span>模型</span>
+                  <select id="commerceModel">
+                    <option value="">填写 Key 后自动读取</option>
+                  </select>
+                </label>
               </div>
-              <div id="commerceReferenceField" class="commerce-field commerce-reference-field hidden">
-                <div class="commerce-preset-head">
-                  <span>参考图片</span>
-                  <label id="commerceReferenceUpload" class="commerce-reference-upload-button" for="commerceReferenceInput">上传</label>
+
+              <div class="commerce-control-panel">
+                <div class="commerce-mini-title">
+                  <strong>生成选项</strong>
+                  <span>保持现有参数，只重排层级</span>
                 </div>
-                <input id="commerceReferenceInput" class="commerce-reference-input" type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp,.avif,.heic,.heif" multiple>
-                <div id="commerceReferenceDrop" class="commerce-reference-drop" role="button" tabindex="0">
-                  <div id="commerceReferencePreview" class="commerce-reference-preview">
-                    <strong>⇧</strong>
-                    <span>上传一张或多张参考图片，AI 将基于这些图片进行修改</span>
+                <label class="commerce-field">
+                  <span>选择模板</span>
+                  <select id="commerceTemplateSelect">
+                    <option value="">暂无模板</option>
+                  </select>
+                </label>
+                <div class="commerce-field">
+                  <span>生成模式</span>
+                  <div class="commerce-chip-row" id="commerceModeChips">
+                    <button class="active" data-commerce-mode="text" type="button">文生图</button>
+                    <button data-commerce-mode="image" type="button">图生图</button>
+                  </div>
+                </div>
+                <div class="commerce-param-row commerce-param-row-3">
+                  <label class="commerce-field">
+                    <span>尺寸</span>
+                    <select id="commerceSize">
+                      <option value="auto">Auto</option>
+                      <option value="1024x1024">1024x1024</option>
+                      <option value="1536x864">1536x864</option>
+                      <option value="864x1536">864x1536</option>
+                      <option value="2048x2048">2048x2048</option>
+                      <option value="2560x1440">2560x1440</option>
+                      <option value="1440x2560">1440x2560</option>
+                      <option value="3840x2160">3840x2160</option>
+                      <option value="2160x3840">2160x3840</option>
+                      <option value="2880x2880">2880x2880</option>
+                    </select>
+                  </label>
+                  <label class="commerce-field">
+                    <span>质量</span>
+                    <select id="commerceQuality">
+                      <option value="auto">Auto</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="low">Low</option>
+                    </select>
+                  </label>
+                  <label class="commerce-field">
+                    <span>格式</span>
+                    <select id="commerceFormat">
+                      <option value="png">PNG</option>
+                      <option value="jpeg">JPEG</option>
+                      <option value="webp">WebP</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="commerce-param-row commerce-param-row-2">
+                  <label class="commerce-field">
+                    <span>背景</span>
+                    <select id="commerceBackground">
+                      <option value="auto">自动</option>
+                      <option value="transparent">透明</option>
+                      <option value="opaque">不透明</option>
+                    </select>
+                  </label>
+                  <label class="commerce-field">
+                    <span>本地放大</span>
+                    <select id="commerceUpscale">
+                      <option value="none">不放大</option>
+                      <option value="2k">放大到 2K</option>
+                      <option value="4k">放大到 4K</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="commerce-field commerce-style-field">
+                  <span>风格</span>
+                  <input id="commerceStyle" placeholder="可选风格词">
+                </div>
+                <div class="commerce-field commerce-preset-field">
+                  <div class="commerce-preset-head">
+                    <span>风格预设</span>
+                    <button id="commerceClearStyle" class="hidden" type="button">清空风格</button>
+                  </div>
+                  <div class="commerce-chip-row commerce-preset-grid" id="commerceSceneChips">
+                    <button data-commerce-scene="电影感写实" type="button">电影感写实</button>
+                    <button data-commerce-scene="电商主图" type="button">电商主图</button>
+                    <button data-commerce-scene="透明贴纸" type="button">透明贴纸</button>
+                    <button data-commerce-scene="3D 潮玩" type="button">3D 潮玩</button>
+                    <button data-commerce-scene="扁平图标" type="button">扁平图标</button>
+                    <button data-commerce-scene="复古海报" type="button">复古海报</button>
+                    <button data-commerce-scene="动漫插画" type="button">动漫插画</button>
+                    <button data-commerce-scene="极简壁纸" type="button">极简壁纸</button>
+                  </div>
+                </div>
+                <div id="commerceReferenceField" class="commerce-field commerce-reference-field hidden">
+                  <div class="commerce-preset-head">
+                    <span>参考图片</span>
+                    <label id="commerceReferenceUpload" class="commerce-reference-upload-button" for="commerceReferenceInput">上传</label>
+                  </div>
+                  <input id="commerceReferenceInput" class="commerce-reference-input" type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp,.avif,.heic,.heif" multiple>
+                  <div id="commerceReferenceDrop" class="commerce-reference-drop" role="button" tabindex="0">
+                    <div id="commerceReferencePreview" class="commerce-reference-preview">
+                      <strong>⇧</strong>
+                      <span>上传一张或多张参考图片，AI 将基于这些图片进行修改</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="commerce-param-row commerce-count-row">
+                  <label class="commerce-field">
+                    <span>张数</span>
+                    <input id="commerceCount" type="number" min="1" max="20" value="1">
+                  </label>
+                </div>
+                <div class="commerce-field">
+                  <span>比例</span>
+                  <div class="commerce-chip-row" id="commerceRatioChips">
+                    <button class="active" data-commerce-ratio="1:1" type="button">1:1 主图</button>
+                    <button data-commerce-ratio="4:5" type="button">4:5 竖版</button>
+                    <button data-commerce-ratio="16:9" type="button">16:9 横屏</button>
+                    <button data-commerce-ratio="9:16" type="button">9:16 手机</button>
                   </div>
                 </div>
               </div>
-              <div class="commerce-param-row commerce-count-row">
+
+              <div class="commerce-prompt-panel">
                 <label class="commerce-field">
-                  <span>张数</span>
-                  <input id="commerceCount" type="number" min="1" max="20" value="1">
+                  <span>提示词</span>
+                  <textarea id="commercePrompt" rows="7" placeholder="描述要生成的图片…"></textarea>
                 </label>
-              </div>
-              <div class="commerce-field">
-                <span>比例</span>
-                <div class="commerce-chip-row" id="commerceRatioChips">
-                  <button class="active" data-commerce-ratio="1:1" type="button">1:1 主图</button>
-                  <button data-commerce-ratio="4:5" type="button">4:5 竖版</button>
-                  <button data-commerce-ratio="16:9" type="button">16:9 横屏</button>
-                  <button data-commerce-ratio="9:16" type="button">9:16 手机</button>
+                <div class="commerce-template-save">
+                  <input id="commerceTemplateName" placeholder="模板名称">
+                  <input id="commerceTemplateTags" placeholder="标签，用逗号分隔">
+                  <button id="commerceSaveTemplate" type="button">保存模板</button>
                 </div>
-              </div>
-              <label class="commerce-field">
-                <span>提示词</span>
-                <textarea id="commercePrompt" rows="7" placeholder="描述要生成的图片…"></textarea>
-              </label>
-              <div class="commerce-template-save">
-                <input id="commerceTemplateName" placeholder="模板名称">
-                <input id="commerceTemplateTags" placeholder="标签，用逗号分隔">
-                <button id="commerceSaveTemplate" type="button">保存模板</button>
-              </div>
-              <div class="commerce-form-note">Auto 按比例自动选择基础尺寸；选择具体尺寸时会直接按该 size 发送。</div>
-              <div class="commerce-form-actions">
-                <button id="commerceClearSelection" type="button">清空选择</button>
-                <button id="commerceGenerateBottom" type="button">生成图片</button>
+                <div class="commerce-form-note">Auto 按比例自动选择基础尺寸；选择具体尺寸时会直接按该 size 发送。</div>
+                <div class="commerce-form-actions">
+                  <button id="commerceClearSelection" type="button">清空选择</button>
+                  <button id="commerceGenerateBottom" type="button">生成图片</button>
+                </div>
               </div>
             </section>
 
