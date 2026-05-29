@@ -1763,6 +1763,7 @@ body.commerce-active {
 
 .commerce-main {
   display: grid;
+  position: relative;
   gap: 14px;
 }
 
@@ -1794,14 +1795,66 @@ body.commerce-active {
   font-weight: 880;
 }
 
+.commerce-ai-dock {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 70;
+}
+
+.commerce-ai-float-button {
+  display: inline-grid;
+  min-width: 210px;
+  gap: 2px;
+  padding: 12px 16px;
+  border: 1px solid rgba(16, 163, 127, .24);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 90% 10%, rgba(16, 163, 127, .16), transparent 32%),
+    linear-gradient(135deg, rgba(255, 255, 255, .96), rgba(231, 248, 242, .92));
+  color: #141511;
+  text-align: left;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, .04),
+    0 12px 30px rgba(15, 23, 42, .08);
+  cursor: pointer;
+}
+
+.commerce-ai-float-button span {
+  color: #06745e;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.commerce-ai-float-button strong {
+  font-size: 14px;
+  font-weight: 940;
+  letter-spacing: -.01em;
+}
+
+.commerce-ai-float-button.active,
+.commerce-ai-float-button:hover {
+  border-color: rgba(16, 163, 127, .42);
+  transform: translateY(-1px);
+}
+
+body.commerce-chat-open .commerce-ai-dock {
+  display: none;
+}
+
 .commerce-grid {
   display: grid;
-  grid-template-columns: minmax(600px, 1fr) minmax(360px, 430px);
+  grid-template-columns: minmax(320px, 390px) minmax(520px, 1fr);
   align-items: start;
   gap: 16px;
 }
 
+body.commerce-chat-open .commerce-grid {
+  grid-template-columns: minmax(300px, 360px) minmax(430px, 1fr) minmax(360px, 410px);
+}
+
 .commerce-form-card,
+.commerce-workflow-card,
 .commerce-result-card,
 .commerce-analysis-card {
   border: 1px solid rgba(17, 17, 17, .08);
@@ -1815,6 +1868,13 @@ body.commerce-active {
 .commerce-form-card {
   display: grid;
   gap: 14px;
+  padding: 16px;
+}
+
+.commerce-workflow-card {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
   padding: 16px;
 }
 
@@ -2018,13 +2078,13 @@ body.commerce-active {
 }
 
 .commerce-result-card {
-  grid-column: 2;
-  grid-row: 1;
-  position: sticky;
-  top: 16px;
-  max-height: calc(100vh - 32px);
-  overflow: auto;
+  grid-column: auto;
+  grid-row: auto;
+  position: static;
+  max-height: none;
+  overflow: visible;
   padding: 16px;
+  box-shadow: none;
 }
 
 .commerce-result-card .commerce-section-head span {
@@ -2038,7 +2098,7 @@ body.commerce-active {
 }
 
 .commerce-gallery {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
   padding: 10px;
   border-radius: 18px;
 }
@@ -2076,11 +2136,105 @@ body.commerce-active {
 }
 
 .commerce-chat-drawer {
-  width: min(860px, calc(100vw - 36px));
+  position: sticky;
+  top: 16px;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+  grid-column: 3;
+  grid-row: 1;
+  width: auto;
+  max-height: calc(100vh - 32px);
+  min-height: calc(100vh - 32px);
+  padding: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(17, 17, 17, .1);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(16, 163, 127, .14), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, .98), rgba(250, 249, 242, .96));
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, .05),
+    0 22px 70px rgba(15, 23, 42, .22);
+}
+
+.commerce-chat-drawer.hidden {
+  display: none;
+}
+
+.commerce-chat-head {
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 4px;
+}
+
+.commerce-chat-title {
+  display: grid;
+  gap: 4px;
+}
+
+.commerce-chat-title > span {
+  color: #06745e;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.commerce-chat-title strong {
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.commerce-chat-title small {
+  color: #68685f;
+  font-size: 12px;
+  font-weight: 780;
+  line-height: 1.45;
+}
+
+.commerce-chat-title small.success {
+  color: #06745e;
+}
+
+.commerce-chat-title small.loading {
+  color: #956100;
+}
+
+.commerce-chat-title small.error {
+  color: #b43b31;
+}
+
+.commerce-chat-hint {
+  min-height: 34px;
+  padding: 9px 12px;
+  border: 1px solid rgba(16, 163, 127, .16);
+  border-radius: 12px;
+  background: rgba(231, 248, 242, .72);
+  color: #06745e;
+  font-size: 12px;
+  font-weight: 780;
+  line-height: 1.4;
+}
+
+.commerce-chat-drawer .commerce-param-row-2 {
+  grid-template-columns: 1fr;
+}
+
+.commerce-chat-drawer .commerce-analysis-messages {
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  border: 1px solid rgba(17, 17, 17, .06);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(247, 247, 244, .9), rgba(239, 244, 238, .72));
 }
 
 .commerce-analysis-compose {
   grid-template-columns: minmax(0, 1fr) 106px 88px;
+  align-items: stretch;
 }
 
 .commerce-analysis-compose button,
@@ -2088,8 +2242,26 @@ body.commerce-active {
   border-radius: 14px;
 }
 
+.commerce-analysis-compose textarea {
+  min-height: 70px;
+  border-radius: 14px;
+}
+
+.commerce-analysis-compose-upload,
+.commerce-analysis-compose button {
+  min-height: 70px;
+}
+
+body.commerce-chat-open::after {
+  display: none;
+}
+
 @media (max-width: 1180px) {
   .commerce-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body.commerce-chat-open .commerce-grid {
     grid-template-columns: 1fr;
   }
 
@@ -2166,14 +2338,363 @@ body.commerce-active {
   }
 
   .commerce-chat-drawer {
+    position: fixed;
     inset: 10px;
+    z-index: 80;
     width: auto;
+    max-height: none;
+    min-height: 0;
+    padding: 12px;
     border-radius: 18px;
+  }
+
+  .commerce-ai-dock {
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+  }
+
+  .commerce-ai-float-button {
+    width: 100%;
   }
 
   .commerce-analysis-compose-upload,
   .commerce-analysis-compose button {
     min-height: 44px;
+  }
+}
+
+/* Stitch 最后一版视觉落地：三栏工作台，功能不变。 */
+body.commerce-active {
+  background: #fbfaf6;
+}
+
+.commerce-workbench {
+  padding: 16px clamp(16px, 2vw, 28px) 28px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(16, 163, 127, .08), transparent 28%),
+    linear-gradient(180deg, #fbfaf6 0%, #f6f4ee 100%);
+}
+
+.commerce-topbar {
+  min-height: 44px;
+  margin-bottom: 10px;
+  padding: 0 2px 10px;
+  border: 0;
+  border-bottom: 1px solid rgba(17, 17, 17, .08);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.commerce-title-block {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.commerce-title-block strong {
+  font-size: 18px;
+  letter-spacing: -.03em;
+}
+
+.commerce-title-block span {
+  font-size: 12px;
+}
+
+.commerce-topbar nav a {
+  min-height: 30px;
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+.commerce-notice {
+  order: 2;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #edf8f4;
+  color: #08735e;
+  font-size: 12px;
+}
+
+.commerce-tabs {
+  order: 1;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid rgba(17, 17, 17, .08);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.commerce-tabs button {
+  min-height: 38px;
+  border-radius: 0;
+  background: transparent;
+  color: #66665f;
+}
+
+.commerce-tabs button.active,
+.commerce-tabs button.active:not(.commerce-chat-tab-button) {
+  background: transparent;
+  color: #0b6f5b;
+  box-shadow: inset 0 -2px 0 #0b6f5b;
+}
+
+.commerce-chat-tab-button.active {
+  background: transparent;
+  color: #0b6f5b;
+  box-shadow: none;
+}
+
+.commerce-grid {
+  order: 3;
+  align-items: stretch;
+  gap: 14px;
+  margin-top: 2px;
+  grid-template-columns: minmax(310px, 350px) minmax(520px, 1fr);
+}
+
+body.commerce-chat-open .commerce-grid {
+  grid-template-columns: minmax(300px, 340px) minmax(430px, 1fr) minmax(340px, 390px);
+}
+
+.commerce-form-card,
+.commerce-workflow-card,
+.commerce-analysis-card {
+  border-color: #deded8;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .82);
+  box-shadow: none;
+}
+
+.commerce-form-card {
+  position: sticky;
+  top: 14px;
+  max-height: calc(100vh - 28px);
+  overflow: auto;
+  padding: 12px;
+}
+
+.commerce-workflow-card {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.commerce-form-card > .commerce-section-head {
+  padding: 2px 2px 6px;
+}
+
+.commerce-section-head strong {
+  font-size: 16px;
+}
+
+.commerce-section-head span {
+  font-size: 12px;
+}
+
+.commerce-config-panel,
+.commerce-control-panel,
+.commerce-prompt-panel,
+.commerce-result-card {
+  border: 1px solid #deded8;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .84);
+  box-shadow: none;
+}
+
+.commerce-config-panel,
+.commerce-control-panel {
+  padding: 12px;
+}
+
+.commerce-config-panel .commerce-param-row-2,
+.commerce-config-foot {
+  grid-template-columns: 1fr;
+}
+
+.commerce-mini-title {
+  align-items: center;
+}
+
+.commerce-mini-title strong {
+  font-size: 13px;
+}
+
+.commerce-mini-title span {
+  font-size: 11px;
+}
+
+.commerce-param-row {
+  gap: 8px;
+}
+
+.commerce-field input,
+.commerce-field select,
+.commerce-field textarea,
+.commerce-template-save input,
+.commerce-model-picker select,
+.commerce-model-picker input {
+  min-height: 38px;
+  border-radius: 9px;
+  box-shadow: none;
+}
+
+.commerce-chip-row button {
+  min-height: 34px;
+  border-radius: 999px;
+}
+
+.commerce-preset-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.commerce-preset-grid button {
+  min-height: 32px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.commerce-prompt-panel {
+  padding: 14px;
+}
+
+.commerce-form-card #commercePrompt {
+  min-height: 128px;
+}
+
+.commerce-prompt-panel #commercePrompt {
+  min-height: 150px;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .98), rgba(250, 250, 246, .9));
+}
+
+.commerce-template-save {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 150px;
+}
+
+.commerce-form-actions {
+  grid-template-columns: 140px minmax(0, 1fr);
+}
+
+.commerce-form-actions button:last-child {
+  min-height: 46px;
+  border-radius: 12px;
+  background: #111;
+  box-shadow: none;
+}
+
+.commerce-result-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.commerce-result-card .commerce-section-head {
+  align-items: center;
+}
+
+.commerce-task-box {
+  border-color: #e3e3dd;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .92), rgba(248, 248, 244, .76));
+  box-shadow: none;
+}
+
+.commerce-gallery {
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  min-height: 190px;
+  border-color: #e3e3dd;
+  border-radius: 14px;
+  background: #faf9f4;
+}
+
+.commerce-empty {
+  min-height: 120px;
+  border-radius: 12px;
+}
+
+.commerce-ai-dock {
+  right: 22px;
+  bottom: 22px;
+}
+
+.commerce-ai-float-button {
+  border-radius: 999px;
+  min-width: 0;
+  grid-auto-flow: column;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 15px;
+}
+
+.commerce-ai-float-button strong {
+  font-size: 13px;
+}
+
+.commerce-chat-drawer {
+  top: 14px;
+  min-height: calc(100vh - 28px);
+  max-height: calc(100vh - 28px);
+  border-color: #d9ddd6;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(16, 163, 127, .1), transparent 34%),
+    rgba(255, 255, 255, .88);
+  box-shadow: none;
+}
+
+.commerce-chat-title > span {
+  font-size: 11px;
+}
+
+.commerce-chat-title strong {
+  font-size: 20px;
+}
+
+.commerce-chat-close {
+  min-height: 36px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.commerce-chat-hint {
+  border-radius: 10px;
+}
+
+.commerce-chat-drawer .commerce-analysis-messages {
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(250, 250, 246, .85), rgba(245, 248, 244, .78));
+}
+
+.commerce-analysis-compose {
+  grid-template-columns: minmax(0, 1fr) 104px 88px;
+  gap: 8px;
+}
+
+.commerce-analysis-compose textarea,
+.commerce-analysis-compose-upload,
+.commerce-analysis-compose button {
+  min-height: 62px;
+  border-radius: 12px;
+}
+
+@media (max-width: 1320px) {
+  body.commerce-chat-open .commerce-grid {
+    grid-template-columns: minmax(280px, 330px) minmax(390px, 1fr) minmax(330px, 380px);
+  }
+}
+
+@media (max-width: 1180px) {
+  .commerce-form-card {
+    position: static;
+    max-height: none;
   }
 }
 

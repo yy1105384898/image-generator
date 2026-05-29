@@ -187,6 +187,7 @@ const commerceEls = {
   tabs: document.querySelectorAll("[data-commerce-tab]"),
   panels: document.querySelectorAll("[data-commerce-panel]"),
   chatToggle: $("#commerceChatToggle"),
+  chatFloat: $("#commerceChatFloat"),
   chatClose: $("#commerceChatClose"),
   analysisCard: $("#commerceAnalysisCard"),
   apiUrl: $("#commerceApiUrl"),
@@ -253,6 +254,11 @@ const commerceEls = {
   analysisInputText: $("#commerceAnalysisInputText"),
   analysisSend: $("#commerceAnalysisSend"),
 };
+
+if (commerceEls.analysisCard && !commerceEls.analysisCard.classList.contains("hidden")) {
+  document.body.classList.add("commerce-chat-open");
+  commerceEls.chatFloat?.classList.add("active");
+}
 
 let commercePromptTouched = false;
 let commerceRefreshTimer = 0;
@@ -3624,6 +3630,7 @@ function setCommerceChatOpen(open = true) {
   commerceEls.analysisCard.classList.toggle("hidden", !open);
   commerceEls.analysisCard.setAttribute("aria-hidden", open ? "false" : "true");
   commerceEls.chatToggle?.classList.toggle("active", open);
+  commerceEls.chatFloat?.classList.toggle("active", open);
   document.body.classList.toggle("commerce-chat-open", open);
   if (open) {
     window.requestAnimationFrame(() => commerceEls.analysisInputText?.focus());
@@ -7750,9 +7757,10 @@ commerceEls.tabs.forEach((button) => {
   button.addEventListener("click", () => setCommerceTab(button.dataset.commerceTab));
 });
 commerceEls.chatToggle?.addEventListener("click", () => setCommerceChatOpen(true));
+commerceEls.chatFloat?.addEventListener("click", () => setCommerceChatOpen(true));
 commerceEls.chatClose?.addEventListener("click", () => setCommerceChatOpen(false));
 commerceEls.analysisCard?.addEventListener("click", (event) => {
-  if (event.target === commerceEls.analysisCard) setCommerceChatOpen(false);
+  if (event.target === commerceEls.analysisCard && window.matchMedia("(max-width: 1180px)").matches) setCommerceChatOpen(false);
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && document.body.classList.contains("commerce-chat-open")) {
