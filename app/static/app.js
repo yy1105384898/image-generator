@@ -4365,6 +4365,7 @@ function renderCommerceTasks() {
 }
 
 function renderCommerceState() {
+  if (!document.body.classList.contains("commerce-active")) return;
   syncCommerceFromMain();
   renderCommerceTemplates();
   renderCommerceGallery();
