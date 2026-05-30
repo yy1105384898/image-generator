@@ -1,5 +1,6 @@
-﻿let state = { jobs: [], media: [], subjects: [], references: [], presets: [], models: [] };
+let state = { jobs: [], media: [], subjects: [], references: [], presets: [], models: [] };
 let selectedReferenceIds = new Set();
+let referenceCache = new Map();
 let selectedGalleryIds = new Set();
 let selectedHistoryJobId = null;
 let selectedHistoryDayKey = null;
@@ -1117,7 +1118,8 @@ function parseAspectRatioValue(value = "") {
 }
 
 function selectedReferenceItems() {
-  return state.references.filter((ref) => selectedReferenceIds.has(ref.id));
+  const byId = new Map(state.references.map((ref) => [ref.id, ref]));
+  return Array.from(selectedReferenceIds).map((id) => byId.get(id) || referenceCache.get(id)).filter(Boolean);
 }
 
 function singleReferenceAspect() {
@@ -1647,12 +1649,13 @@ function saveTextApiPreference() {
 }
 
 function canAutoRefreshTextModels() {
+  const hasTypedTextKey = Boolean(els.textApiKey && !els.textApiKey.disabled && els.textApiKey.value.trim());
   return Boolean(
     els.manualTextModelPanel &&
     !els.manualTextModelPanel.classList.contains("hidden") &&
     !els.reuseTextApiKey?.checked &&
     selectedTextApiUrl() &&
-    selectedTextApiKey()
+    hasTypedTextKey
   );
 }
 
@@ -2085,7 +2088,6 @@ function replaceTextModelOptions(models = []) {
   }
   syncResearchTextModelOptions(models);
   syncTextModelFields();
-  if (!models.length) scheduleTextModelRefresh({ immediate: true });
 }
 
 function syncResearchTextModelOptions(models = verifiedTextModels) {
@@ -4761,7 +4763,22 @@ function mergeReferenceItems(refs = []) {
   const incoming = refs.filter((ref) => ref?.id);
   if (!incoming.length) return;
   const byId = new Map(state.references.map((ref) => [ref.id, ref]));
-  incoming.forEach((ref) => byId.set(ref.id, ref));
+  incoming.forEach((ref) => {
+    byId.set(ref.id, ref);
+    referenceCache.set(ref.id, ref);
+  });
+  state.references = [...byId.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+}
+
+function preserveSelectedReferences() {
+  state.references.forEach((ref) => {
+    if (ref?.id) referenceCache.set(ref.id, ref);
+  });
+  const byId = new Map(state.references.map((ref) => [ref.id, ref]));
+  selectedReferenceIds.forEach((id) => {
+    const cached = referenceCache.get(id);
+    if (cached && !byId.has(id)) byId.set(id, cached);
+  });
   state.references = [...byId.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
 }
 
@@ -4774,6 +4791,7 @@ function isReferenceImageFile(file) {
 
 async function loadState() {
   state = await api("/api/state");
+  preserveSelectedReferences();
   const debug = state.model_config?.debug || {};
   const custom = state.model_config?.connections?.custom || {};
   const routes = state.model_config?.custom_model_routes || {};
