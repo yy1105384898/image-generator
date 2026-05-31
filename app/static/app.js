@@ -242,6 +242,10 @@ const commerceEls = {
   historyFilters: document.querySelectorAll("[data-commerce-status]"),
   historyList: $("#commerceHistoryList"),
   historyPageLabel: $("#commerceHistoryPageLabel"),
+  analysisNewChat: $("#commerceAnalysisNewChat"),
+  analysisHistory: $("#commerceAnalysisHistory"),
+  analysisPrompts: $("#commerceAnalysisPrompts"),
+  analysisPromptButtons: document.querySelectorAll("[data-commerce-analysis-prompt]"),
   analysisStatus: $("#commerceAnalysisStatus"),
   textApiUrl: $("#commerceTextApiUrl"),
   textModelSelect: $("#commerceTextModelSelect"),
@@ -3657,6 +3661,11 @@ function loadCommerceAnalysisState() {
   commerceAnalysisRefs = [];
   commerceAnalysisMessages = commerceAnalysisMessages
     .filter((message) => ["user", "assistant"].includes(message?.role) && message?.content)
+    .map((message) => ({
+      role: message.role,
+      content: String(message.content || ""),
+      created_at: Number(message.created_at || message.createdAt || Date.now() / 1000),
+    }))
     .slice(-40);
   if (commerceEls.textApiUrl) {
     commerceEls.textApiUrl.value = localStorage.getItem(COMMERCE_ANALYSIS_URL_KEY)
@@ -3681,7 +3690,18 @@ function loadCommerceAnalysisState() {
 }
 
 function renderCommerceAnalysisRefs() {
-  commerceAnalysisRefs = [];
+  if (!commerceEls.analysisImages) return;
+  const refs = commerceAnalysisRefs.filter((ref) => ref?.id);
+  commerceEls.analysisImages.innerHTML = `
+    <label class="commerce-analysis-add-tile" for="commerceAnalysisInput" aria-label="上传图片">+</label>
+    ${refs.map((ref) => `
+      <figure class="commerce-analysis-thumb" data-commerce-analysis-ref="${escapeAttr(ref.id)}">
+        <img src="${escapeAttr(ref.thumb_url || ref.url || "")}" alt="${escapeAttr(ref.name || "参考图")}" loading="lazy" decoding="async">
+        <button type="button" data-commerce-analysis-remove="${escapeAttr(ref.id)}" aria-label="删除图片">×</button>
+      </figure>
+    `).join("")}
+    ${refs.length ? "" : '<span class="commerce-analysis-image-empty">可选上传图片</span>'}
+  `;
 }
 
 function renderCommerceAnalysisMessages() {
@@ -3690,12 +3710,25 @@ function renderCommerceAnalysisMessages() {
     commerceEls.analysisMessages.innerHTML = '<div class="commerce-analysis-empty">可以直接提问，也可以上传图片后进行图文对话。</div>';
     return;
   }
-  commerceEls.analysisMessages.innerHTML = commerceAnalysisMessages.map((message) => `
-    <div class="commerce-analysis-message ${message.role}">
-      <strong>${message.role === "assistant" ? "分析助手" : "我"}</strong>
-      <p>${escapeHtml(message.content).replace(/\n/g, "<br>")}</p>
-    </div>
-  `).join("");
+  let currentDay = "";
+  const now = Date.now() / 1000;
+  commerceEls.analysisMessages.innerHTML = commerceAnalysisMessages.map((message) => {
+    const ts = Number(message.created_at || message.createdAt || now);
+    const dayKey = historyDayKey(ts);
+    const dayDivider = dayKey !== currentDay
+      ? `<div class="commerce-analysis-empty">${escapeHtml(historyDayLabel(dayKey))}</div>`
+      : "";
+    currentDay = dayKey;
+    const title = message.role === "assistant" ? "AI Assistant" : "用户";
+    const body = message.loading ? "正在回复..." : message.content;
+    return `
+      ${dayDivider}
+      <div class="commerce-analysis-message ${escapeAttr(message.role)}${message.loading ? " loading" : ""}">
+        <strong>${escapeHtml(title)} · ${escapeHtml(historyTimeLabel(ts))}</strong>
+        <p>${escapeHtml(body).replace(/\n/g, "<br>")}</p>
+      </div>
+    `;
+  }).join("");
   commerceEls.analysisMessages.scrollTop = commerceEls.analysisMessages.scrollHeight;
 }
 
@@ -3705,7 +3738,13 @@ async function uploadCommerceAnalysisImages(fileList) {
     setCommerceAnalysisStatus("请选择图片", "error");
     return;
   }
-  const uploadFiles = files.slice(0, 4);
+  const remain = Math.max(0, MAX_REFERENCE_SELECTION - commerceAnalysisRefs.length);
+  if (!remain) {
+    setCommerceAnalysisStatus(`最多保留 ${MAX_REFERENCE_SELECTION} 张图片`, "error");
+    if (commerceEls.analysisInput) commerceEls.analysisInput.value = "";
+    return;
+  }
+  const uploadFiles = files.slice(0, remain);
   const uploaded = [];
   try {
     for (let index = 0; index < uploadFiles.length; index += 1) {
@@ -3723,8 +3762,12 @@ async function uploadCommerceAnalysisImages(fileList) {
       if (!resp.ok) throw new Error(data.error || "图片上传失败");
       uploaded.push(data.reference);
     }
-    setCommerceAnalysisStatus(`已上传 ${uploaded.length} 张图片，正在发送...`, "loading");
-    await sendCommerceAnalysisMessage({ refs: uploaded, imageOnlyLabel: `已发送 ${uploaded.length} 张图片` });
+    const byId = new Map(commerceAnalysisRefs.map((ref) => [ref.id, ref]));
+    uploaded.filter((ref) => ref?.id).forEach((ref) => byId.set(ref.id, ref));
+    commerceAnalysisRefs = [...byId.values()].slice(0, MAX_REFERENCE_SELECTION);
+    renderCommerceAnalysisRefs();
+    setCommerceAnalysisStatus(`已保留 ${commerceAnalysisRefs.length} 张图片，可继续输入问题后发送`, "success");
+    commerceEls.analysisInputText?.focus();
   } catch (err) {
     setCommerceAnalysisStatus(err.message || "图片上传失败", "error");
   } finally {
@@ -3748,13 +3791,20 @@ async function sendCommerceAnalysisMessage(options = {}) {
   }
   const question = message || "请根据这些图片进行正常图文对话。";
   const visibleQuestion = message || options.imageOnlyLabel || question;
-  const history = commerceAnalysisMessages.slice(-10);
-  commerceAnalysisMessages.push({ role: "user", content: visibleQuestion });
+  const history = commerceAnalysisMessages
+    .filter((item) => !item.loading)
+    .slice(-10)
+    .map((item) => ({ role: item.role, content: item.content }));
+  const sentAt = Date.now() / 1000;
+  commerceAnalysisMessages.push({ role: "user", content: visibleQuestion, created_at: sentAt });
+  const loadingIndex = commerceAnalysisMessages.length;
+  commerceAnalysisMessages.push({ role: "assistant", content: "正在回复...", loading: true, created_at: Date.now() / 1000 });
   if (commerceEls.analysisInputText) commerceEls.analysisInputText.value = "";
   commerceAnalysisRefs = [];
   saveCommerceAnalysisState();
+  renderCommerceAnalysisRefs();
   renderCommerceAnalysisMessages();
-  commerceEls.analysisSend.disabled = true;
+  if (commerceEls.analysisSend) commerceEls.analysisSend.disabled = true;
   setCommerceAnalysisStatus("正在回复...", "loading");
   try {
     const data = await api("/api/commerce-analysis-chat", {
@@ -3770,18 +3820,34 @@ async function sendCommerceAnalysisMessage(options = {}) {
       }),
     });
     if (!data.ok) throw new Error(data.detail || data.error || "对话失败");
-    commerceAnalysisMessages.push({ role: "assistant", content: data.reply || "模型未返回分析内容" });
+    commerceAnalysisMessages[loadingIndex] = { role: "assistant", content: data.reply || "模型未返回分析内容", created_at: Date.now() / 1000 };
     saveCommerceAnalysisState();
     renderCommerceAnalysisMessages();
     setCommerceAnalysisStatus(`回复完成 · ${data.model || model || "默认模型"}`, "success");
   } catch (err) {
-    commerceAnalysisMessages.push({ role: "assistant", content: `回复失败：${err.message}` });
+    commerceAnalysisMessages[loadingIndex] = { role: "assistant", content: `回复失败：${err.message}`, created_at: Date.now() / 1000 };
     saveCommerceAnalysisState();
     renderCommerceAnalysisMessages();
     setCommerceAnalysisStatus(err.message || "对话失败", "error");
   } finally {
-    commerceEls.analysisSend.disabled = false;
+    if (commerceEls.analysisSend) commerceEls.analysisSend.disabled = false;
   }
+}
+
+function resetCommerceAnalysisChat() {
+  commerceAnalysisMessages = [];
+  saveCommerceAnalysisState();
+  renderCommerceAnalysisMessages();
+  setCommerceAnalysisStatus("已开始新对话", "success");
+  commerceEls.analysisInputText?.focus();
+}
+
+function applyCommerceAnalysisPrompt(prompt) {
+  const text = String(prompt || "").trim();
+  if (!text || !commerceEls.analysisInputText) return;
+  commerceEls.analysisInputText.value = text;
+  commerceEls.analysisInputText.focus();
+  commerceEls.analysisInputText.setSelectionRange(text.length, text.length);
 }
 
 function scheduleCommerceTextModelRefresh() {
@@ -7929,6 +7995,13 @@ commerceEls.referenceInput?.addEventListener("change", () => {
 });
 commerceEls.analysisInput?.addEventListener("change", () => {
   uploadCommerceAnalysisImages(commerceEls.analysisInput.files || []);
+});
+commerceEls.analysisNewChat?.addEventListener("click", resetCommerceAnalysisChat);
+commerceEls.analysisPrompts?.addEventListener("click", () => {
+  commerceEls.analysisInputText?.focus();
+});
+commerceEls.analysisPromptButtons.forEach((button) => {
+  button.addEventListener("click", () => applyCommerceAnalysisPrompt(button.dataset.commerceAnalysisPrompt));
 });
 commerceEls.analysisImages?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-commerce-analysis-remove]");
