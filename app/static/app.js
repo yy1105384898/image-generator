@@ -272,6 +272,7 @@ let commerceSelectedJobId = "";
 let commerceTextModelTimer = 0;
 let commerceAnalysisRefs = [];
 let commerceAnalysisMessages = [];
+let commerceAnalysisSending = false;
 
 function persistHistorySelection(showAll = false) {
   try {
@@ -2133,26 +2134,21 @@ function syncCommerceAnalysisModelOptions(models = verifiedTextModels) {
       option.textContent = model;
       commerceEls.textModelSelect.append(option);
     });
-  } else if (selected) {
-    const option = document.createElement("option");
-    option.value = selected;
-    option.textContent = selected;
-    commerceEls.textModelSelect.append(option);
   } else {
     const option = document.createElement("option");
     option.value = "";
-    option.textContent = "未读取到文本模型";
+    option.textContent = (commerceEls.textApiKey?.value || "").trim() ? "填写 Key 后自动读取模型" : "填写 Key 后自动读取模型";
     commerceEls.textModelSelect.append(option);
   }
   const manual = document.createElement("option");
   manual.value = "__manual__";
   manual.textContent = "手动填写模型...";
   commerceEls.textModelSelect.append(manual);
-  const usesListedModel = Boolean(selected && (models.includes(selected) || !models.length));
-  commerceEls.textModelSelect.value = usesListedModel ? selected : "__manual__";
-  commerceEls.textModel.classList.toggle("hidden", usesListedModel);
+  const usesListedModel = Boolean(selected && models.includes(selected));
+  commerceEls.textModelSelect.value = usesListedModel ? selected : "";
+  commerceEls.textModel.classList.toggle("hidden", true);
   if (usesListedModel) commerceEls.textModel.value = selected;
-  if (!usesListedModel && selected && !current) commerceEls.textModel.value = selected;
+  if (!models.length) commerceEls.textModel.value = "";
 }
 
 function selectedTextModel() {
@@ -3629,6 +3625,13 @@ function setCommerceAnalysisStatus(message, tone = "idle") {
   commerceEls.analysisStatus.classList.toggle("success", tone === "success");
 }
 
+function scrollCommerceAnalysisToBottom() {
+  if (!commerceEls.analysisMessages) return;
+  window.requestAnimationFrame(() => {
+    commerceEls.analysisMessages.scrollTop = commerceEls.analysisMessages.scrollHeight;
+  });
+}
+
 function setCommerceChatOpen(open = true) {
   if (!commerceEls.analysisCard) return;
   if (open && commerceActiveTab !== "workspace") setCommerceTab("workspace");
@@ -3637,7 +3640,13 @@ function setCommerceChatOpen(open = true) {
   commerceEls.chatToggle?.classList.toggle("active", open);
   document.body.classList.toggle("commerce-chat-open", open);
   if (open) {
-    window.requestAnimationFrame(() => commerceEls.analysisInputText?.focus());
+    window.requestAnimationFrame(() => {
+      commerceEls.analysisInputText?.focus();
+      scrollCommerceAnalysisToBottom();
+    });
+    if ((commerceEls.textApiUrl?.value || "").trim() && (commerceEls.textApiKey?.value || "").trim() && !verifiedTextModels.length) {
+      scheduleCommerceTextModelRefresh(80);
+    }
   }
 }
 
@@ -3725,6 +3734,7 @@ function renderCommerceAnalysisMessages() {
         <div class="commerce-message-bubble"><p>建议尝试以下方向：<br>• 使用大理石或磨砂质感的底座<br>• 增加侧向柔光，营造阴影层次<br>• 背景色调用莫兰迪色系</p></div>
       </div>
     `;
+    scrollCommerceAnalysisToBottom();
     return;
   }
   let currentDay = "";
@@ -3747,7 +3757,7 @@ function renderCommerceAnalysisMessages() {
       </div>
     `;
   }).join("");
-  commerceEls.analysisMessages.scrollTop = commerceEls.analysisMessages.scrollHeight;
+  scrollCommerceAnalysisToBottom();
 }
 
 async function uploadCommerceAnalysisImages(fileList) {
@@ -3794,6 +3804,7 @@ async function uploadCommerceAnalysisImages(fileList) {
 }
 
 async function sendCommerceAnalysisMessage(options = {}) {
+  if (commerceAnalysisSending) return;
   const message = (commerceEls.analysisInputText?.value || "").trim();
   const refs = Array.isArray(options.refs) ? options.refs.filter((ref) => ref?.id) : commerceAnalysisRefs;
   const apiUrl = (commerceEls.textApiUrl?.value || "").trim();
@@ -3807,6 +3818,8 @@ async function sendCommerceAnalysisMessage(options = {}) {
     setCommerceAnalysisStatus("请填写文本 API 和 Key", "error");
     return;
   }
+  commerceAnalysisSending = true;
+  if (commerceEls.analysisSend) commerceEls.analysisSend.disabled = true;
   const question = message || "请根据这些图片进行正常图文对话。";
   const visibleQuestion = message || options.imageOnlyLabel || question;
   const history = commerceAnalysisMessages
@@ -3822,7 +3835,6 @@ async function sendCommerceAnalysisMessage(options = {}) {
   saveCommerceAnalysisState();
   renderCommerceAnalysisRefs();
   renderCommerceAnalysisMessages();
-  if (commerceEls.analysisSend) commerceEls.analysisSend.disabled = true;
   setCommerceAnalysisStatus("正在回复...", "loading");
   try {
     const data = await api("/api/commerce-analysis-chat", {
@@ -3848,7 +3860,9 @@ async function sendCommerceAnalysisMessage(options = {}) {
     renderCommerceAnalysisMessages();
     setCommerceAnalysisStatus(err.message || "对话失败", "error");
   } finally {
+    commerceAnalysisSending = false;
     if (commerceEls.analysisSend) commerceEls.analysisSend.disabled = false;
+    scrollCommerceAnalysisToBottom();
   }
 }
 
@@ -3870,9 +3884,9 @@ function applyCommerceAnalysisPrompt(prompt) {
   commerceEls.analysisInputText.setSelectionRange(text.length, text.length);
 }
 
-function scheduleCommerceTextModelRefresh() {
+function scheduleCommerceTextModelRefresh(delay = 650) {
   window.clearTimeout(commerceTextModelTimer);
-  commerceTextModelTimer = window.setTimeout(refreshCommerceTextModels, 650);
+  commerceTextModelTimer = window.setTimeout(refreshCommerceTextModels, delay);
 }
 
 async function refreshCommerceTextModels() {
@@ -8459,6 +8473,9 @@ loadCommerceTemplates();
 syncCommerceFromMain();
 syncCommercePrompt({ force: true });
 loadCommerceAnalysisState();
+if ((commerceEls.textApiUrl?.value || "").trim() && (commerceEls.textApiKey?.value || "").trim()) {
+  scheduleCommerceTextModelRefresh(120);
+}
 if (els.count && (!els.count.value || els.count.value === "4")) els.count.value = "1";
 syncShellToggles();
 loadCustomIndustryAgents();
