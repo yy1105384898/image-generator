@@ -3627,8 +3627,12 @@ function setCommerceAnalysisStatus(message, tone = "idle") {
 
 function scrollCommerceAnalysisToBottom() {
   if (!commerceEls.analysisMessages) return;
-  window.requestAnimationFrame(() => {
+  const scroll = () => {
     commerceEls.analysisMessages.scrollTop = commerceEls.analysisMessages.scrollHeight;
+  };
+  window.requestAnimationFrame(() => {
+    scroll();
+    window.setTimeout(scroll, 60);
   });
 }
 
