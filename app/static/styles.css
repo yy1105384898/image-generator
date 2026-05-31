@@ -2834,11 +2834,11 @@ body.commerce-chat-open::after {
   --chat-teal: #0D9488;
   --chat-teal-soft: rgba(20, 184, 166, .1);
   --chat-orange: #F97316;
-  top: 3vh;
+  top: 5vh;
   right: clamp(14px, 4vw, 88px);
   bottom: auto;
   width: min(980px, calc(100vw - clamp(28px, 8vw, 176px)));
-  height: min(1040px, 94vh);
+  height: min(1120px, 95vh);
   border-radius: 8px;
   background: #fff;
 }
