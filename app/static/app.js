@@ -2133,6 +2133,11 @@ function syncCommerceAnalysisModelOptions(models = verifiedTextModels) {
       option.textContent = model;
       commerceEls.textModelSelect.append(option);
     });
+  } else if (selected) {
+    const option = document.createElement("option");
+    option.value = selected;
+    option.textContent = selected;
+    commerceEls.textModelSelect.append(option);
   } else {
     const option = document.createElement("option");
     option.value = "";
@@ -2143,7 +2148,7 @@ function syncCommerceAnalysisModelOptions(models = verifiedTextModels) {
   manual.value = "__manual__";
   manual.textContent = "手动填写模型...";
   commerceEls.textModelSelect.append(manual);
-  const usesListedModel = Boolean(selected && models.includes(selected));
+  const usesListedModel = Boolean(selected && (models.includes(selected) || !models.length));
   commerceEls.textModelSelect.value = usesListedModel ? selected : "__manual__";
   commerceEls.textModel.classList.toggle("hidden", usesListedModel);
   if (usesListedModel) commerceEls.textModel.value = selected;
@@ -3687,6 +3692,7 @@ function loadCommerceAnalysisState() {
   if (commerceEls.analysisContext) commerceEls.analysisContext.value = localStorage.getItem(COMMERCE_ANALYSIS_CONTEXT_KEY) || "";
   renderCommerceAnalysisRefs();
   renderCommerceAnalysisMessages();
+  setCommerceAnalysisStatus(commerceEls.textApiKey?.value.trim() ? "文本模型已连接" : "填写文本模型 Key 后可进行图文对话", commerceEls.textApiKey?.value.trim() ? "success" : "idle");
 }
 
 function renderCommerceAnalysisRefs() {
@@ -3707,7 +3713,18 @@ function renderCommerceAnalysisRefs() {
 function renderCommerceAnalysisMessages() {
   if (!commerceEls.analysisMessages) return;
   if (!commerceAnalysisMessages.length) {
-    commerceEls.analysisMessages.innerHTML = '<div class="commerce-analysis-empty">可以直接提问，也可以上传图片后进行图文对话。</div>';
+    commerceEls.analysisMessages.innerHTML = `
+      <div class="commerce-chat-date">Today</div>
+      <div class="commerce-analysis-message user commerce-analysis-message-demo">
+        <span class="commerce-message-label">用户</span>
+        <div class="commerce-message-bubble"><p>如何优化这款产品的背景，让它看起来更有高级感？</p></div>
+        <time class="commerce-message-time">14:32</time>
+      </div>
+      <div class="commerce-analysis-message assistant commerce-analysis-message-demo">
+        <span class="commerce-message-label">AI Assistant</span>
+        <div class="commerce-message-bubble"><p>建议尝试以下方向：<br>• 使用大理石或磨砂质感的底座<br>• 增加侧向柔光，营造阴影层次<br>• 背景色调用莫兰迪色系</p></div>
+      </div>
+    `;
     return;
   }
   let currentDay = "";
