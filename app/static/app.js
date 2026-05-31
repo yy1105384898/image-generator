@@ -3716,7 +3716,7 @@ function renderCommerceAnalysisMessages() {
     const ts = Number(message.created_at || message.createdAt || now);
     const dayKey = historyDayKey(ts);
     const dayDivider = dayKey !== currentDay
-      ? `<div class="commerce-analysis-empty">${escapeHtml(historyDayLabel(dayKey))}</div>`
+      ? `<div class="commerce-chat-date">${escapeHtml(historyDayLabel(dayKey))}</div>`
       : "";
     currentDay = dayKey;
     const title = message.role === "assistant" ? "AI Assistant" : "用户";
@@ -3724,8 +3724,9 @@ function renderCommerceAnalysisMessages() {
     return `
       ${dayDivider}
       <div class="commerce-analysis-message ${escapeAttr(message.role)}${message.loading ? " loading" : ""}">
-        <strong>${escapeHtml(title)} · ${escapeHtml(historyTimeLabel(ts))}</strong>
-        <p>${escapeHtml(body).replace(/\n/g, "<br>")}</p>
+        <span class="commerce-message-label">${escapeHtml(title)}</span>
+        <div class="commerce-message-bubble"><p>${escapeHtml(body).replace(/\n/g, "<br>")}</p></div>
+        <time class="commerce-message-time">${escapeHtml(historyTimeLabel(ts))}</time>
       </div>
     `;
   }).join("");
@@ -3836,7 +3837,9 @@ async function sendCommerceAnalysisMessage(options = {}) {
 
 function resetCommerceAnalysisChat() {
   commerceAnalysisMessages = [];
+  commerceAnalysisRefs = [];
   saveCommerceAnalysisState();
+  renderCommerceAnalysisRefs();
   renderCommerceAnalysisMessages();
   setCommerceAnalysisStatus("已开始新对话", "success");
   commerceEls.analysisInputText?.focus();
@@ -7997,6 +8000,10 @@ commerceEls.analysisInput?.addEventListener("change", () => {
   uploadCommerceAnalysisImages(commerceEls.analysisInput.files || []);
 });
 commerceEls.analysisNewChat?.addEventListener("click", resetCommerceAnalysisChat);
+commerceEls.analysisHistory?.addEventListener("click", () => {
+  setCommerceChatOpen(false);
+  setCommerceTab("history");
+});
 commerceEls.analysisPrompts?.addEventListener("click", () => {
   commerceEls.analysisInputText?.focus();
 });
