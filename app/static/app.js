@@ -569,7 +569,7 @@ const protocols = {
 
 const modelConfig = window.YY_MODEL_CONFIG || {};
 const modelConnections = modelConfig.connections || {};
-const DEFAULT_CUSTOM_API_URL = "https://yynewapi.yangyangnj.top/v1";
+const DEFAULT_CUSTOM_API_URL = String(modelConfig.default_custom_api_url || modelConnections.custom?.url || "").trim();
 const CUSTOM_API_URL_KEY = "yangyang_image_custom_api_url";
 const SELECTED_IMAGE_MODEL_KEY = "yangyang_image_selected_model";
 const SELECTED_TEXT_MODEL_KEY = "yangyang_image_selected_text_model";

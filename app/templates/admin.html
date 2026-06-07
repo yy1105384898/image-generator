@@ -566,7 +566,7 @@
               </div>
               <div class="admin-route-fields">
                 <label>显示名称<input name="{{ kind }}_route_label" value="{{ route.label or title }}"></label>
-                <label class="admin-wide-field">API URL<input name="{{ kind }}_route_url" value="{{ route.url or 'https://yynewapi.yangyangnj.top/v1' }}" placeholder="https://yynewapi.yangyangnj.top/v1"></label>
+                <label class="admin-wide-field">API URL<input name="{{ kind }}_route_url" value="{{ route.url or default_custom_api_url }}" placeholder="https://api.example.com/v1"></label>
                 <label class="admin-wide-field admin-textarea-field">
                   <span class="admin-field-head"><span>API Key 池</span><button type="button" data-admin-paste="{{ kind }}_route_api_keys">粘贴</button></span>
                   <textarea name="{{ kind }}_route_api_keys" rows="4" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="{{ route_key_masks[kind] or '每行一个 Key，留空并勾选保留则不变' }}"></textarea>

@@ -31,7 +31,7 @@ except ImportError:  # pragma: no cover - fallback for lightweight local runs
 
 APP_USERNAME = os.getenv("APP_USERNAME", "root")
 APP_PASSWORD = os.getenv("APP_PASSWORD", "root")
-DEFAULT_CUSTOM_API_URL = os.getenv("DEFAULT_CUSTOM_API_URL", "https://yynewapi.yangyangnj.top/v1").rstrip("/")
+DEFAULT_CUSTOM_API_URL = os.getenv("DEFAULT_CUSTOM_API_URL", "").rstrip("/")
 NEW_API_BASE = os.getenv("NEW_API_BASE", DEFAULT_CUSTOM_API_URL).rstrip("/")
 NEW_API_TOKEN = os.getenv("NEW_API_TOKEN", "")
 
@@ -580,6 +580,7 @@ def admin_custom_api_credentials(config: dict | None = None) -> tuple[str, str]:
 
 def public_model_config(config: dict | None = None, include_admin_debug: bool = True) -> dict:
     public = json.loads(json.dumps(config or read_model_config(), ensure_ascii=False))
+    public["default_custom_api_url"] = DEFAULT_CUSTOM_API_URL
     debug = public.get("debug") if isinstance(public.get("debug"), dict) else {}
     debug_enabled = bool(debug.get("workbench_custom_api"))
     public["debug"] = {"workbench_custom_api": debug_enabled}
@@ -4030,6 +4031,7 @@ def index():
         username=read_admin_auth()["username"],
         models=models,
         default_model=default_model,
+        default_custom_api_url=DEFAULT_CUSTOM_API_URL,
         model_config=public_model_config(model_config),
     )
 
@@ -4553,6 +4555,7 @@ def admin():
         pool_user_stats=pool_user_stats(pool_users),
         integrations=integrations,
         integration_masks=integration_secret_masks(integrations),
+        default_custom_api_url=DEFAULT_CUSTOM_API_URL,
         media_items=media_items,
         media_archive_groups=media_archive_groups,
         square_items=square_items,
