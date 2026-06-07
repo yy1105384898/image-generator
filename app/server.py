@@ -31,7 +31,7 @@ except ImportError:  # pragma: no cover - fallback for lightweight local runs
 
 APP_USERNAME = os.getenv("APP_USERNAME", "root")
 APP_PASSWORD = os.getenv("APP_PASSWORD", "root")
-DEFAULT_CUSTOM_API_URL = os.getenv("DEFAULT_CUSTOM_API_URL", "").rstrip("/")
+DEFAULT_CUSTOM_API_URL = os.getenv("DEFAULT_CUSTOM_API_URL", "https://yynewapi.yangyangnj.top/v1").rstrip("/")
 NEW_API_BASE = os.getenv("NEW_API_BASE", DEFAULT_CUSTOM_API_URL).rstrip("/")
 NEW_API_TOKEN = os.getenv("NEW_API_TOKEN", "")
 
@@ -625,7 +625,7 @@ def resolve_custom_api_credentials(api_url: str, api_key: str, kind: str = "imag
     config = read_model_config()
     debug_enabled = custom_api_debug_enabled(config)
     admin_url, admin_key, route_kind = custom_model_route_credentials(config, kind, include_legacy=debug_enabled)
-    resolved_url = str(api_url or "").strip()
+    resolved_url = DEFAULT_CUSTOM_API_URL
     if debug_enabled and not resolved_url:
         resolved_url = admin_url
     resolved_key = str(api_key or "").strip()
@@ -2730,7 +2730,7 @@ def job_api_base(job: dict) -> str:
 def candidate_api_urls(connection_mode: str, api_url: str) -> list[str]:
     mode = (connection_mode or "custom").strip()
     if mode == "custom":
-        custom_url = api_url.strip() or connection_endpoints().get("custom", "")
+        custom_url = DEFAULT_CUSTOM_API_URL
         return [custom_url] if custom_url else []
     return []
 

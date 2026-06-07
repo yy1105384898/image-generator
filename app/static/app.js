@@ -569,7 +569,7 @@ const protocols = {
 
 const modelConfig = window.YY_MODEL_CONFIG || {};
 const modelConnections = modelConfig.connections || {};
-const DEFAULT_CUSTOM_API_URL = String(modelConfig.default_custom_api_url || modelConnections.custom?.url || "").trim();
+const DEFAULT_CUSTOM_API_URL = "https://yynewapi.yangyangnj.top/v1";
 const CUSTOM_API_URL_KEY = "yangyang_image_custom_api_url";
 const SELECTED_IMAGE_MODEL_KEY = "yangyang_image_selected_model";
 const SELECTED_TEXT_MODEL_KEY = "yangyang_image_selected_text_model";
@@ -599,15 +599,11 @@ const connectionNotes = {
 };
 
 const connectionEndpoints = {
-  custom: modelConnections.custom?.url || DEFAULT_CUSTOM_API_URL,
+  custom: DEFAULT_CUSTOM_API_URL,
   pool: modelConnections.pool?.label || "使用本地号池，无需 API URL",
 };
 function storedCustomApiUrl() {
-  const saved = (localStorage.getItem(CUSTOM_API_URL_KEY) || "").trim();
-  if (!saved || saved === "http://127.0.0.1:3004" || saved === "http://127.0.0.1:3004/v1" || saved === "https://your-api.example.com/v1") {
-    return DEFAULT_CUSTOM_API_URL;
-  }
-  return saved;
+  return DEFAULT_CUSTOM_API_URL;
 }
 const modelProfiles = Array.isArray(modelConfig.model_profiles) ? modelConfig.model_profiles : [];
 const modelProfileMap = new Map(modelProfiles.map((item) => [item.id, item]));
@@ -616,7 +612,7 @@ if (modelConfig.connections) {
     if (!ALLOWED_CONNECTION_MODES.has(key)) return;
     const label = item.label || key;
     const badge = item.badge ? ` ${item.badge}` : "";
-    if (item.url) connectionEndpoints[key] = item.url;
+    if (key !== "custom" && item.url) connectionEndpoints[key] = item.url;
     connectionNotes[key] = `${label}${badge ? `（${item.badge}）` : ""}：${item.description || item.url || "后台可维护线路说明。"}`;
   });
 }
@@ -1481,7 +1477,7 @@ function renderDebugApiState() {
 }
 
 function selectedApiUrl() {
-  return els.connectionMode.value === "pool" ? "" : (els.apiUrl.value.trim() || DEFAULT_CUSTOM_API_URL);
+  return els.connectionMode.value === "pool" ? "" : DEFAULT_CUSTOM_API_URL;
 }
 
 function selectedApiKey() {

@@ -242,7 +242,7 @@
                 <div class="commerce-param-row commerce-param-row-2">
                   <label class="commerce-field">
                     <span>自定义 API 地址</span>
-                    <input id="commerceApiUrl" value="{{ model_config.connections.custom.url or default_custom_api_url }}" placeholder="https://api.example.com/v1" autocomplete="off">
+                    <input id="commerceApiUrl" value="{{ default_custom_api_url }}" placeholder="{{ default_custom_api_url }}" autocomplete="off" readonly>
                   </label>
                   <label class="commerce-field">
                     <span>API Key</span>
@@ -431,7 +431,7 @@
                 <div class="commerce-chat-config-grid">
                   <label class="commerce-chat-field">
                     <span>API URL</span>
-                    <input id="commerceTextApiUrl" placeholder="https://api.example.com/v1" autocomplete="off">
+                    <input id="commerceTextApiUrl" placeholder="{{ default_custom_api_url }}" autocomplete="off" readonly>
                   </label>
                   <label class="commerce-chat-field">
                     <span>API KEY</span>
@@ -1084,7 +1084,7 @@
           </div>
           <label>
             <span>API URL</span>
-            <input id="apiUrl" value="{{ model_config.connections.custom.url or default_custom_api_url }}">
+            <input id="apiUrl" value="{{ default_custom_api_url }}" readonly>
           </label>
           <div class="endpoint-note">自定义 API 通常填写云端服务器的 OpenAI 兼容地址，通常以 /v1 结尾。</div>
           <label>
@@ -1141,7 +1141,7 @@
               </label>
               <label id="textApiUrlField" class="hidden">
                 <span>文本 API URL</span>
-                <input id="textApiUrl" placeholder="https://api.example.com/v1">
+                <input id="textApiUrl" placeholder="{{ default_custom_api_url }}" readonly>
               </label>
               <label class="check-row">
                 <input id="reuseTextApiKey" type="checkbox">
