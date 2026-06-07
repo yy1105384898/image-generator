@@ -1439,13 +1439,13 @@ function setConnectionMode(mode, options = {}) {
   } else if (connectionEndpoints[mode]) {
     els.apiUrl.value = connectionEndpoints[mode];
   }
-  els.apiUrl.readOnly = mode === "pool";
+  els.apiUrl.readOnly = true;
   if (els.apiKey) {
     els.apiKey.disabled = mode === "pool";
     els.apiKey.placeholder = mode === "pool" ? "本地号池无需 API Key" : "sk-... 或 New API Token";
   }
   if (els.apiUrl) {
-    els.apiUrl.placeholder = mode === "custom" ? "填写云端 OpenAI 兼容 API 地址" : "OpenAI 兼容 API 地址";
+    els.apiUrl.placeholder = mode === "custom" ? DEFAULT_CUSTOM_API_URL : "OpenAI 兼容 API 地址";
   }
   if (els.rememberApiKey) {
     els.rememberApiKey.disabled = mode === "pool";
@@ -1460,7 +1460,7 @@ function renderDebugApiState() {
   const active = Boolean(isCustom && debugCustomApi.enabled);
   els.debugApiBanner?.classList.toggle("hidden", !active);
   if (active && els.apiUrl) {
-    els.apiUrl.value = debugCustomApi.image?.apiUrl || debugCustomApi.apiUrl || connectionEndpoints.custom || DEFAULT_CUSTOM_API_URL;
+    els.apiUrl.value = DEFAULT_CUSTOM_API_URL;
   }
   if (els.apiKey) {
     const useBackendKey = active && debugCustomApi.hasApiKey;
@@ -1513,9 +1513,7 @@ function loadApiKeyPreference() {
 function saveApiKeyPreference() {
   if (els.connectionMode.value === "pool") return;
   if (adminDebugApiActive()) return;
-  if (els.connectionMode.value === "custom" && els.apiUrl.value.trim()) {
-    localStorage.setItem(CUSTOM_API_URL_KEY, els.apiUrl.value.trim());
-  }
+  localStorage.removeItem(CUSTOM_API_URL_KEY);
   if (els.rememberApiKey.checked && selectedApiKey()) {
     localStorage.setItem("yangyang_image_api_key", selectedApiKey());
   } else {
