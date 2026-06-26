@@ -125,6 +125,11 @@ def resolve_playground_api_target(value: str | None) -> str:
     return requested if requested in PLAYGROUND_API_TARGETS else DEFAULT_CUSTOM_API_URL
 
 
+def resolve_playground_api_purpose(value: str | None) -> str:
+    purpose = str(value or "").strip().lower()
+    return purpose if purpose in {"text", "image", "video"} else "image"
+
+
 ensure_gzip_static_files(Path(app.static_folder or "") / "playground")
 
 
@@ -4646,11 +4651,15 @@ def playground_api_proxy(path: str):
         request.headers.get("X-YY-API-Target") or request.args.get("api_target")
     )
     target_url = urljoin(f"{target_base_url}/", path)
-    _api_url, api_key, _route_kind = custom_model_route_credentials(read_model_config(), "image", include_legacy=True)
+    purpose = resolve_playground_api_purpose(
+        request.headers.get("X-YY-API-Purpose") or request.args.get("api_purpose")
+    )
+    credential_kind = "text" if purpose == "text" else "image"
+    _api_url, api_key, _route_kind = custom_model_route_credentials(read_model_config(), credential_kind, include_legacy=True)
     headers = {
         key: value
         for key, value in request.headers.items()
-        if key.lower() not in {"host", "content-length", "x-yy-api-target"}
+        if key.lower() not in {"host", "content-length", "x-yy-api-target", "x-yy-api-purpose"}
     }
     auth_header = str(headers.get("Authorization") or headers.get("authorization") or "").strip()
     if api_key and (not auth_header or auth_header.lower() == "bearer"):
