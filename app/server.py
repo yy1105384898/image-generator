@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import requests
-from flask import Flask, jsonify, redirect, render_template, request, send_file, send_from_directory, session, url_for
+from flask import Flask, Response, jsonify, redirect, render_template, request, send_file, send_from_directory, session, stream_with_context, url_for
 from PIL import Image, ImageOps
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -48,6 +48,7 @@ MAX_HISTORY = int(os.getenv("MAX_HISTORY", "200"))
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "600"))
 AGENT_TEXT_TIMEOUT = int(os.getenv("AGENT_TEXT_TIMEOUT", "180"))
 AGENT_TEXT_RETRIES = int(os.getenv("AGENT_TEXT_RETRIES", "0"))
+MODEL_FETCH_CACHE_TTL = int(os.getenv("MODEL_FETCH_CACHE_TTL", "60"))
 VALID_WORKSPACES = {"studio", "commerce", "research"}
 DATA_DIR = Path(os.getenv("DATA_DIR", "/app/data"))
 MEDIA_DIR = DATA_DIR / "media"
@@ -148,6 +149,8 @@ def add_static_cache_headers(response):
 
 
 state_lock = threading.RLock()
+model_fetch_cache_lock = threading.RLock()
+model_fetch_cache: dict[tuple[str, str], tuple[float, list[str]]] = {}
 job_queue: "queue.Queue[str]" = queue.Queue()
 worker_started = False
 
@@ -2810,6 +2813,13 @@ def candidate_api_urls(connection_mode: str, api_url: str) -> list[str]:
 
 
 def fetch_models(api_url: str, api_key: str) -> list[str]:
+    cache_key = (normalize_api_base(api_url), hashlib.sha256(str(api_key or "").encode("utf-8")).hexdigest())
+    now = time.time()
+    if MODEL_FETCH_CACHE_TTL > 0:
+        with model_fetch_cache_lock:
+            cached = model_fetch_cache.get(cache_key)
+            if cached and now - cached[0] < MODEL_FETCH_CACHE_TTL:
+                return list(cached[1])
     headers = {}
     auth = bearer_token(api_key)
     if auth:
@@ -2826,6 +2836,9 @@ def fetch_models(api_url: str, api_key: str) -> list[str]:
         model_id = item.get("id") if isinstance(item, dict) else str(item)
         if model_id:
             models.append(str(model_id))
+    if MODEL_FETCH_CACHE_TTL > 0:
+        with model_fetch_cache_lock:
+            model_fetch_cache[cache_key] = (now, list(models))
     return models
 
 
@@ -4727,6 +4740,20 @@ def playground_api_proxy(path: str):
         for key, value in resp.headers.items()
         if key.lower() not in excluded_headers
     ]
+    content_type = resp.headers.get("Content-Type", "")
+    if "text/event-stream" in content_type.lower():
+        def generate():
+            try:
+                for chunk in resp.iter_content(chunk_size=1024):
+                    if chunk:
+                        yield chunk
+            finally:
+                resp.close()
+
+        response = Response(stream_with_context(generate()), status=resp.status_code, headers=response_headers)
+        response.headers["X-Accel-Buffering"] = "no"
+        response.headers["Cache-Control"] = "no-cache"
+        return response
     return (resp.content, resp.status_code, response_headers)
 
 
