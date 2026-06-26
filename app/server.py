@@ -4981,7 +4981,13 @@ def playground_models():
     if model_kind not in {"image", "text", "video", "both"}:
         model_kind = "image"
     api_url = str(payload.get("api_url") or "").strip()
+    if not api_url:
+        api_url = resolve_playground_api_target(
+            request.headers.get("X-YY-API-Target") or payload.get("api_target")
+        )
     try:
+        if not api_key and model_kind in {"image", "text", "video"}:
+            api_url, api_key, _route_kind = custom_model_route_credentials(read_model_config(), model_kind, include_legacy=True)
         if model_kind == "both":
             image_list, image_url, image_route = fetch_custom_models_by_kind("image", api_url, api_key)
             text_list, text_url, text_route = fetch_custom_models_by_kind("text", api_url, api_key)
