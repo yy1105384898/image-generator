@@ -262,6 +262,13 @@ def default_model_config() -> dict:
                 "enabled": True,
             },
             {
+                "id": "common-video",
+                "name": "常用视频模型",
+                "kind": "video",
+                "patterns": "video,sora,veo,kling,runway,pika,hailuo,vidu,seedance,wan2,minimax-video",
+                "enabled": True,
+            },
+            {
                 "id": "common-text",
                 "name": "常用文本模型",
                 "kind": "text",
@@ -284,6 +291,13 @@ def default_model_config() -> dict:
             },
             "text": {
                 "label": "文本模型接入",
+                "url": DEFAULT_CUSTOM_API_URL,
+                "api_key": "",
+                "api_keys": [],
+                "enabled": False,
+            },
+            "video": {
+                "label": "视频模型接入",
                 "url": DEFAULT_CUSTOM_API_URL,
                 "api_key": "",
                 "api_keys": [],
@@ -335,7 +349,7 @@ def normalize_model_config(raw: dict | None = None) -> dict:
             provider_id = str(item.get("id") or "").strip() or re.sub(r"[^a-z0-9]+", "-", str(item.get("name") or "").lower()).strip("-")
             name = str(item.get("name") or provider_id).strip()
             kind = str(item.get("kind") or "image").strip().lower()
-            if kind not in {"image", "text", "both"}:
+            if kind not in {"image", "text", "video", "both"}:
                 kind = "image"
             patterns = str(item.get("patterns") or "").strip()
             if not provider_id or not name or not patterns:
@@ -364,7 +378,7 @@ def normalize_model_config(raw: dict | None = None) -> dict:
     }
     raw_routes = raw.get("custom_model_routes") if isinstance(raw.get("custom_model_routes"), dict) else {}
     legacy_custom = connections.get("custom", {})
-    for kind in ("image", "text"):
+    for kind in ("image", "text", "video"):
         route_raw = raw_routes.get(kind) if isinstance(raw_routes.get(kind), dict) else {}
         route = {**base["custom_model_routes"][kind], **route_raw}
         route["label"] = str(route.get("label") or base["custom_model_routes"][kind]["label"]).strip()
@@ -571,10 +585,11 @@ def custom_model_route(config: dict | None, kind: str, allow_fallback: bool = Tr
     if route.get("enabled") and (route.get("url") or route.get("api_key")):
         return route
     if allow_fallback:
-        fallback_kind = "text" if kind == "image" else "image"
-        fallback = routes.get(fallback_kind) if isinstance(routes.get(fallback_kind), dict) else {}
-        if fallback.get("enabled") and (fallback.get("url") or fallback.get("api_key")):
-            return fallback
+        fallback_kinds = ["text"] if kind == "image" else ["image"] if kind == "text" else []
+        for fallback_kind in fallback_kinds:
+            fallback = routes.get(fallback_kind) if isinstance(routes.get(fallback_kind), dict) else {}
+            if fallback.get("enabled") and (fallback.get("url") or fallback.get("api_key")):
+                return fallback
     if not include_legacy:
         return {
             "label": "自定义 API",
@@ -602,7 +617,7 @@ def custom_model_route_credentials(
     route = custom_model_route(config, kind, allow_fallback=True, include_legacy=include_legacy)
     route_kind = "custom"
     routes = (config or read_model_config()).get("custom_model_routes") or {}
-    for candidate in ("image", "text"):
+    for candidate in ("image", "text", "video"):
         if route is routes.get(candidate):
             route_kind = candidate
             break
@@ -621,7 +636,7 @@ def custom_model_route_key_pool(
     route = custom_model_route(config, kind, allow_fallback=True, include_legacy=include_legacy)
     route_kind = "custom"
     routes = (config or read_model_config()).get("custom_model_routes") or {}
-    for candidate in ("image", "text"):
+    for candidate in ("image", "text", "video"):
         if route is routes.get(candidate):
             route_kind = candidate
             break
@@ -2836,14 +2851,36 @@ def is_image_model_id(model: str) -> bool:
     return is_raw_image_model_id(model) and model_allowed_by_providers(model, "image")
 
 
+def is_raw_video_model_id(model: str) -> bool:
+    value = str(model or "").lower()
+    return any(token in value for token in (
+        "video",
+        "sora",
+        "veo",
+        "kling",
+        "runway",
+        "pika",
+        "hailuo",
+        "vidu",
+        "seedance",
+        "wan2",
+        "minimax-video",
+    ))
+
+
+def is_video_model_id(model: str) -> bool:
+    return is_raw_video_model_id(model) and model_allowed_by_providers(model, "video")
+
+
 def is_text_model_id(model: str) -> bool:
     return is_raw_text_model_id(model) and model_allowed_by_providers(model, "text")
 
 
-def split_model_ids(models: list[str]) -> tuple[list[str], list[str]]:
+def split_model_ids(models: list[str]) -> tuple[list[str], list[str], list[str]]:
     image_models = [model for model in models if is_image_model_id(model)]
     text_models = [model for model in models if is_text_model_id(model)]
-    return image_models, text_models
+    video_models = [model for model in models if is_video_model_id(model)]
+    return image_models, text_models, video_models
 
 
 def fetch_custom_models_by_kind(kind: str, api_url: str, api_key: str) -> tuple[list[str], str, str]:
@@ -4557,7 +4594,7 @@ def admin():
         for item in config.get("model_profiles", [])
     )
     profile_model_ids = [str(item.get("id") or "").strip() for item in config.get("model_profiles", []) if str(item.get("id") or "").strip()]
-    profile_image_models, profile_text_models = split_model_ids(profile_model_ids)
+    profile_image_models, profile_text_models, _profile_video_models = split_model_ids(profile_model_ids)
     accounts = read_account_pool()
     pool_users = read_pool_users()
     admin_settings = read_admin_settings()
@@ -4853,7 +4890,7 @@ def models():
     api_key = str(payload.get("api_key") or "").strip()
     connection_mode = str(payload.get("connection_mode") or "custom").strip()
     model_kind = str(payload.get("model_kind") or "image").strip()
-    if model_kind not in {"image", "text", "both"}:
+    if model_kind not in {"image", "text", "video", "both"}:
         model_kind = "image"
     pool_user = None
     api_url = str(payload.get("api_url") or "").strip()
@@ -4876,25 +4913,28 @@ def models():
             else:
                 image_list, image_url, image_route = fetch_custom_models_by_kind("image", api_url, api_key)
                 text_list, text_url, text_route = fetch_custom_models_by_kind("text", "", "")
-                image_models = split_model_ids(image_list)[0]
-                text_models = split_model_ids(text_list)[1]
+                image_models, _image_text_models, video_models_from_image = split_model_ids(image_list)
+                _text_image_models, text_models, video_models_from_text = split_model_ids(text_list)
+                video_models = sorted(set(video_models_from_image + video_models_from_text))
                 return jsonify({
                     "ok": True,
                     "models": sorted(set(image_list + text_list)),
                     "image_models": image_models,
                     "text_models": text_models,
+                    "video_models": video_models,
                     "api_url": image_url,
                     "text_api_url": text_url,
                     "route_kind": image_route,
                     "text_route_kind": text_route,
                 })
         model_list, resolved_url, route_kind = fetch_custom_models_by_kind(model_kind, api_url, api_key)
-        image_models, text_models = split_model_ids(model_list)
+        image_models, text_models, video_models = split_model_ids(model_list)
         return jsonify({
             "ok": True,
             "models": model_list,
             "image_models": image_models if model_kind == "image" else [],
             "text_models": text_models if model_kind == "text" else text_models,
+            "video_models": video_models if model_kind == "video" else video_models,
             "api_url": resolved_url,
             "route_kind": route_kind,
         })
@@ -4902,6 +4942,54 @@ def models():
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:
         return jsonify({"error": "模型读取失败", "detail": redact_secrets(str(exc))}), 502
+
+
+@app.post("/api/playground/models")
+def playground_models():
+    payload = request.get_json(silent=True) or {}
+    api_key = str(payload.get("api_key") or "").strip()
+    model_kind = str(payload.get("model_kind") or "image").strip()
+    if model_kind not in {"image", "text", "video", "both"}:
+        model_kind = "image"
+    api_url = str(payload.get("api_url") or "").strip()
+    try:
+        if model_kind == "both":
+            image_list, image_url, image_route = fetch_custom_models_by_kind("image", api_url, api_key)
+            text_list, text_url, text_route = fetch_custom_models_by_kind("text", api_url, api_key)
+            video_list, video_url, video_route = fetch_custom_models_by_kind("video", api_url, api_key)
+            image_models, _image_text_models, image_video_models = split_model_ids(image_list)
+            _text_image_models, text_models, text_video_models = split_model_ids(text_list)
+            _video_image_models, _video_text_models, video_models = split_model_ids(video_list)
+            return jsonify({
+                "ok": True,
+                "models": sorted(set(image_list + text_list + video_list)),
+                "image_models": image_models,
+                "text_models": text_models,
+                "video_models": sorted(set(video_models + image_video_models + text_video_models)),
+                "api_url": image_url,
+                "text_api_url": text_url,
+                "video_api_url": video_url,
+                "route_kind": image_route,
+                "text_route_kind": text_route,
+                "video_route_kind": video_route,
+            })
+        model_list, resolved_url, route_kind = fetch_custom_models_by_kind(model_kind, api_url, api_key)
+        image_models, text_models, video_models = split_model_ids(model_list)
+        return jsonify({
+            "ok": True,
+            "models": model_list,
+            "image_models": image_models,
+            "text_models": text_models,
+            "video_models": video_models,
+            "api_url": resolved_url,
+            "route_kind": route_kind,
+        })
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": "模型读取失败", "detail": redact_secrets(str(exc))}), 502
+
+
 @app.get("/api/debug/custom-api")
 def debug_custom_api():
     auth = login_required_json()
