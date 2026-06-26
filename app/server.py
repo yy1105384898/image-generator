@@ -4696,7 +4696,7 @@ def playground_api_proxy(path: str):
     purpose = resolve_playground_api_purpose(
         request.headers.get("X-YY-API-Purpose") or request.args.get("api_purpose")
     )
-    credential_kind = "text" if purpose == "text" else "image"
+    credential_kind = purpose if purpose in {"text", "image", "video"} else "image"
     _api_url, api_key, _route_kind = custom_model_route_credentials(read_model_config(), credential_kind, include_legacy=True)
     headers = {
         key: value
@@ -4704,7 +4704,9 @@ def playground_api_proxy(path: str):
         if key.lower() not in {"host", "content-length", "x-yy-api-target", "x-yy-api-purpose"}
     }
     auth_header = str(headers.get("Authorization") or headers.get("authorization") or "").strip()
-    if api_key and (not auth_header or auth_header.lower() == "bearer"):
+    if api_key and purpose in {"text", "image", "video"}:
+        headers["Authorization"] = f"Bearer {api_key}"
+    elif api_key and (not auth_header or auth_header.lower() == "bearer"):
         headers["Authorization"] = f"Bearer {api_key}"
     try:
         resp = requests.request(
