@@ -1,4 +1,5 @@
 import base64
+import gzip
 import hashlib
 import ipaddress
 import json
@@ -18,7 +19,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import requests
-from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Flask, jsonify, redirect, render_template, request, send_file, send_from_directory, session, url_for
 from PIL import Image, ImageOps
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -34,6 +35,10 @@ APP_PASSWORD = os.getenv("APP_PASSWORD", "root")
 DEFAULT_CUSTOM_API_URL = os.getenv("DEFAULT_CUSTOM_API_URL", "https://yynewapi.yangyangnj.top/v1").rstrip("/")
 NEW_API_BASE = os.getenv("NEW_API_BASE", DEFAULT_CUSTOM_API_URL).rstrip("/")
 NEW_API_TOKEN = os.getenv("NEW_API_TOKEN", "")
+PLAYGROUND_API_TARGETS = {
+    "https://yynewapi.yangyangnj.top/v1": "NewAPI",
+    "https://yysubapi.yangyangnj.top/v1": "SubAPI",
+}
 
 
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gpt-image-2")
@@ -65,6 +70,8 @@ ADMIN_SETTINGS_FILE = DATA_DIR / "admin_settings.json"
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "change-this-secret")
 
+GZIP_STATIC_SUFFIXES = {".css", ".js", ".json", ".html", ".svg", ".txt", ".webmanifest", ".wasm"}
+
 
 def asset_version(filename: str) -> str:
     try:
@@ -77,6 +84,48 @@ def asset_version(filename: str) -> str:
 @app.context_processor
 def inject_asset_helpers():
     return {"asset_version": asset_version}
+
+
+def ensure_gzip_static_files(root: Path) -> None:
+    if not root.exists():
+        return
+    for path in root.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in GZIP_STATIC_SUFFIXES:
+            continue
+        gzip_path = path.with_name(f"{path.name}.gz")
+        try:
+            if gzip_path.exists() and gzip_path.stat().st_mtime >= path.stat().st_mtime:
+                continue
+            with path.open("rb") as src, gzip_path.open("wb") as raw_dst:
+                with gzip.GzipFile(fileobj=raw_dst, mode="wb", compresslevel=9, mtime=0) as dst:
+                    dst.write(src.read())
+        except OSError:
+            continue
+
+
+def client_accepts_gzip() -> bool:
+    return "gzip" in request.headers.get("Accept-Encoding", "").lower()
+
+
+def send_static_maybe_gzip(directory: Path, filename: str, max_age: int | None = None):
+    target = directory / filename
+    gzip_target = target.with_name(f"{target.name}.gz")
+    if client_accepts_gzip() and gzip_target.is_file():
+        response = send_file(gzip_target, mimetype=mimetypes.guess_type(target.name)[0])
+        response.headers["Content-Encoding"] = "gzip"
+        response.headers["Vary"] = "Accept-Encoding"
+        if max_age is not None:
+            response.headers["Cache-Control"] = f"public, max-age={max_age}, immutable"
+        return response
+    return send_from_directory(directory, filename, max_age=max_age)
+
+
+def resolve_playground_api_target(value: str | None) -> str:
+    requested = str(value or "").strip().rstrip("/")
+    return requested if requested in PLAYGROUND_API_TARGETS else DEFAULT_CUSTOM_API_URL
+
+
+ensure_gzip_static_files(Path(app.static_folder or "") / "playground")
 
 
 @app.after_request
@@ -4578,8 +4627,9 @@ def playground(filename: str = "index.html"):
     playground_dir = Path(app.static_folder or "") / "playground"
     target = playground_dir / filename
     if target.is_file():
-        return send_from_directory(playground_dir, filename)
-    return send_from_directory(playground_dir, "index.html")
+        max_age = 604800 if "/assets/" in filename else None
+        return send_static_maybe_gzip(playground_dir, filename, max_age=max_age)
+    return send_static_maybe_gzip(playground_dir, "index.html")
 
 
 @app.route("/api-proxy/", defaults={"path": ""}, methods=["POST", "OPTIONS"])
@@ -4592,12 +4642,15 @@ def playground_api_proxy(path: str):
     if not path or "://" in path or path.startswith("../") or "/../" in path:
         return jsonify({"error": "Forbidden: API proxy path required"}), 403
 
-    target_url = urljoin(f"{DEFAULT_CUSTOM_API_URL}/", path)
+    target_base_url = resolve_playground_api_target(
+        request.headers.get("X-YY-API-Target") or request.args.get("api_target")
+    )
+    target_url = urljoin(f"{target_base_url}/", path)
     _api_url, api_key, _route_kind = custom_model_route_credentials(read_model_config(), "image", include_legacy=True)
     headers = {
         key: value
         for key, value in request.headers.items()
-        if key.lower() not in {"host", "content-length"}
+        if key.lower() not in {"host", "content-length", "x-yy-api-target"}
     }
     auth_header = str(headers.get("Authorization") or headers.get("authorization") or "").strip()
     if api_key and (not auth_header or auth_header.lower() == "bearer"):
