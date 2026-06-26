@@ -4632,8 +4632,8 @@ def playground(filename: str = "index.html"):
     return send_static_maybe_gzip(playground_dir, "index.html")
 
 
-@app.route("/api-proxy/", defaults={"path": ""}, methods=["POST", "OPTIONS"])
-@app.route("/api-proxy/<path:path>", methods=["POST", "OPTIONS"])
+@app.route("/api-proxy/", defaults={"path": ""}, methods=["GET", "POST", "OPTIONS"])
+@app.route("/api-proxy/<path:path>", methods=["GET", "POST", "OPTIONS"])
 def playground_api_proxy(path: str):
     if request.method == "OPTIONS":
         return ("", 204)
