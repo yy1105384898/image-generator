@@ -4567,6 +4567,63 @@ def admin():
     )
 
 
+@app.get("/playground")
+def playground_redirect():
+    return redirect(url_for("playground"))
+
+
+@app.get("/playground/")
+@app.get("/playground/<path:filename>")
+def playground(filename: str = "index.html"):
+    playground_dir = Path(app.static_folder or "") / "playground"
+    target = playground_dir / filename
+    if target.is_file():
+        return send_from_directory(playground_dir, filename)
+    return send_from_directory(playground_dir, "index.html")
+
+
+@app.route("/api-proxy/", defaults={"path": ""}, methods=["POST", "OPTIONS"])
+@app.route("/api-proxy/<path:path>", methods=["POST", "OPTIONS"])
+def playground_api_proxy(path: str):
+    if request.method == "OPTIONS":
+        return ("", 204)
+
+    path = str(path or "").strip().lstrip("/")
+    if not path or "://" in path or path.startswith("../") or "/../" in path:
+        return jsonify({"error": "Forbidden: API proxy path required"}), 403
+
+    target_url = urljoin(f"{DEFAULT_CUSTOM_API_URL}/", path)
+    _api_url, api_key, _route_kind = custom_model_route_credentials(read_model_config(), "image", include_legacy=True)
+    headers = {
+        key: value
+        for key, value in request.headers.items()
+        if key.lower() not in {"host", "content-length"}
+    }
+    auth_header = str(headers.get("Authorization") or headers.get("authorization") or "").strip()
+    if api_key and (not auth_header or auth_header.lower() == "bearer"):
+        headers["Authorization"] = f"Bearer {api_key}"
+    try:
+        resp = requests.request(
+            request.method,
+            target_url,
+            headers=headers,
+            data=request.get_data(),
+            params=request.args,
+            timeout=REQUEST_TIMEOUT,
+            stream=True,
+        )
+    except requests.RequestException as exc:
+        return jsonify({"error": str(exc)}), 502
+
+    excluded_headers = {"content-encoding", "content-length", "transfer-encoding", "connection"}
+    response_headers = [
+        (key, value)
+        for key, value in resp.headers.items()
+        if key.lower() not in excluded_headers
+    ]
+    return (resp.content, resp.status_code, response_headers)
+
+
 @app.get("/media/<path:filename>")
 def media_file(filename):
     return send_from_directory(MEDIA_DIR, filename)
