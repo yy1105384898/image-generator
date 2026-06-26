@@ -116,8 +116,13 @@ def send_static_maybe_gzip(directory: Path, filename: str, max_age: int | None =
         response.headers["Vary"] = "Accept-Encoding"
         if max_age is not None:
             response.headers["Cache-Control"] = f"public, max-age={max_age}, immutable"
+        else:
+            response.headers["Cache-Control"] = "no-cache"
         return response
-    return send_from_directory(directory, filename, max_age=max_age)
+    response = send_from_directory(directory, filename, max_age=max_age)
+    if max_age is None:
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 def resolve_playground_api_target(value: str | None) -> str:
