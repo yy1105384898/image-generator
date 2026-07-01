@@ -18,7 +18,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import requests
-from flask import Flask, jsonify, render_template, request, send_from_directory, session, url_for
+from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from PIL import Image, ImageOps
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
