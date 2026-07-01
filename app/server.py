@@ -1,4 +1,5 @@
 import base64
+import socket
 import gzip
 import hashlib
 import ipaddress
@@ -126,9 +127,40 @@ def send_static_maybe_gzip(directory: Path, filename: str, max_age: int | None =
     return response
 
 
+def normalize_playground_api_url(value: str | None) -> str:
+    requested = str(value or "").strip().rstrip("/")
+    if not requested:
+        return ""
+    if requested in PLAYGROUND_API_TARGETS:
+        return requested
+    parsed = urlsplit(requested)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("API Base URL 必须是 http/https 地址")
+    host = parsed.hostname or ""
+    if host.lower() in {"localhost", "127.0.0.1", "::1"} or host.lower().endswith(".local"):
+        raise ValueError("API Base URL 不允许指向本机或内网地址")
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+            raise ValueError("API Base URL 不允许指向本机或内网地址")
+    except ValueError as exc:
+        if "不允许" in str(exc):
+            raise
+        try:
+            for info in socket.getaddrinfo(host, None):
+                ip = ipaddress.ip_address(info[4][0])
+                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+                    raise ValueError("API Base URL 不允许指向本机或内网地址")
+        except socket.gaierror:
+            raise ValueError("API Base URL 域名无法解析")
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path.rstrip("/"), "", ""))
+
+
 def resolve_playground_api_target(value: str | None) -> str:
     requested = str(value or "").strip().rstrip("/")
-    return requested if requested in PLAYGROUND_API_TARGETS else DEFAULT_CUSTOM_API_URL
+    if not requested:
+        return DEFAULT_CUSTOM_API_URL
+    return normalize_playground_api_url(requested)
 
 
 def resolve_playground_api_purpose(value: str | None) -> str:
@@ -4702,9 +4734,12 @@ def playground_api_proxy(path: str):
     if not path or "://" in path or path.startswith("../") or "/../" in path:
         return jsonify({"error": "Forbidden: API proxy path required"}), 403
 
-    target_base_url = resolve_playground_api_target(
-        request.headers.get("X-YY-API-Target") or request.args.get("api_target")
-    )
+    try:
+        target_base_url = resolve_playground_api_target(
+            request.headers.get("X-YY-API-Target") or request.args.get("api_target")
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     target_url = urljoin(f"{target_base_url}/", path)
     purpose = resolve_playground_api_purpose(
         request.headers.get("X-YY-API-Purpose") or request.args.get("api_purpose")
@@ -4717,9 +4752,7 @@ def playground_api_proxy(path: str):
         if key.lower() not in {"host", "content-length", "x-yy-api-target", "x-yy-api-purpose"}
     }
     auth_header = str(headers.get("Authorization") or headers.get("authorization") or "").strip()
-    if api_key and purpose in {"text", "image", "video"}:
-        headers["Authorization"] = f"Bearer {api_key}"
-    elif api_key and (not auth_header or auth_header.lower() == "bearer"):
+    if api_key and (not auth_header or auth_header.lower() == "bearer"):
         headers["Authorization"] = f"Bearer {api_key}"
     try:
         resp = requests.request(
@@ -4981,10 +5014,15 @@ def playground_models():
     if model_kind not in {"image", "text", "video", "both"}:
         model_kind = "image"
     api_url = str(payload.get("api_url") or "").strip()
-    if not api_url:
-        api_url = resolve_playground_api_target(
-            request.headers.get("X-YY-API-Target") or payload.get("api_target")
-        )
+    try:
+        if api_url:
+            api_url = normalize_playground_api_url(api_url)
+        else:
+            api_url = resolve_playground_api_target(
+                request.headers.get("X-YY-API-Target") or payload.get("api_target")
+            )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     try:
         if not api_key and model_kind in {"image", "text", "video"}:
             api_url, api_key, _route_kind = custom_model_route_credentials(read_model_config(), model_kind, include_legacy=True)
