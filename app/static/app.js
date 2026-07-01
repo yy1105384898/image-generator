@@ -184,95 +184,7 @@ const squareEls = {
   quota: document.querySelector(".square-quota-strip"),
 };
 
-const commerceEls = {
-  tabs: document.querySelectorAll("[data-commerce-tab]"),
-  panels: document.querySelectorAll("[data-commerce-panel]"),
-  chatToggle: $("#commerceChatToggle"),
-  chatClose: $("#commerceChatClose"),
-  analysisCard: $("#commerceAnalysisCard"),
-  apiUrl: $("#commerceApiUrl"),
-  apiKey: $("#commerceApiKey"),
-  rememberKey: $("#commerceRememberKey"),
-  model: $("#commerceModel"),
-  modelStatus: $("#commerceModelStatus"),
-  templateSelect: $("#commerceTemplateSelect"),
-  modeChips: document.querySelectorAll("[data-commerce-mode]"),
-  referenceField: $("#commerceReferenceField"),
-  referenceUpload: $("#commerceReferenceUpload"),
-  referenceInput: $("#commerceReferenceInput"),
-  referenceDrop: $("#commerceReferenceDrop"),
-  referencePreview: $("#commerceReferencePreview"),
-  productName: $("#commerceProductName"),
-  sellingPoints: $("#commerceSellingPoints"),
-  style: $("#commerceStyle"),
-  clearStyle: $("#commerceClearStyle"),
-  sceneChips: document.querySelectorAll("[data-commerce-scene]"),
-  ratioChips: document.querySelectorAll("[data-commerce-ratio]"),
-  count: $("#commerceCount"),
-  size: $("#commerceSize"),
-  resolution: $("#commerceResolution"),
-  quality: $("#commerceQuality"),
-  format: $("#commerceFormat"),
-  background: $("#commerceBackground"),
-  upscale: $("#commerceUpscale"),
-  prompt: $("#commercePrompt"),
-  templateName: $("#commerceTemplateName"),
-  templateTags: $("#commerceTemplateTags"),
-  saveTemplate: $("#commerceSaveTemplate"),
-  clearSelection: $("#commerceClearSelection"),
-  generate: $("#commerceGenerate"),
-  generateBottom: $("#commerceGenerateBottom"),
-  gallery: $("#commerceGallery"),
-  resultStatus: $("#commerceResultStatus"),
-  resultPager: $("#commerceResultPager"),
-  resultPageButtons: document.querySelectorAll("[data-commerce-result-page]"),
-  resultPageLabel: $("#commerceResultPageLabel"),
-  openGallery: $("#commerceOpenGallery"),
-  currentTask: $("#commerceCurrentTask"),
-  recentTasks: $("#commerceRecentTasks"),
-  showAllHistory: $("#commerceShowAllHistory"),
-  archiveCompleted: $("#commerceArchiveCompleted"),
-  newTemplate: $("#commerceNewTemplate"),
-  templateSearch: $("#commerceTemplateSearch"),
-  templateCount: $("#commerceTemplateCount"),
-  templateList: $("#commerceTemplateList"),
-  library: $("#commerceLibrary"),
-  pageButtons: document.querySelectorAll("[data-commerce-page]"),
-  galleryPageLabel: $("#commerceGalleryPageLabel"),
-  historyFilters: document.querySelectorAll("[data-commerce-status]"),
-  historyList: $("#commerceHistoryList"),
-  historyPageLabel: $("#commerceHistoryPageLabel"),
-  analysisNewChat: $("#commerceAnalysisNewChat"),
-  analysisHistory: $("#commerceAnalysisHistory"),
-  analysisPrompts: $("#commerceAnalysisPrompts"),
-  analysisPromptButtons: document.querySelectorAll("[data-commerce-analysis-prompt]"),
-  analysisStatus: $("#commerceAnalysisStatus"),
-  textApiUrl: $("#commerceTextApiUrl"),
-  textModelSelect: $("#commerceTextModelSelect"),
-  textModel: $("#commerceTextModel"),
-  textApiKey: $("#commerceTextApiKey"),
-  analysisContext: $("#commerceAnalysisContext"),
-  analysisInput: $("#commerceAnalysisInput"),
-  analysisImages: $("#commerceAnalysisImages"),
-  analysisMessages: $("#commerceAnalysisMessages"),
-  analysisInputText: $("#commerceAnalysisInputText"),
-  analysisSend: $("#commerceAnalysisSend"),
-};
 
-let commercePromptTouched = false;
-let commerceRefreshTimer = 0;
-let commerceActiveTab = "workspace";
-let commerceHistoryStatus = "all";
-let commerceTemplates = [];
-let commerceResultPage = 1;
-let commerceGalleryPage = 1;
-let commerceHistoryPage = 1;
-let commerceEditingTemplateId = "";
-let commerceSelectedJobId = "";
-let commerceTextModelTimer = 0;
-let commerceAnalysisRefs = [];
-let commerceAnalysisMessages = [];
-let commerceAnalysisSending = false;
 
 function persistHistorySelection(showAll = false) {
   try {
@@ -401,12 +313,6 @@ function applyRoute() {
   const anchor = location.hash || "#home";
   document.body.classList.toggle("studio-active", anchor === "#studio");
   document.body.classList.toggle("research-active", anchor === "#research");
-  document.body.classList.toggle("commerce-active", anchor === "#commerce");
-  if (anchor === "#commerce" && lastRouteAnchor && lastRouteAnchor !== "#commerce") {
-    selectedReferenceIds.clear();
-    setCommerceChip(commerceEls.modeChips, "commerceMode", "text");
-    syncCommerceModeControls({ clearTextReferences: true });
-  }
   lastRouteAnchor = anchor;
   if (anchor !== "#studio") {
     hideGuide(false);
@@ -414,7 +320,7 @@ function applyRoute() {
   const target = document.querySelector(anchor);
   if (target) {
     window.requestAnimationFrame(() => {
-      target.scrollIntoView({ block: "start", behavior: anchor === "#studio" || anchor === "#research" || anchor === "#commerce" ? "auto" : "smooth" });
+      target.scrollIntoView({ block: "start", behavior: anchor === "#studio" || anchor === "#research" ? "auto" : "smooth" });
     });
   }
   maybeAutoShowGuide(anchor);
@@ -577,13 +483,6 @@ const MANUAL_TEXT_MODEL_KEY = "yangyang_image_manual_text_model";
 const TEXT_API_URL_KEY = "yangyang_image_text_api_url";
 const TEXT_API_KEY_STORAGE_KEY = "yangyang_image_text_api_key";
 const SEND_OPTIMIZE_KEY = "yangyang_image_send_optimize";
-const COMMERCE_TEMPLATES_KEY = "yangyang_simple_studio_templates";
-const COMMERCE_ANALYSIS_CHAT_KEY = "yangyang_commerce_analysis_chat";
-const COMMERCE_ANALYSIS_REFS_KEY = "yangyang_commerce_analysis_refs";
-const COMMERCE_ANALYSIS_MODEL_KEY = "yangyang_commerce_analysis_model";
-const COMMERCE_ANALYSIS_TEXT_KEY = "yangyang_commerce_analysis_text_key";
-const COMMERCE_ANALYSIS_URL_KEY = "yangyang_commerce_analysis_text_url";
-const COMMERCE_ANALYSIS_CONTEXT_KEY = "yangyang_commerce_analysis_context";
 const ALLOWED_CONNECTION_MODES = new Set(["custom", "pool"]);
 let debugCustomApi = {
   enabled: Boolean(modelConfig.debug?.workbench_custom_api),
@@ -1102,10 +1001,6 @@ function requestSizeFor(aspectRatio, resolution) {
 }
 
 function requestSize() {
-  if (document.body.classList.contains("commerce-active")) {
-    const explicitCommerceSize = commerceExplicitSizeValue();
-    if (explicitCommerceSize) return explicitCommerceSize;
-  }
   return requestSizeFor(els.aspectRatio.value, els.resolution.value);
 }
 
@@ -1979,7 +1874,6 @@ function replaceModelOptions(models) {
     els.model.disabled = true;
     els.submitJob.disabled = true;
     syncResearchImageModelOptions([]);
-    syncCommerceModelOptions([]);
     syncSummary();
     return;
   }
@@ -1999,7 +1893,6 @@ function replaceModelOptions(models) {
   }
   if (els.model.value) localStorage.setItem(SELECTED_IMAGE_MODEL_KEY, els.model.value);
   syncResearchImageModelOptions(models);
-  syncCommerceModelOptions(models);
   syncSummary();
 }
 
@@ -2059,7 +1952,6 @@ function syncTextModelFields() {
 
 function replaceTextModelOptions(models = []) {
   models = cleanTextModelList(models);
-  syncCommerceAnalysisModelOptions(models);
   if (!els.analysisModel) return;
   const saved = localStorage.getItem(SELECTED_TEXT_MODEL_KEY) || "";
   const current = els.analysisModel.value || saved;
@@ -2114,36 +2006,6 @@ function syncResearchTextModelOptions(models = verifiedTextModels) {
   select.disabled = !manual;
 }
 
-function syncCommerceAnalysisModelOptions(models = verifiedTextModels) {
-  models = cleanTextModelList(models);
-  if (!commerceEls.textModel || !commerceEls.textModelSelect) return;
-  const current = commerceEls.textModel.value.trim();
-  const saved = localStorage.getItem(COMMERCE_ANALYSIS_MODEL_KEY) || "";
-  const selected = current || saved || selectedTextModel() || localStorage.getItem(SELECTED_TEXT_MODEL_KEY) || preferredTextModel(models) || "";
-  commerceEls.textModelSelect.innerHTML = "";
-  if (models.length) {
-    models.forEach((model) => {
-      const option = document.createElement("option");
-      option.value = model;
-      option.textContent = model;
-      commerceEls.textModelSelect.append(option);
-    });
-  } else {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = (commerceEls.textApiKey?.value || "").trim() ? "填写 Key 后自动读取模型" : "填写 Key 后自动读取模型";
-    commerceEls.textModelSelect.append(option);
-  }
-  const manual = document.createElement("option");
-  manual.value = "__manual__";
-  manual.textContent = "手动填写模型...";
-  commerceEls.textModelSelect.append(manual);
-  const usesListedModel = Boolean(selected && models.includes(selected));
-  commerceEls.textModelSelect.value = usesListedModel ? selected : "";
-  commerceEls.textModel.classList.toggle("hidden", true);
-  if (usesListedModel) commerceEls.textModel.value = selected;
-  if (!models.length) commerceEls.textModel.value = "";
-}
 
 function selectedTextModel() {
   return (verifiedTextModels.length ? els.analysisModel?.value : els.manualTextModel?.value || "").trim();
@@ -3604,946 +3466,6 @@ function previewSquareItem(id) {
   });
 }
 
-function setCommerceStatus(message, tone = "idle") {
-  if (!commerceEls.modelStatus) return;
-  commerceEls.modelStatus.textContent = message;
-  commerceEls.modelStatus.classList.toggle("error", tone === "error");
-  commerceEls.modelStatus.classList.toggle("loading", tone === "loading");
-}
-
-function setCommerceAnalysisStatus(message, tone = "idle") {
-  if (!commerceEls.analysisStatus) return;
-  commerceEls.analysisStatus.textContent = message;
-  commerceEls.analysisStatus.classList.toggle("error", tone === "error");
-  commerceEls.analysisStatus.classList.toggle("loading", tone === "loading");
-  commerceEls.analysisStatus.classList.toggle("success", tone === "success");
-}
-
-function scrollCommerceAnalysisToBottom() {
-  if (!commerceEls.analysisMessages) return;
-  const scroll = () => {
-    commerceEls.analysisMessages.scrollTop = commerceEls.analysisMessages.scrollHeight;
-  };
-  window.requestAnimationFrame(() => {
-    scroll();
-    window.setTimeout(scroll, 60);
-  });
-}
-
-function setCommerceChatOpen(open = true) {
-  if (!commerceEls.analysisCard) return;
-  if (open && commerceActiveTab !== "workspace") setCommerceTab("workspace");
-  commerceEls.analysisCard.classList.toggle("hidden", !open);
-  commerceEls.analysisCard.setAttribute("aria-hidden", open ? "false" : "true");
-  commerceEls.chatToggle?.classList.toggle("active", open);
-  document.body.classList.toggle("commerce-chat-open", open);
-  if (open) {
-    window.requestAnimationFrame(() => {
-      commerceEls.analysisInputText?.focus();
-      scrollCommerceAnalysisToBottom();
-    });
-    if ((commerceEls.textApiUrl?.value || "").trim() && (commerceEls.textApiKey?.value || "").trim() && !verifiedTextModels.length) {
-      scheduleCommerceTextModelRefresh(80);
-    }
-  }
-}
-
-function saveCommerceAnalysisState() {
-  localStorage.removeItem(COMMERCE_ANALYSIS_REFS_KEY);
-  localStorage.setItem(COMMERCE_ANALYSIS_CHAT_KEY, JSON.stringify(commerceAnalysisMessages.slice(-40)));
-  if (commerceEls.textApiUrl?.value.trim()) localStorage.setItem(COMMERCE_ANALYSIS_URL_KEY, commerceEls.textApiUrl.value.trim());
-  if (commerceEls.textModel?.value.trim()) localStorage.setItem(COMMERCE_ANALYSIS_MODEL_KEY, commerceEls.textModel.value.trim());
-  if (commerceEls.textApiKey?.value.trim()) localStorage.setItem(COMMERCE_ANALYSIS_TEXT_KEY, commerceEls.textApiKey.value.trim());
-  localStorage.setItem(COMMERCE_ANALYSIS_CONTEXT_KEY, commerceEls.analysisContext?.value || "");
-}
-
-function loadCommerceAnalysisState() {
-  try {
-      commerceAnalysisRefs = [];
-      localStorage.removeItem(COMMERCE_ANALYSIS_REFS_KEY);
-  } catch (err) {
-    commerceAnalysisRefs = [];
-  }
-  try {
-    commerceAnalysisMessages = JSON.parse(localStorage.getItem(COMMERCE_ANALYSIS_CHAT_KEY) || "[]");
-    if (!Array.isArray(commerceAnalysisMessages)) commerceAnalysisMessages = [];
-  } catch (err) {
-    commerceAnalysisMessages = [];
-  }
-  commerceAnalysisRefs = [];
-  commerceAnalysisMessages = commerceAnalysisMessages
-    .filter((message) => ["user", "assistant"].includes(message?.role) && message?.content)
-    .map((message) => ({
-      role: message.role,
-      content: String(message.content || ""),
-      created_at: Number(message.created_at || message.createdAt || Date.now() / 1000),
-    }))
-    .slice(-40);
-  if (commerceEls.textApiUrl) {
-    commerceEls.textApiUrl.value = localStorage.getItem(COMMERCE_ANALYSIS_URL_KEY)
-      || localStorage.getItem(TEXT_API_URL_KEY)
-      || DEFAULT_CUSTOM_API_URL;
-  }
-  if (commerceEls.textModel) {
-    commerceEls.textModel.value = localStorage.getItem(COMMERCE_ANALYSIS_MODEL_KEY)
-      || selectedTextModel()
-      || localStorage.getItem(SELECTED_TEXT_MODEL_KEY)
-      || "";
-  }
-  syncCommerceAnalysisModelOptions(verifiedTextModels);
-  if (commerceEls.textApiKey) {
-    commerceEls.textApiKey.value = localStorage.getItem(COMMERCE_ANALYSIS_TEXT_KEY)
-      || localStorage.getItem(TEXT_API_KEY_STORAGE_KEY)
-      || "";
-  }
-  if (commerceEls.analysisContext) commerceEls.analysisContext.value = localStorage.getItem(COMMERCE_ANALYSIS_CONTEXT_KEY) || "";
-  renderCommerceAnalysisRefs();
-  renderCommerceAnalysisMessages();
-  setCommerceAnalysisStatus(commerceEls.textApiKey?.value.trim() ? "文本模型已连接" : "填写文本模型 Key 后可进行图文对话", commerceEls.textApiKey?.value.trim() ? "success" : "idle");
-}
-
-function renderCommerceAnalysisRefs() {
-  if (!commerceEls.analysisImages) return;
-  const refs = commerceAnalysisRefs.filter((ref) => ref?.id);
-  commerceEls.analysisImages.innerHTML = `
-    <label class="commerce-analysis-add-tile" for="commerceAnalysisInput" aria-label="上传图片">+</label>
-    ${refs.map((ref) => `
-      <figure class="commerce-analysis-thumb" data-commerce-analysis-ref="${escapeAttr(ref.id)}">
-        <img src="${escapeAttr(ref.thumb_url || ref.url || "")}" alt="${escapeAttr(ref.name || "参考图")}" loading="lazy" decoding="async">
-        <button type="button" data-commerce-analysis-remove="${escapeAttr(ref.id)}" aria-label="删除图片">×</button>
-      </figure>
-    `).join("")}
-    ${refs.length ? "" : '<span class="commerce-analysis-image-empty">可选上传图片</span>'}
-  `;
-}
-
-function renderCommerceAnalysisMessages() {
-  if (!commerceEls.analysisMessages) return;
-  if (!commerceAnalysisMessages.length) {
-    commerceEls.analysisMessages.innerHTML = `
-      <div class="commerce-chat-date">Today</div>
-      <div class="commerce-analysis-message user commerce-analysis-message-demo">
-        <span class="commerce-message-label">用户</span>
-        <div class="commerce-message-bubble"><p>如何优化这款产品的背景，让它看起来更有高级感？</p></div>
-        <time class="commerce-message-time">14:32</time>
-      </div>
-      <div class="commerce-analysis-message assistant commerce-analysis-message-demo">
-        <span class="commerce-message-label">AI Assistant</span>
-        <div class="commerce-message-bubble"><p>建议尝试以下方向：<br>• 使用大理石或磨砂质感的底座<br>• 增加侧向柔光，营造阴影层次<br>• 背景色调用莫兰迪色系</p></div>
-      </div>
-    `;
-    scrollCommerceAnalysisToBottom();
-    return;
-  }
-  let currentDay = "";
-  const now = Date.now() / 1000;
-  commerceEls.analysisMessages.innerHTML = commerceAnalysisMessages.map((message) => {
-    const ts = Number(message.created_at || message.createdAt || now);
-    const dayKey = historyDayKey(ts);
-    const dayDivider = dayKey !== currentDay
-      ? `<div class="commerce-chat-date">${escapeHtml(historyDayLabel(dayKey))}</div>`
-      : "";
-    currentDay = dayKey;
-    const title = message.role === "assistant" ? "AI Assistant" : "用户";
-    const body = message.loading ? "正在回复..." : message.content;
-    return `
-      ${dayDivider}
-      <div class="commerce-analysis-message ${escapeAttr(message.role)}${message.loading ? " loading" : ""}">
-        <span class="commerce-message-label">${escapeHtml(title)}</span>
-        <div class="commerce-message-bubble"><p>${escapeHtml(body).replace(/\n/g, "<br>")}</p></div>
-        <time class="commerce-message-time">${escapeHtml(historyTimeLabel(ts))}</time>
-      </div>
-    `;
-  }).join("");
-  scrollCommerceAnalysisToBottom();
-}
-
-async function uploadCommerceAnalysisImages(fileList) {
-  const files = Array.from(fileList || []).filter(isReferenceImageFile);
-  if (!files.length) {
-    setCommerceAnalysisStatus("请选择图片", "error");
-    return;
-  }
-  const remain = Math.max(0, MAX_REFERENCE_SELECTION - commerceAnalysisRefs.length);
-  if (!remain) {
-    setCommerceAnalysisStatus(`最多保留 ${MAX_REFERENCE_SELECTION} 张图片`, "error");
-    if (commerceEls.analysisInput) commerceEls.analysisInput.value = "";
-    return;
-  }
-  const uploadFiles = files.slice(0, remain);
-  const uploaded = [];
-  try {
-    for (let index = 0; index < uploadFiles.length; index += 1) {
-      setCommerceAnalysisStatus(`正在上传图片 ${index + 1}/${uploadFiles.length}`, "loading");
-      const file = uploadFiles[index];
-      const form = new FormData();
-      form.append("file", file);
-      form.append("name", file.name);
-      const resp = await fetch("/api/references", {
-        method: "POST",
-        headers: { "X-YY-Client-ID": clientId },
-        body: form,
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || "图片上传失败");
-      uploaded.push(data.reference);
-    }
-    const byId = new Map(commerceAnalysisRefs.map((ref) => [ref.id, ref]));
-    uploaded.filter((ref) => ref?.id).forEach((ref) => byId.set(ref.id, ref));
-    commerceAnalysisRefs = [...byId.values()].slice(0, MAX_REFERENCE_SELECTION);
-    renderCommerceAnalysisRefs();
-    setCommerceAnalysisStatus(`已保留 ${commerceAnalysisRefs.length} 张图片，可继续输入问题后发送`, "success");
-    commerceEls.analysisInputText?.focus();
-  } catch (err) {
-    setCommerceAnalysisStatus(err.message || "图片上传失败", "error");
-  } finally {
-    if (commerceEls.analysisInput) commerceEls.analysisInput.value = "";
-  }
-}
-
-async function sendCommerceAnalysisMessage(options = {}) {
-  if (commerceAnalysisSending) return;
-  const message = (commerceEls.analysisInputText?.value || "").trim();
-  const refs = Array.isArray(options.refs) ? options.refs.filter((ref) => ref?.id) : commerceAnalysisRefs;
-  const apiUrl = (commerceEls.textApiUrl?.value || "").trim();
-  const apiKey = (commerceEls.textApiKey?.value || "").trim();
-  const model = (commerceEls.textModel?.value || "").trim();
-  if (!message && !refs.length) {
-    setCommerceAnalysisStatus("请输入问题或上传图片", "error");
-    return;
-  }
-  if (!apiUrl || !apiKey) {
-    setCommerceAnalysisStatus("请填写文本 API 和 Key", "error");
-    return;
-  }
-  commerceAnalysisSending = true;
-  if (commerceEls.analysisSend) commerceEls.analysisSend.disabled = true;
-  const question = message || "请根据这些图片进行正常图文对话。";
-  const visibleQuestion = message || options.imageOnlyLabel || question;
-  const history = commerceAnalysisMessages
-    .filter((item) => !item.loading)
-    .slice(-10)
-    .map((item) => ({ role: item.role, content: item.content }));
-  const sentAt = Date.now() / 1000;
-  commerceAnalysisMessages.push({ role: "user", content: visibleQuestion, created_at: sentAt });
-  const loadingIndex = commerceAnalysisMessages.length;
-  commerceAnalysisMessages.push({ role: "assistant", content: "正在回复...", loading: true, created_at: Date.now() / 1000 });
-  if (commerceEls.analysisInputText) commerceEls.analysisInputText.value = "";
-  commerceAnalysisRefs = [];
-  saveCommerceAnalysisState();
-  renderCommerceAnalysisRefs();
-  renderCommerceAnalysisMessages();
-  setCommerceAnalysisStatus("正在回复...", "loading");
-  try {
-    const data = await api("/api/commerce-analysis-chat", {
-      method: "POST",
-      body: JSON.stringify({
-        text_api_url: apiUrl,
-        text_api_key: apiKey,
-        text_model: model,
-        product_context: (commerceEls.analysisContext?.value || "").trim(),
-        message: question,
-        reference_ids: refs.map((ref) => ref.id),
-        history,
-      }),
-    });
-    if (!data.ok) throw new Error(data.detail || data.error || "对话失败");
-    commerceAnalysisMessages[loadingIndex] = { role: "assistant", content: data.reply || "模型未返回分析内容", created_at: Date.now() / 1000 };
-    saveCommerceAnalysisState();
-    renderCommerceAnalysisMessages();
-    setCommerceAnalysisStatus(`回复完成 · ${data.model || model || "默认模型"}`, "success");
-  } catch (err) {
-    commerceAnalysisMessages[loadingIndex] = { role: "assistant", content: `回复失败：${err.message}`, created_at: Date.now() / 1000 };
-    saveCommerceAnalysisState();
-    renderCommerceAnalysisMessages();
-    setCommerceAnalysisStatus(err.message || "对话失败", "error");
-  } finally {
-    commerceAnalysisSending = false;
-    if (commerceEls.analysisSend) commerceEls.analysisSend.disabled = false;
-    scrollCommerceAnalysisToBottom();
-  }
-}
-
-function resetCommerceAnalysisChat() {
-  commerceAnalysisMessages = [];
-  commerceAnalysisRefs = [];
-  saveCommerceAnalysisState();
-  renderCommerceAnalysisRefs();
-  renderCommerceAnalysisMessages();
-  setCommerceAnalysisStatus("已开始新对话", "success");
-  commerceEls.analysisInputText?.focus();
-}
-
-function applyCommerceAnalysisPrompt(prompt) {
-  const text = String(prompt || "").trim();
-  if (!text || !commerceEls.analysisInputText) return;
-  commerceEls.analysisInputText.value = text;
-  commerceEls.analysisInputText.focus();
-  commerceEls.analysisInputText.setSelectionRange(text.length, text.length);
-}
-
-function scheduleCommerceTextModelRefresh(delay = 650) {
-  window.clearTimeout(commerceTextModelTimer);
-  commerceTextModelTimer = window.setTimeout(refreshCommerceTextModels, delay);
-}
-
-async function refreshCommerceTextModels() {
-  const apiUrl = (commerceEls.textApiUrl?.value || "").trim();
-  const apiKey = (commerceEls.textApiKey?.value || "").trim();
-  saveCommerceAnalysisState();
-  if (!apiUrl || !apiKey) {
-    syncCommerceAnalysisModelOptions([]);
-    setCommerceAnalysisStatus(!apiUrl ? "请先填写文本 API 地址" : "请先填写文本模型 Key");
-    return;
-  }
-  setCommerceAnalysisStatus("正在读取文本模型...", "loading");
-  try {
-    const data = await api("/api/models", {
-      method: "POST",
-      body: JSON.stringify({
-        connection_mode: "custom",
-        api_url: apiUrl,
-        api_key: apiKey,
-        model_kind: "text",
-      }),
-    });
-    const allModels = Array.isArray(data.models) ? data.models : [];
-    const textModels = cleanTextModelList(Array.isArray(data.text_models) ? data.text_models : allModels);
-    verifiedTextModels = textModels;
-    replaceTextModelOptions(textModels);
-    syncCommerceAnalysisModelOptions(textModels);
-    if (textModels.length) {
-      setCommerceAnalysisStatus(`已读取 ${textModels.length} 个文本模型`, "success");
-      return;
-    }
-    setCommerceAnalysisStatus("Key 有效，但未识别到文本模型，可手动填写", "error");
-  } catch (err) {
-    verifiedTextModels = [];
-    replaceTextModelOptions([]);
-    syncCommerceAnalysisModelOptions([]);
-    setCommerceAnalysisStatus(`文本模型读取失败：${err.message}`, "error");
-  }
-}
-
-function activeCommerceValue(buttons, key, fallback = "") {
-  const active = [...buttons].find((button) => button.classList.contains("active"));
-  return active?.dataset?.[key] || fallback;
-}
-
-function setCommerceChip(buttons, key, value) {
-  buttons.forEach((button) => button.classList.toggle("active", button.dataset[key] === value));
-}
-
-function commerceModeValue() {
-  return activeCommerceValue(commerceEls.modeChips, "commerceMode", "text");
-}
-
-function syncCommerceModeControls({ clearTextReferences = false } = {}) {
-  const isImageMode = commerceModeValue() === "image";
-  commerceEls.referenceField?.classList.toggle("hidden", !isImageMode);
-  if (!isImageMode && (clearTextReferences || selectedReferenceIds.size)) {
-    selectedReferenceIds.clear();
-    if (els.editMode) els.editMode.checked = false;
-    renderReferences();
-  }
-}
-
-let commerceLastAutoPrompt = "";
-
-function syncCommerceStyleControls() {
-  const style = (commerceEls.style?.value || "").trim();
-  commerceEls.sceneChips.forEach((button) => {
-    button.classList.toggle("active", Boolean(style) && button.dataset.commerceScene === style);
-  });
-  commerceEls.clearStyle?.classList.toggle("hidden", !style);
-}
-
-function buildCommercePrompt() {
-  return "";
-}
-
-function syncCommercePrompt({ force = false } = {}) {
-  if (!commerceEls.prompt) return;
-  const next = buildCommercePrompt();
-  if (force && commerceLastAutoPrompt && commerceEls.prompt.value.trim() === commerceLastAutoPrompt.trim()) {
-    commerceEls.prompt.value = next;
-    commercePromptTouched = false;
-  }
-  commerceLastAutoPrompt = next;
-}
-
-function loadCommerceTemplates() {
-  try {
-    commerceTemplates = JSON.parse(localStorage.getItem(COMMERCE_TEMPLATES_KEY) || "[]");
-    if (!Array.isArray(commerceTemplates)) commerceTemplates = [];
-  } catch (err) {
-    commerceTemplates = [];
-  }
-}
-
-function saveCommerceTemplates() {
-  localStorage.setItem(COMMERCE_TEMPLATES_KEY, JSON.stringify(commerceTemplates.slice(0, 80)));
-}
-
-function filteredCommerceTemplates() {
-  const keyword = (commerceEls.templateSearch?.value || "").trim().toLowerCase();
-  const list = [...commerceTemplates].sort((a, b) => {
-    if (Boolean(a.favorite) !== Boolean(b.favorite)) return a.favorite ? -1 : 1;
-    return Number(b.updated_at || b.created_at || 0) - Number(a.updated_at || a.created_at || 0);
-  });
-  if (!keyword) return list;
-  return list.filter((template) => [
-    template.name,
-    template.prompt,
-    template.style,
-    ...(template.tags || []),
-  ].some((value) => String(value || "").toLowerCase().includes(keyword)));
-}
-
-function renderCommerceTemplates() {
-  if (!commerceEls.templateSelect) return;
-  const current = commerceEls.templateSelect.value;
-  commerceEls.templateSelect.innerHTML = "";
-  const empty = document.createElement("option");
-  empty.value = "";
-  empty.textContent = "不使用模板";
-  commerceEls.templateSelect.append(empty);
-  commerceTemplates.forEach((template) => {
-    const option = document.createElement("option");
-    option.value = template.id;
-    option.textContent = template.name || "未命名模板";
-    commerceEls.templateSelect.append(option);
-  });
-  if (commerceTemplates.some((item) => item.id === current)) commerceEls.templateSelect.value = current;
-  if (commerceEls.templateCount) commerceEls.templateCount.textContent = String(commerceTemplates.length);
-  if (!commerceEls.templateList) return;
-  const visibleTemplates = filteredCommerceTemplates();
-  if (!visibleTemplates.length) {
-    commerceEls.templateList.innerHTML = '<div class="commerce-empty">暂无模板</div>';
-    return;
-  }
-  commerceEls.templateList.innerHTML = visibleTemplates.map((template) => `
-    <article class="commerce-template-item" data-commerce-template-id="${escapeAttr(template.id)}">
-      <strong>${template.favorite ? "★ " : ""}${escapeHtml(template.name || "未命名模板")}</strong>
-      <span>${escapeHtml((template.tags || []).join("，") || "未设置标签")}</span>
-      <span>${escapeHtml((template.prompt || "").slice(0, 140))}</span>
-      <span>使用 ${Number(template.usage_count || 0)} 次 · ${template.last_used_at ? `最近 ${formatTime(template.last_used_at)}` : "未使用"}</span>
-      <div class="commerce-template-actions">
-        <button data-commerce-template-action="favorite" type="button">${template.favorite ? "取消收藏" : "收藏模板"}</button>
-        <button data-commerce-template-action="use" type="button">套用到工作台</button>
-        <button data-commerce-template-action="edit" type="button">编辑</button>
-        <button data-commerce-template-action="delete" type="button">删除</button>
-      </div>
-    </article>
-  `).join("");
-}
-
-function applyCommerceTemplate(id) {
-  const template = commerceTemplates.find((item) => item.id === id);
-  if (!template) return;
-  if (commerceEls.prompt) {
-    commerceEls.prompt.value = template.prompt || "";
-    commerceLastAutoPrompt = template.prompt || "";
-    commercePromptTouched = true;
-  }
-  if (commerceEls.style) commerceEls.style.value = template.style || template.scene || "";
-  if (template.model && commerceEls.model && [...commerceEls.model.options].some((option) => option.value === template.model)) commerceEls.model.value = template.model;
-  if (template.size && commerceEls.size) {
-    const hasSizeOption = [...commerceEls.size.options].some((option) => option.value === template.size);
-    commerceEls.size.value = hasSizeOption ? template.size : "auto";
-  }
-  if (template.quality && commerceEls.quality) commerceEls.quality.value = template.quality;
-  if (template.format && commerceEls.format) commerceEls.format.value = template.format;
-  if (template.background && commerceEls.background) commerceEls.background.value = template.background;
-  if (template.upscale && commerceEls.upscale) commerceEls.upscale.value = template.upscale;
-  if (template.mode) setCommerceChip(commerceEls.modeChips, "commerceMode", template.mode);
-  if (template.ratio) setCommerceChip(commerceEls.ratioChips, "commerceRatio", template.ratio);
-  syncCommerceModeControls({ clearTextReferences: template.mode !== "image" });
-  syncCommerceStyleControls();
-  if (commerceEls.templateName) commerceEls.templateName.value = template.name || "";
-  if (commerceEls.templateTags) commerceEls.templateTags.value = (template.tags || []).join(", ");
-  if (commerceEls.saveTemplate) commerceEls.saveTemplate.textContent = "更新模板";
-  template.usage_count = Number(template.usage_count || 0) + 1;
-  template.last_used_at = Date.now() / 1000;
-  commerceEditingTemplateId = template.id;
-  saveCommerceTemplates();
-  renderCommerceTemplates();
-}
-
-function saveCommerceTemplateFromForm() {
-  const prompt = (commerceEls.prompt?.value || "").trim();
-  if (!prompt) {
-    commerceEls.prompt?.focus();
-    return;
-  }
-  const name = (commerceEls.templateName?.value || "").trim() || `模板 ${commerceTemplates.length + 1}`;
-  const tags = (commerceEls.templateTags?.value || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean);
-  const now = Date.now() / 1000;
-  const payload = {
-    name,
-    tags,
-    prompt,
-    style: (commerceEls.style?.value || "").trim(),
-    model: commerceEls.model?.value || "",
-    size: commerceEls.size?.value || "auto",
-    resolution: commerceResolutionValue(),
-    quality: commerceEls.quality?.value || "auto",
-    format: commerceEls.format?.value || "png",
-    background: commerceEls.background?.value || "auto",
-    upscale: commerceEls.upscale?.value || "none",
-    mode: activeCommerceValue(commerceEls.modeChips, "commerceMode", "text"),
-    ratio: activeCommerceValue(commerceEls.ratioChips, "commerceRatio", "1:1"),
-    updated_at: now,
-  };
-  const existing = commerceTemplates.find((template) => template.id === commerceEditingTemplateId);
-  if (existing) {
-    Object.assign(existing, payload);
-  } else {
-    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    commerceEditingTemplateId = id;
-    commerceTemplates.unshift({
-      id,
-      ...payload,
-      favorite: false,
-      usage_count: 0,
-      created_at: now,
-    });
-  }
-  saveCommerceTemplates();
-  renderCommerceTemplates();
-  if (commerceEls.templateSelect) commerceEls.templateSelect.value = commerceEditingTemplateId;
-  if (commerceEls.saveTemplate) commerceEls.saveTemplate.textContent = "更新模板";
-}
-
-function syncCommerceModelOptions(models = verifiedImageModels) {
-  if (!commerceEls.model) return;
-  const clean = cleanModelList(models);
-  const selected = commerceEls.model.value || els.model?.value || localStorage.getItem(SELECTED_IMAGE_MODEL_KEY) || "";
-  commerceEls.model.innerHTML = "";
-  if (!clean.length) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "填写 Key 后自动读取";
-    commerceEls.model.append(option);
-    commerceEls.model.disabled = true;
-    return;
-  }
-  clean.forEach((model) => {
-    const option = document.createElement("option");
-    option.value = model;
-    option.textContent = model;
-    commerceEls.model.append(option);
-  });
-  commerceEls.model.disabled = false;
-  commerceEls.model.value = clean.includes(selected) ? selected : clean[0];
-}
-
-function syncCommerceFromMain() {
-  if (!commerceEls.apiUrl) return;
-  if (document.activeElement !== commerceEls.apiUrl) {
-    const mainApiUrl = els.connectionMode?.value === "custom" ? els.apiUrl?.value : "";
-    commerceEls.apiUrl.value = mainApiUrl || storedCustomApiUrl() || DEFAULT_CUSTOM_API_URL;
-  }
-  if (document.activeElement !== commerceEls.apiKey) {
-    commerceEls.apiKey.value = els.apiKey?.value || localStorage.getItem("yangyang_image_api_key") || "";
-  }
-  commerceEls.rememberKey.checked = Boolean(els.rememberApiKey?.checked || localStorage.getItem("yangyang_image_api_key"));
-  syncCommerceModelOptions(verifiedImageModels);
-  if (commerceEls.model && els.model?.value) commerceEls.model.value = els.model.value;
-  setCommerceStatus(verifiedImageModels.length ? `已读取 ${verifiedImageModels.length} 个绘图模型` : "等待填写 API Key", verifiedImageModels.length ? "success" : "idle");
-  syncCommerceModeControls({ clearTextReferences: true });
-  syncCommerceStyleControls();
-  syncCommercePrompt();
-}
-
-function pushCommerceConnectionToMain() {
-  if (!commerceEls.apiUrl) return;
-  setConnectionMode("custom", { persist: true });
-  if (els.apiUrl) els.apiUrl.value = commerceEls.apiUrl.value.trim();
-  if (els.apiKey) els.apiKey.value = commerceEls.apiKey.value.trim();
-  if (els.rememberApiKey) els.rememberApiKey.checked = Boolean(commerceEls.rememberKey?.checked);
-  if (commerceEls.model?.value && els.model) {
-    if (![...els.model.options].some((option) => option.value === commerceEls.model.value)) {
-      const option = document.createElement("option");
-      option.value = commerceEls.model.value;
-      option.textContent = commerceEls.model.value;
-      els.model.append(option);
-    }
-    els.model.value = commerceEls.model.value;
-    localStorage.setItem(SELECTED_IMAGE_MODEL_KEY, commerceEls.model.value);
-  }
-  saveApiKeyPreference();
-}
-
-function scheduleCommerceModelRefresh() {
-  window.clearTimeout(commerceRefreshTimer);
-  commerceRefreshTimer = window.setTimeout(async () => {
-    pushCommerceConnectionToMain();
-    if (!selectedApiUrl() || (!selectedApiKey() && !adminDebugApiActive())) {
-      syncCommerceModelOptions([]);
-      setCommerceStatus(!selectedApiUrl() ? "等待填写 API 地址" : "等待填写 API Key");
-      return;
-    }
-    setCommerceStatus("正在读取模型...", "loading");
-    await refreshModels({ silent: true });
-    syncCommerceFromMain();
-  }, 650);
-}
-
-function parseCommerceSizeValue(value = "") {
-  const match = String(value || "").trim().match(/^(\d{2,5})x(\d{2,5})$/i);
-  if (!match) return null;
-  const width = Number(match[1]);
-  const height = Number(match[2]);
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
-  return { width, height };
-}
-
-function reduceRatio(width, height) {
-  let a = Math.round(Math.abs(width));
-  let b = Math.round(Math.abs(height));
-  while (b) {
-    const next = a % b;
-    a = b;
-    b = next;
-  }
-  const divisor = a || 1;
-  return `${Math.round(width / divisor)}:${Math.round(height / divisor)}`;
-}
-
-function commerceExplicitSizeValue() {
-  const sizeValue = commerceEls.size?.value || "auto";
-  return parseCommerceSizeValue(sizeValue) ? sizeValue : "";
-}
-
-function commerceResolutionValue() {
-  const parsed = parseCommerceSizeValue(commerceExplicitSizeValue());
-  if (!parsed) return "1K";
-  const longEdge = Math.max(parsed.width, parsed.height);
-  if (longEdge >= 3500) return "4K";
-  if (longEdge >= 1900) return "2K";
-  return "1K";
-}
-
-function commerceAspectValue() {
-  const sizeValue = commerceEls.size?.value || "auto";
-  const parsedSize = parseCommerceSizeValue(sizeValue);
-  if (parsedSize) return reduceRatio(parsedSize.width, parsedSize.height);
-  return activeCommerceValue(commerceEls.ratioChips, "commerceRatio", "1:1");
-}
-
-async function submitCommerceJob() {
-  syncCommercePrompt();
-  const rawPrompt = (commerceEls.prompt?.value || "").trim();
-  const style = (commerceEls.style?.value || "").trim();
-  const prompt = [rawPrompt, style ? `风格：${style}` : ""].filter(Boolean).join("\n");
-  if (!rawPrompt) {
-    setCommerceStatus("请输入提示词", "error");
-    commerceEls.prompt?.focus();
-    return;
-  }
-  const isImageMode = commerceModeValue() === "image";
-  if (isImageMode && !selectedReferenceIds.size) {
-    setCommerceStatus("图生图模式需要上传参考图片", "error");
-    commerceEls.referenceDrop?.focus();
-    return;
-  }
-  if (!isImageMode && selectedReferenceIds.size) {
-    selectedReferenceIds.clear();
-    renderReferences();
-  }
-  pushCommerceConnectionToMain();
-  if (els.title) els.title.value = "简洁生图台";
-  if (els.prompt) els.prompt.value = prompt;
-  if (els.count && commerceEls.count) els.count.value = commerceEls.count.value || "1";
-  if (els.concurrency && commerceEls.count) els.concurrency.value = commerceEls.count.value || "1";
-  if (els.aspectRatio) els.aspectRatio.value = commerceAspectValue();
-  if (els.resolution) els.resolution.value = commerceResolutionValue();
-  if (els.quality && commerceEls.quality) els.quality.value = commerceEls.quality.value || "auto";
-  if (els.outputFormat && commerceEls.format) els.outputFormat.value = commerceEls.format.value || "png";
-  if (els.editMode) els.editMode.checked = isImageMode && selectedReferenceIds.size > 0;
-  clearAgentForGeneralGeneration();
-  syncSummary();
-  setCommerceStatus("已提交生成任务", "loading");
-  await performSubmitJob(prompt);
-  commerceResultPage = 1;
-  renderCommerceState();
-}
-
-function latestCommerceItems(limit = 8, options = {}) {
-  const includeArchived = Boolean(options.includeArchived);
-  const commerceJobs = jobsForWorkspace("commerce");
-  const jobById = new Map(commerceJobs.map((job) => [job.id, job]));
-  const items = mediaForWorkspace("commerce")
-    .map((media) => ({ media, job: jobById.get(media.job_id) || {} }))
-    .filter(({ job }) => includeArchived || !job.archived)
-    .sort((a, b) => (b.media.created_at || 0) - (a.media.created_at || 0));
-  return Number.isFinite(limit) ? items.slice(0, limit) : items;
-}
-
-function commerceMediaCard(media, job = {}) {
-  const item = {
-    title: media.model || job.model || "生成图片",
-    prompt: media.prompt || job.prompt || "",
-    url: media.url,
-    thumbUrl: media.thumb_url || media.url,
-    jobId: media.job_id || job.id || "",
-    aspect_ratio: media.aspect_ratio || job.aspect_ratio || "",
-    resolution: media.resolution || job.resolution || "",
-    size: media.size || job.size || "",
-  };
-  return `
-    <article class="commerce-result-item" data-commerce-media-id="${escapeAttr(media.id)}" data-commerce-job-id="${escapeAttr(item.jobId)}">
-      <button data-commerce-media-action="preview" type="button">
-        <img src="${escapeAttr(item.thumbUrl || item.url || "")}" alt="${escapeAttr(item.prompt || "生成图片")}" loading="lazy" decoding="async">
-      </button>
-      <div class="commerce-result-body">
-        <div class="commerce-result-meta">
-          <strong>${escapeHtml(item.title)}</strong>
-          <span>${escapeHtml([item.aspect_ratio, item.size].filter(Boolean).join(" · ") || "生成图片")}</span>
-        </div>
-        <div class="commerce-result-actions">
-          <button class="is-primary" data-commerce-media-action="preview" type="button">预览</button>
-          <a class="is-primary" href="${escapeAttr(item.url || "")}" download>下载</a>
-          <button data-commerce-media-action="copy" type="button">复制</button>
-          <button data-commerce-media-action="retry" type="button">重做</button>
-          <button data-commerce-media-action="save-template" type="button">模板</button>
-          <button class="is-danger" data-commerce-media-action="delete" type="button">删除</button>
-        </div>
-      </div>
-    </article>
-  `;
-}
-
-function saveCommerceTemplateFromMedia(mediaId) {
-  const commerceJobs = jobsForWorkspace("commerce");
-  const jobById = new Map(commerceJobs.map((job) => [job.id, job]));
-  const media = mediaForWorkspace("commerce").find((item) => item.id === mediaId);
-  if (!media) return;
-  const job = jobById.get(media.job_id) || {};
-  const prompt = media.prompt || job.prompt || "";
-  if (!prompt) return;
-  const now = Date.now() / 1000;
-  const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  commerceTemplates.unshift({
-    id,
-    name: (job.title || prompt.slice(0, 18) || "图片模板").trim(),
-    tags: ["图库"],
-    prompt,
-    style: job.style || "",
-    model: media.model || job.model || "",
-    size: "auto",
-    resolution: media.resolution || job.resolution || "1K",
-    quality: media.quality || job.quality || "auto",
-    format: media.output_format || job.output_format || "png",
-    background: media.background || job.background || "auto",
-    upscale: media.local_upscale || job.local_upscale || "none",
-    mode: media.edit_mode || job.edit_mode ? "image" : "text",
-    ratio: media.aspect_ratio || job.aspect_ratio || "1:1",
-    favorite: false,
-    usage_count: 0,
-    created_at: now,
-    updated_at: now,
-  });
-  saveCommerceTemplates();
-  renderCommerceTemplates();
-  setCommerceStatus("已存为模板", "success");
-}
-
-function renderCommerceGallery() {
-  if (!commerceEls.gallery) return;
-  const recentItems = latestCommerceItems(500);
-  const recentPageSize = 6;
-  const recentPageCount = Math.max(1, Math.ceil(recentItems.length / recentPageSize));
-  commerceResultPage = Math.max(1, Math.min(commerceResultPage, recentPageCount));
-  const items = recentItems.slice((commerceResultPage - 1) * recentPageSize, commerceResultPage * recentPageSize);
-  if (!recentItems.length) {
-    commerceEls.gallery.innerHTML = '<div class="commerce-empty">生成后会在这里显示图片。</div>';
-  } else {
-    commerceEls.gallery.innerHTML = items.map(({ media, job }) => commerceMediaCard(media, job)).join("");
-  }
-  if (commerceEls.resultStatus) {
-    commerceEls.resultStatus.textContent = recentItems.length
-      ? `只显示未归档任务缩略图，共 ${recentItems.length} 张`
-      : "列表为缩略图，点击预览查看原图";
-  }
-  if (commerceEls.resultPager) {
-    commerceEls.resultPager.classList.toggle("hidden", recentItems.length <= recentPageSize);
-    if (commerceEls.resultPageLabel) commerceEls.resultPageLabel.textContent = `${commerceResultPage} / ${recentPageCount}`;
-    commerceEls.resultPageButtons.forEach((button) => {
-      const action = button.dataset.commerceResultPage || "";
-      button.disabled = action === "prev" ? commerceResultPage <= 1 : commerceResultPage >= recentPageCount;
-    });
-  }
-  if (commerceEls.library) {
-    const all = latestCommerceItems(500, { includeArchived: true });
-    const pageSize = 36;
-    const pageCount = Math.max(1, Math.ceil(all.length / pageSize));
-    commerceGalleryPage = Math.max(1, Math.min(commerceGalleryPage, pageCount));
-    const pageItems = all.slice((commerceGalleryPage - 1) * pageSize, commerceGalleryPage * pageSize);
-    commerceEls.library.innerHTML = pageItems.length
-      ? pageItems.map(({ media, job }) => commerceMediaCard(media, job)).join("")
-      : '<div class="commerce-empty">暂无图片</div>';
-    if (commerceEls.galleryPageLabel) commerceEls.galleryPageLabel.textContent = `${commerceGalleryPage} / ${pageCount}`;
-  }
-}
-
-function renderCommerceTasks() {
-  const commerceJobs = jobsForWorkspace("commerce");
-  const activeJobs = commerceJobs.filter((job) => !job.archived);
-  if (commerceSelectedJobId && !activeJobs.some((job) => job.id === commerceSelectedJobId)) commerceSelectedJobId = "";
-  const current = activeJobs.find((job) => job.id === commerceSelectedJobId) || activeJobs[0] || null;
-  if (commerceEls.currentTask) {
-    const currentStatus = String(current?.status || "").toLowerCase();
-    commerceEls.currentTask.innerHTML = current
-      ? `<div class="commerce-task-line commerce-task-line-current" data-commerce-job-id="${escapeAttr(current.id)}">
-          <div class="commerce-task-head">
-            <strong>${escapeHtml(current.model || current.title || "生成任务")}</strong>
-            <span class="commerce-status-badge status-${escapeAttr(currentStatus)}">${escapeHtml(statusText(current.status || ""))}</span>
-          </div>
-          <span class="commerce-task-meta">${escapeHtml(formatTime(current.created_at))} · ${Number(current.count || 1)} 张</span>
-          <p class="commerce-task-prompt">${escapeHtml(current.prompt || "暂无提示词")}</p>
-          <div class="commerce-task-actions">
-            <button data-commerce-history-action="retry" type="button">重新生成</button>
-            <button data-commerce-history-action="archive" type="button">归档</button>
-            <button class="is-danger" data-commerce-history-action="delete" type="button">删除</button>
-          </div>
-        </div>`
-      : "还没有当前任务";
-  }
-  const recent = activeJobs.slice(0, 5);
-  if (commerceEls.recentTasks) {
-    commerceEls.recentTasks.innerHTML = recent.length ? recent.map((job) => {
-      const status = String(job.status || "").toLowerCase();
-      return `
-      <div class="commerce-task-line" data-commerce-job-id="${escapeAttr(job.id)}">
-        <div class="commerce-task-head">
-          <strong>${escapeHtml(job.model || job.title || "生成任务")}</strong>
-          <span class="commerce-status-badge status-${escapeAttr(status)}">${escapeHtml(statusText(job.status || ""))}</span>
-        </div>
-        <span class="commerce-task-meta">${escapeHtml(formatTime(job.created_at))}</span>
-        <div class="commerce-task-actions">
-          <button data-commerce-history-action="select" type="button">设为当前</button>
-          <button data-commerce-history-action="retry" type="button">重新生成</button>
-          <button data-commerce-history-action="archive" type="button">归档</button>
-          <button class="is-danger" data-commerce-history-action="delete" type="button">删除</button>
-        </div>
-      </div>
-    `}).join("") : "暂无任务";
-  }
-  if (!commerceEls.historyList) return;
-  const jobs = commerceJobs.filter((job) => {
-    if (commerceHistoryStatus === "archived") return Boolean(job.archived);
-    if (job.archived) return false;
-    return commerceHistoryStatus === "all" || job.status === commerceHistoryStatus;
-  });
-  if (commerceEls.archiveCompleted) {
-    const completedCount = commerceJobs.filter((job) => !job.archived && job.status === "success").length;
-    commerceEls.archiveCompleted.disabled = completedCount === 0;
-    commerceEls.archiveCompleted.textContent = completedCount ? `归档已完成 ${completedCount}` : "归档已完成";
-  }
-  const pageSize = 20;
-  const pageCount = Math.max(1, Math.ceil(jobs.length / pageSize));
-  commerceHistoryPage = Math.max(1, Math.min(commerceHistoryPage, pageCount));
-  const pageJobs = jobs.slice((commerceHistoryPage - 1) * pageSize, commerceHistoryPage * pageSize);
-  commerceEls.historyList.innerHTML = pageJobs.length ? pageJobs.map((job) => `
-    <article class="commerce-history-item" data-commerce-job-id="${escapeAttr(job.id)}">
-      <strong>${escapeHtml(job.model || job.title || "生成任务")}</strong>
-      <span>${escapeHtml(job.status || "")} · ${escapeHtml(formatTime(job.created_at))} · ${Number(job.count || 1)} 张</span>
-      <span>${escapeHtml(job.error || (job.prompt || "").slice(0, 180))}</span>
-      <div class="commerce-template-actions">
-        ${job.archived ? "" : '<button data-commerce-history-action="select" type="button">设为当前</button>'}
-        <button data-commerce-history-action="retry" type="button">重新生成</button>
-        <button data-commerce-history-action="${job.archived ? "restore" : "archive"}" type="button">${job.archived ? "恢复" : "归档"}</button>
-        <button class="is-danger" data-commerce-history-action="delete" type="button">删除</button>
-      </div>
-    </article>
-  `).join("") : '<div class="commerce-empty">暂无任务</div>';
-  if (commerceEls.historyPageLabel) commerceEls.historyPageLabel.textContent = `${commerceHistoryPage} / ${pageCount}`;
-}
-
-function renderCommerceState() {
-  if (!document.body.classList.contains("commerce-active")) return;
-  syncCommerceFromMain();
-  renderCommerceTemplates();
-  renderCommerceGallery();
-  renderCommerceTasks();
-}
-
-function setCommerceTab(tabName) {
-  commerceActiveTab = tabName || "workspace";
-  if (commerceActiveTab !== "workspace") setCommerceChatOpen(false);
-  commerceEls.tabs.forEach((button) => button.classList.toggle("active", button.dataset.commerceTab === commerceActiveTab));
-  commerceEls.panels.forEach((panel) => panel.classList.toggle("active", panel.dataset.commercePanel === commerceActiveTab));
-  renderCommerceState();
-}
-
-function previewCommerceMedia(id) {
-  const commerceJobs = jobsForWorkspace("commerce");
-  const jobById = new Map(commerceJobs.map((job) => [job.id, job]));
-  const media = mediaForWorkspace("commerce").find((item) => item.id === id);
-  if (!media) return;
-  const job = jobById.get(media.job_id) || {};
-  setMediaPreview(true, {
-    title: media.model || job.model || "生成图片",
-    prompt: media.prompt || job.prompt || "",
-    url: media.url,
-    thumbUrl: media.thumb_url || media.url,
-    aspect_ratio: media.aspect_ratio || job.aspect_ratio || "",
-    resolution: media.resolution || job.resolution || "",
-    size: media.size || job.size || "",
-  });
-}
-
-async function deleteCommerceMedia(id) {
-  if (!id) return;
-  await api("/api/media/delete", {
-    method: "POST",
-    body: JSON.stringify({ media_ids: [id] }),
-  });
-  await loadState();
-  renderCommerceState();
-}
-
-async function deleteCommerceJob(jobId) {
-  if (!jobId) return;
-  const job = jobsForWorkspace("commerce").find((item) => item.id === jobId);
-  const label = job?.model || job?.title || "该任务";
-  if (!confirm(`确认删除${label}？\n\n会同时移除该任务生成的图片记录。`)) return;
-  await api("/api/media/delete", {
-    method: "POST",
-    body: JSON.stringify({ job_ids: [jobId] }),
-  });
-  if (commerceSelectedJobId === jobId) commerceSelectedJobId = "";
-  await loadState();
-  renderCommerceState();
-}
-
-async function archiveCommerceJob(jobId, archived = true) {
-  if (!jobId) return;
-  await api("/api/jobs/archive", {
-    method: "POST",
-    body: JSON.stringify({ job_ids: [jobId], archived }),
-  });
-  if (archived && commerceSelectedJobId === jobId) commerceSelectedJobId = "";
-  await loadState();
-  renderCommerceState();
-}
-
-async function archiveCompletedCommerceJobs() {
-  const jobIds = jobsForWorkspace("commerce")
-    .filter((job) => !job.archived && job.status === "success")
-    .map((job) => job.id)
-    .filter(Boolean);
-  if (!jobIds.length) return;
-  await api("/api/jobs/archive", {
-    method: "POST",
-    body: JSON.stringify({ job_ids: jobIds, archived: true }),
-  });
-  if (commerceSelectedJobId && jobIds.includes(commerceSelectedJobId)) commerceSelectedJobId = "";
-  await loadState();
-  renderCommerceState();
-}
 
 function clampMediaPreviewScale(value) {
   return Math.max(0.35, Math.min(5, value));
@@ -4711,7 +3633,6 @@ function renderReferences() {
   if (!state.references.length) {
     els.composerReferenceList?.classList.add("hidden");
     els.referenceSendSummary?.classList.add("hidden");
-    if (commerceEls.referenceUpload) commerceEls.referenceUpload.textContent = "上传参考图";
     syncReferenceAspectControl();
     return;
   }
@@ -4739,33 +3660,7 @@ function renderReferences() {
     els.referenceList.append(btn);
   }
   const selectedRefs = selectedReferenceItems();
-  if (commerceEls.referenceUpload) {
-    commerceEls.referenceUpload.textContent = selectedRefs.length ? `已选 ${selectedRefs.length}/${MAX_REFERENCE_SELECTION}` : "上传";
-  }
-  if (commerceEls.referencePreview) {
-    if (selectedRefs.length) {
-      commerceEls.referencePreview.innerHTML = selectedRefs.map((ref) => `
-        <article class="commerce-reference-thumb" data-commerce-reference-id="${escapeAttr(ref.id)}">
-          <img src="${escapeAttr(ref.url)}" alt="${escapeAttr(ref.name || "参考图")}">
-          <button type="button" aria-label="移除参考图">×</button>
-        </article>
-      `).join("");
-      commerceEls.referencePreview.querySelectorAll("[data-commerce-reference-id] button").forEach((button) => {
-        button.addEventListener("click", (event) => {
-          event.stopPropagation();
-          const item = button.closest("[data-commerce-reference-id]");
-          selectedReferenceIds.delete(item?.dataset.commerceReferenceId || "");
-          renderReferences();
-        });
-      });
-    } else {
-      commerceEls.referencePreview.innerHTML = `
-        <strong>⇧</strong>
-        <span>上传一张或多张参考图片，AI 将基于这些图片进行修改</span>
-      `;
-    }
-  }
-  if (selectedRefs.length === 1) {
+  if (selectedRefs.length === 1) {  if (selectedRefs.length === 1) {
     syncReferenceAspectAuto({ announce: true });
   } else {
     referenceAspectAutoValue = "";
@@ -4824,7 +3719,6 @@ function renderState() {
   renderPresetPanel();
   renderPoolUser();
   syncResearchOutputsFromState();
-  renderCommerceState();
   syncSummary();
 }
 
@@ -4967,11 +3861,8 @@ async function performSubmitJob(promptOverride = "") {
     els.submitJob.disabled = true;
     els.submitJob.textContent = "…";
     const activeAgent = agentEnabled && selectedAgent ? selectedAgent : null;
-    const workspace = document.body.classList.contains("commerce-active") ? "commerce" : "studio";
-    const commerceImageMode = workspace === "commerce" && commerceModeValue() === "image";
-    const submittedReferenceIds = workspace === "commerce" && !commerceImageMode
-      ? []
-      : Array.from(selectedReferenceIds).slice(0, MAX_REFERENCE_SELECTION);
+    const workspace = "studio";
+    const submittedReferenceIds = Array.from(selectedReferenceIds).slice(0, MAX_REFERENCE_SELECTION);
     let title = els.title.value.trim();
     if (!activeAgent && titleMatchesIndustryAgent(title)) {
       title = "";
@@ -4999,8 +3890,8 @@ async function performSubmitJob(promptOverride = "") {
         size: requestSize(),
         quality: els.quality.value,
         output_format: els.outputFormat.value,
-        background: workspace === "commerce" ? (commerceEls.background?.value || "auto") : "auto",
-        local_upscale: workspace === "commerce" ? (commerceEls.upscale?.value || "none") : "none",
+        background: "auto",
+        local_upscale: "none",
         count: numbers.count,
         concurrency: numbers.concurrency,
         retry_limit: numbers.retryLimit,
@@ -5008,7 +3899,7 @@ async function performSubmitJob(promptOverride = "") {
         negative: els.negative.value.trim(),
         variants: buildVariants(),
         reference_ids: submittedReferenceIds,
-        edit_mode: workspace === "commerce" ? Boolean(commerceImageMode && submittedReferenceIds.length) : Boolean(els.editMode.checked || submittedReferenceIds.length),
+        edit_mode: Boolean(els.editMode.checked || submittedReferenceIds.length),
       }),
     });
     els.prompt.value = prompt;
@@ -5374,8 +4265,7 @@ async function uploadReferenceFiles(fileList) {
   const files = incoming.filter(isReferenceImageFile);
   if (!files.length) {
     const message = incoming.length ? "请选择图片文件，支持 JPG、PNG、WEBP、AVIF、HEIC" : "没有选择参考图";
-    if (document.body.classList.contains("commerce-active")) setCommerceStatus(message, "error");
-    else alert(message);
+    alert(message);
     return;
   }
   const uploadFiles = files.slice(0, MAX_REFERENCE_SELECTION);
@@ -5387,7 +4277,6 @@ async function uploadReferenceFiles(fileList) {
   }
   const uploaded = [];
   let uploadError = null;
-  if (document.body.classList.contains("commerce-active")) setCommerceStatus(`正在上传参考图 0/${uploadFiles.length}`, "loading");
   if (els.referenceUploadButton) {
     els.referenceUploadButton.disabled = true;
     els.referenceUploadButton.dataset.uploading = "true";
@@ -5396,7 +4285,6 @@ async function uploadReferenceFiles(fileList) {
   try {
     for (let index = 0; index < uploadFiles.length; index += 1) {
       const file = uploadFiles[index];
-      if (document.body.classList.contains("commerce-active")) setCommerceStatus(`正在上传参考图 ${index + 1}/${uploadFiles.length}`, "loading");
       if (els.referenceUploadButton) {
         els.referenceUploadButton.querySelector(".upload-label")?.replaceChildren(document.createTextNode(`${index + 1}/${uploadFiles.length}`));
       }
@@ -5417,12 +4305,10 @@ async function uploadReferenceFiles(fileList) {
     }
   } catch (err) {
     uploadError = err;
-    if (document.body.classList.contains("commerce-active")) setCommerceStatus(err.message || "参考图上传失败", "error");
     alert(err.message || "参考图上传失败");
   } finally {
     if (els.referenceUpload) els.referenceUpload.value = "";
-    if (commerceEls.referenceInput) commerceEls.referenceInput.value = "";
-    if (els.referenceUploadButton) {
+      if (els.referenceUploadButton) {
       els.referenceUploadButton.disabled = false;
       delete els.referenceUploadButton.dataset.uploading;
       els.referenceUploadButton.querySelector(".upload-label")?.replaceChildren(document.createTextNode("参考图"));
@@ -5443,9 +4329,6 @@ async function uploadReferenceFiles(fileList) {
     }
   } catch (err) {
     console.warn("state refresh after reference upload failed", err);
-  }
-  if (uploaded.length && !uploadError && document.body.classList.contains("commerce-active")) {
-    setCommerceStatus(`已上传并选中 ${uploaded.length} 张参考图`, "success");
   }
   if (uploaded.length && files.length > MAX_REFERENCE_SELECTION) {
     showReferenceLimitHint(`已上传并选中前 ${MAX_REFERENCE_SELECTION} 张参考图`);
@@ -7863,314 +6746,6 @@ squareEls.grid?.addEventListener("click", (event) => {
     previewSquareItem(id);
   }
 });
-commerceEls.tabs.forEach((button) => {
-  button.addEventListener("click", () => setCommerceTab(button.dataset.commerceTab));
-});
-commerceEls.chatToggle?.addEventListener("click", () => setCommerceChatOpen(true));
-commerceEls.chatClose?.addEventListener("click", () => setCommerceChatOpen(false));
-commerceEls.analysisCard?.addEventListener("click", (event) => {
-  if (event.target === commerceEls.analysisCard) setCommerceChatOpen(false);
-});
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && document.body.classList.contains("commerce-chat-open")) {
-    setCommerceChatOpen(false);
-  }
-});
-commerceEls.modeChips.forEach((button) => {
-  button.addEventListener("click", () => {
-    setCommerceChip(commerceEls.modeChips, "commerceMode", button.dataset.commerceMode);
-    syncCommerceModeControls({ clearTextReferences: button.dataset.commerceMode !== "image" });
-    syncCommercePrompt({ force: false });
-  });
-});
-commerceEls.sceneChips.forEach((button) => {
-  button.addEventListener("click", () => {
-    if (commerceEls.style) commerceEls.style.value = button.dataset.commerceScene || "";
-    syncCommerceStyleControls();
-    syncCommercePrompt({ force: false });
-  });
-});
-commerceEls.ratioChips.forEach((button) => {
-  button.addEventListener("click", () => {
-    setCommerceChip(commerceEls.ratioChips, "commerceRatio", button.dataset.commerceRatio);
-    if (commerceEls.size) commerceEls.size.value = "auto";
-  });
-});
-[commerceEls.productName, commerceEls.sellingPoints, commerceEls.style].forEach((input) => {
-  input?.addEventListener("input", () => {
-    if (input === commerceEls.style) syncCommerceStyleControls();
-    syncCommercePrompt({ force: false });
-  });
-});
-commerceEls.clearStyle?.addEventListener("click", () => {
-  if (commerceEls.style) commerceEls.style.value = "";
-  syncCommerceStyleControls();
-  syncCommercePrompt({ force: false });
-  commerceEls.style?.focus();
-});
-function openCommerceReferencePicker() {
-  setCommerceChip(commerceEls.modeChips, "commerceMode", "image");
-  syncCommerceModeControls();
-  (commerceEls.referenceInput || els.referenceUpload)?.click();
-}
-
-commerceEls.referenceDrop?.addEventListener("click", () => {
-  openCommerceReferencePicker();
-});
-commerceEls.referenceDrop?.addEventListener("keydown", (event) => {
-  if (event.key !== "Enter" && event.key !== " ") return;
-  event.preventDefault();
-  openCommerceReferencePicker();
-});
-commerceEls.referenceDrop?.addEventListener("dragover", (event) => {
-  event.preventDefault();
-  commerceEls.referenceDrop?.classList.add("drag-over");
-});
-commerceEls.referenceDrop?.addEventListener("dragleave", () => {
-  commerceEls.referenceDrop?.classList.remove("drag-over");
-});
-commerceEls.referenceDrop?.addEventListener("drop", async (event) => {
-  event.preventDefault();
-  commerceEls.referenceDrop?.classList.remove("drag-over");
-  setCommerceChip(commerceEls.modeChips, "commerceMode", "image");
-  syncCommerceModeControls();
-  await uploadReferenceFiles(event.dataTransfer?.files || []);
-});
-commerceEls.prompt?.addEventListener("input", () => {
-  commercePromptTouched = true;
-});
-[commerceEls.apiUrl, commerceEls.apiKey].forEach((input) => {
-  input?.addEventListener("input", scheduleCommerceModelRefresh);
-});
-commerceEls.rememberKey?.addEventListener("change", () => {
-  pushCommerceConnectionToMain();
-});
-commerceEls.model?.addEventListener("change", () => {
-  pushCommerceConnectionToMain();
-  renderAvailableModels();
-});
-commerceEls.templateSelect?.addEventListener("change", () => applyCommerceTemplate(commerceEls.templateSelect.value));
-commerceEls.saveTemplate?.addEventListener("click", saveCommerceTemplateFromForm);
-commerceEls.newTemplate?.addEventListener("click", () => {
-  commerceEditingTemplateId = "";
-  if (commerceEls.templateSelect) commerceEls.templateSelect.value = "";
-  if (commerceEls.templateName) commerceEls.templateName.value = "";
-  if (commerceEls.templateTags) commerceEls.templateTags.value = "";
-  if (commerceEls.saveTemplate) commerceEls.saveTemplate.textContent = "保存模板";
-  if (commerceEls.prompt) {
-    commerceEls.prompt.value = "";
-    commercePromptTouched = false;
-  }
-  commerceEls.templateName?.focus();
-  setCommerceTab("workspace");
-});
-commerceEls.templateSearch?.addEventListener("input", renderCommerceTemplates);
-commerceEls.templateList?.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-commerce-template-action]");
-  if (!button) return;
-  const item = button.closest("[data-commerce-template-id]");
-  const id = item?.dataset.commerceTemplateId || "";
-  if (button.dataset.commerceTemplateAction === "favorite") {
-    const template = commerceTemplates.find((entry) => entry.id === id);
-    if (template) {
-      template.favorite = !template.favorite;
-      template.updated_at = Date.now() / 1000;
-      saveCommerceTemplates();
-      renderCommerceTemplates();
-    }
-    return;
-  }
-  if (button.dataset.commerceTemplateAction === "use") {
-    applyCommerceTemplate(id);
-    setCommerceTab("workspace");
-    return;
-  }
-  if (button.dataset.commerceTemplateAction === "edit") {
-    applyCommerceTemplate(id);
-    setCommerceTab("workspace");
-    commerceEls.templateName?.focus();
-    return;
-  }
-  commerceTemplates = commerceTemplates.filter((template) => template.id !== id);
-  if (commerceEditingTemplateId === id) {
-    commerceEditingTemplateId = "";
-    if (commerceEls.saveTemplate) commerceEls.saveTemplate.textContent = "保存模板";
-  }
-  saveCommerceTemplates();
-  renderCommerceTemplates();
-});
-commerceEls.clearSelection?.addEventListener("click", () => {
-  commercePromptTouched = false;
-  if (commerceEls.productName) commerceEls.productName.value = "";
-  if (commerceEls.sellingPoints) commerceEls.sellingPoints.value = "";
-  if (commerceEls.style) commerceEls.style.value = "";
-  if (commerceEls.prompt) commerceEls.prompt.value = "";
-  if (commerceEls.templateName) commerceEls.templateName.value = "";
-  if (commerceEls.templateTags) commerceEls.templateTags.value = "";
-  commerceEditingTemplateId = "";
-  if (commerceEls.templateSelect) commerceEls.templateSelect.value = "";
-  if (commerceEls.saveTemplate) commerceEls.saveTemplate.textContent = "保存模板";
-  selectedReferenceIds.clear();
-  renderReferences();
-  setCommerceChip(commerceEls.modeChips, "commerceMode", "text");
-  syncCommerceModeControls({ clearTextReferences: true });
-  syncCommerceStyleControls();
-  setCommerceChip(commerceEls.ratioChips, "commerceRatio", "1:1");
-  syncCommercePrompt({ force: true });
-});
-commerceEls.referenceUpload?.addEventListener("click", () => {
-  setCommerceChip(commerceEls.modeChips, "commerceMode", "image");
-  syncCommerceModeControls();
-});
-commerceEls.referenceInput?.addEventListener("change", () => {
-  uploadReferenceFiles(commerceEls.referenceInput.files || []);
-});
-commerceEls.analysisInput?.addEventListener("change", () => {
-  uploadCommerceAnalysisImages(commerceEls.analysisInput.files || []);
-});
-commerceEls.analysisNewChat?.addEventListener("click", resetCommerceAnalysisChat);
-commerceEls.analysisHistory?.addEventListener("click", () => {
-  setCommerceChatOpen(false);
-  setCommerceTab("history");
-});
-commerceEls.analysisPrompts?.addEventListener("click", () => {
-  commerceEls.analysisInputText?.focus();
-});
-commerceEls.analysisPromptButtons.forEach((button) => {
-  button.addEventListener("click", () => applyCommerceAnalysisPrompt(button.dataset.commerceAnalysisPrompt));
-});
-commerceEls.analysisImages?.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-commerce-analysis-remove]");
-  if (!button) return;
-  commerceAnalysisRefs = commerceAnalysisRefs.filter((ref) => ref.id !== button.dataset.commerceAnalysisRemove);
-  saveCommerceAnalysisState();
-  renderCommerceAnalysisRefs();
-  setCommerceAnalysisStatus(commerceAnalysisRefs.length ? `已保留 ${commerceAnalysisRefs.length} 张图片` : "可上传图片后开始对话");
-});
-[commerceEls.textApiUrl, commerceEls.textModel, commerceEls.textApiKey, commerceEls.analysisContext].forEach((input) => {
-  input?.addEventListener("input", saveCommerceAnalysisState);
-});
-commerceEls.textApiUrl?.addEventListener("input", scheduleCommerceTextModelRefresh);
-commerceEls.textApiKey?.addEventListener("input", scheduleCommerceTextModelRefresh);
-commerceEls.textModelSelect?.addEventListener("change", () => {
-  const selected = commerceEls.textModelSelect.value;
-  const manual = selected === "__manual__";
-  commerceEls.textModel.classList.toggle("hidden", !manual);
-  if (manual) {
-    if (verifiedTextModels.includes(commerceEls.textModel.value.trim())) commerceEls.textModel.value = "";
-    commerceEls.textModel.focus();
-  } else if (selected) {
-    commerceEls.textModel.value = selected;
-  }
-  saveCommerceAnalysisState();
-});
-commerceEls.analysisSend?.addEventListener("click", sendCommerceAnalysisMessage);
-commerceEls.analysisInputText?.addEventListener("keydown", (event) => {
-  if (event.key !== "Enter" || event.shiftKey) return;
-  event.preventDefault();
-  sendCommerceAnalysisMessage();
-});
-[commerceEls.generate, commerceEls.generateBottom].forEach((button) => {
-  button?.addEventListener("click", submitCommerceJob);
-});
-[commerceEls.gallery, commerceEls.library].forEach((list) => {
-  list?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-commerce-media-action]");
-    if (!button) return;
-    const card = button.closest("[data-commerce-media-id]");
-    const mediaId = card?.dataset.commerceMediaId || "";
-    const jobId = card?.dataset.commerceJobId || "";
-    const action = button.dataset.commerceMediaAction;
-    if (action === "preview") {
-      previewCommerceMedia(mediaId);
-    } else if (action === "copy") {
-      const media = mediaForWorkspace("commerce").find((item) => item.id === mediaId);
-      navigator.clipboard?.writeText(media?.prompt || "");
-    } else if (action === "retry") {
-      retryJobs([jobId]);
-    } else if (action === "save-template") {
-      saveCommerceTemplateFromMedia(mediaId);
-    } else if (action === "delete") {
-      deleteCommerceMedia(mediaId).catch((err) => alert(err.message));
-    }
-  });
-});
-commerceEls.showAllHistory?.addEventListener("click", () => setCommerceTab("history"));
-commerceEls.archiveCompleted?.addEventListener("click", () => archiveCompletedCommerceJobs().catch((err) => alert(err.message)));
-commerceEls.openGallery?.addEventListener("click", () => setCommerceTab("gallery"));
-commerceEls.resultPageButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const action = button.dataset.commerceResultPage || "";
-    if (action === "prev") commerceResultPage = Math.max(1, commerceResultPage - 1);
-    if (action === "next") commerceResultPage += 1;
-    renderCommerceGallery();
-  });
-});
-commerceEls.pageButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const action = button.dataset.commercePage || "";
-    if (action === "gallery-prev") commerceGalleryPage = Math.max(1, commerceGalleryPage - 1);
-    if (action === "gallery-next") commerceGalleryPage += 1;
-    if (action === "history-prev") commerceHistoryPage = Math.max(1, commerceHistoryPage - 1);
-    if (action === "history-next") commerceHistoryPage += 1;
-    renderCommerceState();
-  });
-});
-commerceEls.historyFilters.forEach((button) => {
-  button.addEventListener("click", () => {
-    commerceHistoryStatus = button.dataset.commerceStatus || "all";
-    commerceHistoryPage = 1;
-    commerceEls.historyFilters.forEach((item) => item.classList.toggle("active", item === button));
-    renderCommerceTasks();
-  });
-});
-commerceEls.currentTask?.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-commerce-history-action]");
-  if (!button) return;
-  const item = button.closest("[data-commerce-job-id]");
-  const jobId = item?.dataset.commerceJobId || "";
-  if (button.dataset.commerceHistoryAction === "retry") {
-    retryJobs([jobId]);
-  } else if (button.dataset.commerceHistoryAction === "archive") {
-    archiveCommerceJob(jobId, true).catch((err) => alert(err.message));
-  } else if (button.dataset.commerceHistoryAction === "delete") {
-    deleteCommerceJob(jobId).catch((err) => alert(err.message));
-  }
-});
-commerceEls.recentTasks?.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-commerce-history-action]");
-  if (!button) return;
-  const item = button.closest("[data-commerce-job-id]");
-  const jobId = item?.dataset.commerceJobId || "";
-  if (button.dataset.commerceHistoryAction === "select") {
-    commerceSelectedJobId = jobId;
-    renderCommerceTasks();
-  } else if (button.dataset.commerceHistoryAction === "retry") {
-    retryJobs([jobId]);
-  } else if (button.dataset.commerceHistoryAction === "archive") {
-    archiveCommerceJob(jobId, true).catch((err) => alert(err.message));
-  } else if (button.dataset.commerceHistoryAction === "delete") {
-    deleteCommerceJob(jobId).catch((err) => alert(err.message));
-  }
-});
-commerceEls.historyList?.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-commerce-history-action]");
-  if (!button) return;
-  const item = button.closest("[data-commerce-job-id]");
-  const jobId = item?.dataset.commerceJobId || "";
-  if (button.dataset.commerceHistoryAction === "select") {
-    commerceSelectedJobId = jobId;
-    setCommerceTab("workspace");
-  } else if (button.dataset.commerceHistoryAction === "retry") {
-    retryJobs([jobId]);
-  } else if (button.dataset.commerceHistoryAction === "archive") {
-    archiveCommerceJob(jobId, true).catch((err) => alert(err.message));
-  } else if (button.dataset.commerceHistoryAction === "restore") {
-    archiveCommerceJob(jobId, false).catch((err) => alert(err.message));
-  } else if (button.dataset.commerceHistoryAction === "delete") {
-    deleteCommerceJob(jobId).catch((err) => alert(err.message));
-  }
-});
 els.closeMediaPreview?.addEventListener("click", () => setMediaPreview(false));
 els.mediaPreviewModal?.addEventListener("click", (event) => {
   if (event.target === els.mediaPreviewModal) setMediaPreview(false);
@@ -8467,13 +7042,6 @@ clearLegacyDefaultNegative();
 applyModelConfigToUi();
 setConnectionMode(localStorage.getItem(CONNECTION_MODE_STORAGE_KEY) || "custom");
 replaceTextModelOptions([]);
-loadCommerceTemplates();
-syncCommerceFromMain();
-syncCommercePrompt({ force: true });
-loadCommerceAnalysisState();
-if ((commerceEls.textApiUrl?.value || "").trim() && (commerceEls.textApiKey?.value || "").trim()) {
-  scheduleCommerceTextModelRefresh(120);
-}
 if (els.count && (!els.count.value || els.count.value === "4")) els.count.value = "1";
 syncShellToggles();
 loadCustomIndustryAgents();

@@ -1,6 +1,4 @@
 import base64
-import socket
-import gzip
 import hashlib
 import ipaddress
 import json
@@ -20,7 +18,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import requests
-from flask import Flask, Response, jsonify, redirect, render_template, request, send_file, send_from_directory, session, stream_with_context, url_for
+from flask import Flask, jsonify, render_template, request, send_from_directory, session, url_for
 from PIL import Image, ImageOps
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -36,10 +34,6 @@ APP_PASSWORD = os.getenv("APP_PASSWORD", "root")
 DEFAULT_CUSTOM_API_URL = os.getenv("DEFAULT_CUSTOM_API_URL", "https://yynewapi.yangyangnj.top/v1").rstrip("/")
 NEW_API_BASE = os.getenv("NEW_API_BASE", DEFAULT_CUSTOM_API_URL).rstrip("/")
 NEW_API_TOKEN = os.getenv("NEW_API_TOKEN", "")
-PLAYGROUND_API_TARGETS = {
-    "https://yynewapi.yangyangnj.top/v1": "NewAPI",
-    "https://yysubapi.yangyangnj.top/v1": "SubAPI",
-}
 
 
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gpt-image-2")
@@ -72,8 +66,6 @@ ADMIN_SETTINGS_FILE = DATA_DIR / "admin_settings.json"
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "change-this-secret")
 
-GZIP_STATIC_SUFFIXES = {".css", ".js", ".json", ".html", ".svg", ".txt", ".webmanifest", ".wasm"}
-
 
 def asset_version(filename: str) -> str:
     try:
@@ -86,89 +78,6 @@ def asset_version(filename: str) -> str:
 @app.context_processor
 def inject_asset_helpers():
     return {"asset_version": asset_version}
-
-
-def ensure_gzip_static_files(root: Path) -> None:
-    if not root.exists():
-        return
-    for path in root.rglob("*"):
-        if not path.is_file() or path.suffix.lower() not in GZIP_STATIC_SUFFIXES:
-            continue
-        gzip_path = path.with_name(f"{path.name}.gz")
-        try:
-            if gzip_path.exists() and gzip_path.stat().st_mtime >= path.stat().st_mtime:
-                continue
-            with path.open("rb") as src, gzip_path.open("wb") as raw_dst:
-                with gzip.GzipFile(fileobj=raw_dst, mode="wb", compresslevel=9, mtime=0) as dst:
-                    dst.write(src.read())
-        except OSError:
-            continue
-
-
-def client_accepts_gzip() -> bool:
-    return "gzip" in request.headers.get("Accept-Encoding", "").lower()
-
-
-def send_static_maybe_gzip(directory: Path, filename: str, max_age: int | None = None):
-    target = directory / filename
-    gzip_target = target.with_name(f"{target.name}.gz")
-    if client_accepts_gzip() and gzip_target.is_file():
-        response = send_file(gzip_target, mimetype=mimetypes.guess_type(target.name)[0])
-        response.headers["Content-Encoding"] = "gzip"
-        response.headers["Vary"] = "Accept-Encoding"
-        if max_age is not None:
-            response.headers["Cache-Control"] = f"public, max-age={max_age}, immutable"
-        else:
-            response.headers["Cache-Control"] = "no-cache"
-        return response
-    response = send_from_directory(directory, filename, max_age=max_age)
-    if max_age is None:
-        response.headers["Cache-Control"] = "no-cache"
-    return response
-
-
-def normalize_playground_api_url(value: str | None) -> str:
-    requested = str(value or "").strip().rstrip("/")
-    if not requested:
-        return ""
-    if requested in PLAYGROUND_API_TARGETS:
-        return requested
-    parsed = urlsplit(requested)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError("API Base URL 必须是 http/https 地址")
-    host = parsed.hostname or ""
-    if host.lower() in {"localhost", "127.0.0.1", "::1"} or host.lower().endswith(".local"):
-        raise ValueError("API Base URL 不允许指向本机或内网地址")
-    try:
-        ip = ipaddress.ip_address(host)
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
-            raise ValueError("API Base URL 不允许指向本机或内网地址")
-    except ValueError as exc:
-        if "不允许" in str(exc):
-            raise
-        try:
-            for info in socket.getaddrinfo(host, None):
-                ip = ipaddress.ip_address(info[4][0])
-                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
-                    raise ValueError("API Base URL 不允许指向本机或内网地址")
-        except socket.gaierror:
-            raise ValueError("API Base URL 域名无法解析")
-    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path.rstrip("/"), "", ""))
-
-
-def resolve_playground_api_target(value: str | None) -> str:
-    requested = str(value or "").strip().rstrip("/")
-    if not requested:
-        return DEFAULT_CUSTOM_API_URL
-    return normalize_playground_api_url(requested)
-
-
-def resolve_playground_api_purpose(value: str | None) -> str:
-    purpose = str(value or "").strip().lower()
-    return purpose if purpose in {"text", "image", "video"} else "image"
-
-
-ensure_gzip_static_files(Path(app.static_folder or "") / "playground")
 
 
 @app.after_request
@@ -3341,85 +3250,6 @@ def call_prompt_analysis_text_model(api_url: str, api_key: str, model: str, payl
     return normalize_prompt_analysis_plan(extract_json_object(content), payload)
 
 
-def extract_chat_text_content(message: dict) -> str:
-    content = message.get("content") if isinstance(message, dict) else ""
-    if isinstance(content, str):
-        return content.strip()
-    if isinstance(content, list):
-        parts = []
-        for item in content:
-            if isinstance(item, dict):
-                value = item.get("text") or item.get("content") or ""
-                if value:
-                    parts.append(str(value))
-            elif item:
-                parts.append(str(item))
-        return "\n".join(parts).strip()
-    return str(content or "").strip()
-
-
-def build_commerce_analysis_messages(payload: dict, references: list[dict]) -> list[dict]:
-    prompt = str(payload.get("message") or "").strip()
-    history = payload.get("history") if isinstance(payload.get("history"), list) else []
-    product_context = str(payload.get("product_context") or "").strip()
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                "你是简洁生图台里的通用图文对话助手。必须使用简体中文回答。"
-                "根据用户的问题、补充说明和上传图片正常对话，回答要直接、具体、可执行。"
-                "如果用户需要生图提示词，就输出可直接复制的提示词，并说明主体、构图、背景、光线、材质、风格、画面比例和需要避免的内容。"
-                "如果用户只是提问、改文案、看图、总结、翻译或分析图片，就按问题本身回答，不要强制套电商、淘宝主图或产品分析结构。"
-                "不要编造图片里不存在的品牌、文字、功效认证或参数。无法确认的信息要明确说不确定。"
-            ),
-        }
-    ]
-    if product_context:
-        messages.append({"role": "user", "content": f"补充说明：{product_context}"})
-    for item in history[-10:]:
-        if not isinstance(item, dict):
-            continue
-        role = str(item.get("role") or "").strip()
-        if role not in {"user", "assistant"}:
-            continue
-        content = str(item.get("content") or "").strip()
-        if content:
-            messages.append({"role": role, "content": content[:3000]})
-    content_parts = [{"type": "text", "text": prompt or "请根据这些图片进行正常图文对话。"}]
-    for ref in references[:4]:
-        data_url = reference_to_data_url(ref)
-        if data_url:
-            content_parts.append({"type": "image_url", "image_url": {"url": data_url}})
-    messages.append({"role": "user", "content": content_parts if len(content_parts) > 1 else content_parts[0]["text"]})
-    return messages
-
-
-def call_commerce_analysis_text_model(api_url: str, api_key: str, model: str, payload: dict, references: list[dict]) -> str:
-    api_base = normalize_api_base(api_url)
-    headers = {"Content-Type": "application/json"}
-    auth = bearer_token(api_key)
-    if auth:
-        headers["Authorization"] = auth
-    body = {
-        "model": model,
-        "messages": build_commerce_analysis_messages(payload, references),
-        "temperature": 0.45,
-    }
-    endpoint = urljoin(api_base + "/", "v1/chat/completions")
-    resp = requests.post(endpoint, headers=headers, json=body, timeout=AGENT_TEXT_TIMEOUT)
-    if resp.status_code >= 400:
-        raise RuntimeError(redact_secrets(f"New API {resp.status_code}: {resp.text[:800].strip()}"))
-    data = resp.json()
-    choices = data.get("choices") or []
-    if not choices:
-        raise RuntimeError("文本模型没有返回 choices")
-    message = choices[0].get("message") if isinstance(choices[0], dict) else {}
-    content = extract_chat_text_content(message)
-    if not content:
-        raise RuntimeError("文本模型没有返回内容")
-    return content[:12000]
-
-
 def call_pool_text_model_once(
     model: str,
     messages: list[dict],
@@ -4708,88 +4538,6 @@ def admin():
     )
 
 
-@app.get("/playground")
-def playground_redirect():
-    return redirect(url_for("playground"))
-
-
-@app.get("/playground/")
-@app.get("/playground/<path:filename>")
-def playground(filename: str = "index.html"):
-    playground_dir = Path(app.static_folder or "") / "playground"
-    target = playground_dir / filename
-    if target.is_file():
-        max_age = 604800 if "/assets/" in filename else None
-        return send_static_maybe_gzip(playground_dir, filename, max_age=max_age)
-    return send_static_maybe_gzip(playground_dir, "index.html")
-
-
-@app.route("/api-proxy/", defaults={"path": ""}, methods=["GET", "POST", "OPTIONS"])
-@app.route("/api-proxy/<path:path>", methods=["GET", "POST", "OPTIONS"])
-def playground_api_proxy(path: str):
-    if request.method == "OPTIONS":
-        return ("", 204)
-
-    path = str(path or "").strip().lstrip("/")
-    if not path or "://" in path or path.startswith("../") or "/../" in path:
-        return jsonify({"error": "Forbidden: API proxy path required"}), 403
-
-    try:
-        target_base_url = resolve_playground_api_target(
-            request.headers.get("X-YY-API-Target") or request.args.get("api_target")
-        )
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
-    target_url = urljoin(f"{target_base_url}/", path)
-    purpose = resolve_playground_api_purpose(
-        request.headers.get("X-YY-API-Purpose") or request.args.get("api_purpose")
-    )
-    credential_kind = purpose if purpose in {"text", "image", "video"} else "image"
-    _api_url, api_key, _route_kind = custom_model_route_credentials(read_model_config(), credential_kind, include_legacy=True)
-    headers = {
-        key: value
-        for key, value in request.headers.items()
-        if key.lower() not in {"host", "content-length", "x-yy-api-target", "x-yy-api-purpose"}
-    }
-    auth_header = str(headers.get("Authorization") or headers.get("authorization") or "").strip()
-    if api_key and (not auth_header or auth_header.lower() == "bearer"):
-        headers["Authorization"] = f"Bearer {api_key}"
-    try:
-        resp = requests.request(
-            request.method,
-            target_url,
-            headers=headers,
-            data=request.get_data(),
-            params=request.args,
-            timeout=REQUEST_TIMEOUT,
-            stream=True,
-        )
-    except requests.RequestException as exc:
-        return jsonify({"error": str(exc)}), 502
-
-    excluded_headers = {"content-encoding", "content-length", "transfer-encoding", "connection"}
-    response_headers = [
-        (key, value)
-        for key, value in resp.headers.items()
-        if key.lower() not in excluded_headers
-    ]
-    content_type = resp.headers.get("Content-Type", "")
-    if "text/event-stream" in content_type.lower():
-        def generate():
-            try:
-                for chunk in resp.iter_content(chunk_size=1024):
-                    if chunk:
-                        yield chunk
-            finally:
-                resp.close()
-
-        response = Response(stream_with_context(generate()), status=resp.status_code, headers=response_headers)
-        response.headers["X-Accel-Buffering"] = "no"
-        response.headers["Cache-Control"] = "no-cache"
-        return response
-    return (resp.content, resp.status_code, response_headers)
-
-
 @app.get("/media/<path:filename>")
 def media_file(filename):
     return send_from_directory(MEDIA_DIR, filename)
@@ -5006,63 +4754,6 @@ def models():
         return jsonify({"error": "模型读取失败", "detail": redact_secrets(str(exc))}), 502
 
 
-@app.post("/api/playground/models")
-def playground_models():
-    payload = request.get_json(silent=True) or {}
-    api_key = str(payload.get("api_key") or "").strip()
-    model_kind = str(payload.get("model_kind") or "image").strip()
-    if model_kind not in {"image", "text", "video", "both"}:
-        model_kind = "image"
-    api_url = str(payload.get("api_url") or "").strip()
-    try:
-        if api_url:
-            api_url = normalize_playground_api_url(api_url)
-        else:
-            api_url = resolve_playground_api_target(
-                request.headers.get("X-YY-API-Target") or payload.get("api_target")
-            )
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
-    try:
-        if not api_key and model_kind in {"image", "text", "video"}:
-            api_url, api_key, _route_kind = custom_model_route_credentials(read_model_config(), model_kind, include_legacy=True)
-        if model_kind == "both":
-            image_list, image_url, image_route = fetch_custom_models_by_kind("image", api_url, api_key)
-            text_list, text_url, text_route = fetch_custom_models_by_kind("text", api_url, api_key)
-            video_list, video_url, video_route = fetch_custom_models_by_kind("video", api_url, api_key)
-            image_models, _image_text_models, image_video_models = split_model_ids(image_list)
-            _text_image_models, text_models, text_video_models = split_model_ids(text_list)
-            _video_image_models, _video_text_models, video_models = split_model_ids(video_list)
-            return jsonify({
-                "ok": True,
-                "models": sorted(set(image_list + text_list + video_list)),
-                "image_models": image_models,
-                "text_models": text_models,
-                "video_models": sorted(set(video_models + image_video_models + text_video_models)),
-                "api_url": image_url,
-                "text_api_url": text_url,
-                "video_api_url": video_url,
-                "route_kind": image_route,
-                "text_route_kind": text_route,
-                "video_route_kind": video_route,
-            })
-        model_list, resolved_url, route_kind = fetch_custom_models_by_kind(model_kind, api_url, api_key)
-        image_models, text_models, video_models = split_model_ids(model_list)
-        return jsonify({
-            "ok": True,
-            "models": model_list,
-            "image_models": image_models,
-            "text_models": text_models,
-            "video_models": video_models,
-            "api_url": resolved_url,
-            "route_kind": route_kind,
-        })
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
-    except Exception as exc:
-        return jsonify({"error": "模型读取失败", "detail": redact_secrets(str(exc))}), 502
-
-
 @app.get("/api/debug/custom-api")
 def debug_custom_api():
     auth = login_required_json()
@@ -5134,48 +4825,6 @@ def agent_plan():
         return jsonify({"ok": True, "plan": plan, "model": model})
     except Exception as exc:
         return jsonify({"ok": False, "error": "Agent 文本模型生成失败", "detail": redact_secrets(str(exc))}), 200
-
-
-@app.post("/api/commerce-analysis-chat")
-def commerce_analysis_chat():
-    auth = login_required_json()
-    if auth:
-        return auth
-    payload = request.get_json(silent=True) or {}
-    message = str(payload.get("message") or "").strip()
-    reference_ids = [str(item).strip() for item in payload.get("reference_ids", []) if str(item).strip()][:4]
-    if not message and not reference_ids:
-        return jsonify({"error": "请先输入问题或上传图片"}), 400
-    model = str(payload.get("text_model") or DEFAULT_TEXT_MODEL).strip()
-    if not model:
-        return jsonify({"error": "请先填写文本模型"}), 400
-    api_url = str(payload.get("text_api_url") or payload.get("api_url") or "").strip()
-    api_key = str(payload.get("text_api_key") or payload.get("api_key") or "").strip()
-    requested_api_key = api_key
-    try:
-        api_url, api_key, used_debug_key, _route_kind = resolve_custom_api_credentials(api_url, api_key, "text")
-        if not api_url:
-            return jsonify({"error": "请先填写文本模型 API URL"}), 400
-        if not api_key:
-            return jsonify({"error": "请先填写文本模型 API Key"}), 400
-        client_id = current_client_id()
-        allowed_refs = {str(item.get("id") or ""): item for item in client_references(client_id)}
-        references = [allowed_refs[item] for item in reference_ids if item in allowed_refs][:4]
-        if used_debug_key and not requested_api_key:
-            route_url, route_keys, _route_kind = custom_model_route_key_pool(read_model_config(), "text", include_legacy=True)
-            api_url = route_url or api_url
-            last_error = ""
-            for key in route_keys or [api_key]:
-                try:
-                    reply = call_commerce_analysis_text_model(api_url, key, model, payload, references)
-                    return jsonify({"ok": True, "reply": reply, "model": model})
-                except Exception as exc:
-                    last_error = str(exc)
-            raise RuntimeError(last_error or "文本模型调用失败")
-        reply = call_commerce_analysis_text_model(api_url, api_key, model, payload, references)
-        return jsonify({"ok": True, "reply": reply, "model": model})
-    except Exception as exc:
-        return jsonify({"ok": False, "error": "AI 对话失败", "detail": redact_secrets(str(exc))}), 200
 
 
 @app.post("/api/agent-mode-plan")
