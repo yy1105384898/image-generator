@@ -3660,7 +3660,7 @@ function renderReferences() {
     els.referenceList.append(btn);
   }
   const selectedRefs = selectedReferenceItems();
-  if (selectedRefs.length === 1) {  if (selectedRefs.length === 1) {
+  if (selectedRefs.length === 1) {
     syncReferenceAspectAuto({ announce: true });
   } else {
     referenceAspectAutoValue = "";
